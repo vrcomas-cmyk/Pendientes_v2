@@ -1,0 +1,89 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 3.9%;
+    --primary: 174 100% 29%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 96.1%;
+    --secondary-foreground: 0 0% 9%;
+    --muted: 0 0% 96.1%;
+    --muted-foreground: 0 0% 45.1%;
+    --accent: 0 0% 96.1%;
+    --accent-foreground: 0 0% 9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 89.8%;
+    --input: 0 0% 89.8%;
+    --ring: 174 100% 29%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 0 0% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 174 65% 45%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 14.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 14.9%;
+    --muted-foreground: 0 0% 63.9%;
+    --accent: 0 0% 14.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 14.9%;
+    --input: 0 0% 14.9%;
+    --ring: 0 0% 83.1%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* ===== Pendientes Pro ===== */
+html, body, #root { height: 100%; }
+body { font-family: "Avenir Next", "Segoe UI", system-ui, -apple-system, sans-serif; }
+
+.scroll-thin::-webkit-scrollbar { width: 7px; height: 7px; }
+.scroll-thin::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 4px; }
+
+/* Editor de notas */
+.nota-editor { line-height: 1.7; }
+.nota-editor:empty:before { content: attr(data-placeholder); color: hsl(var(--muted-foreground)); pointer-events: none; }
+.nota-editor:focus { outline: none; }
+.nota-editor img { max-width: 100%; border-radius: 8px; margin: 6px 0; box-shadow: 0 1px 4px rgba(0,0,0,.15); }
+.nota-editor table { border-collapse: collapse; margin: 6px 0; font-size: 0.85em; }
+.nota-editor td, .nota-editor th { border: 1px solid hsl(var(--border)); padding: 4px 8px; }
+
+/* Chip de pendiente dentro de la nota */
+.pchip {
+  display: inline-flex; align-items: center; gap: 7px; padding: 3px 10px 3px 7px; margin: 2px 2px;
+  border-radius: 8px; background: hsl(174 100% 29% / 0.08); border: 1px solid hsl(174 100% 29% / 0.35);
+  font-size: 13px; cursor: pointer; user-select: none; white-space: normal; vertical-align: middle;
+  transition: background .15s;
+}
+.pchip:hover { background: hsl(174 100% 29% / 0.16); }
+.pchip.done { background: hsl(150 60% 45% / 0.10); border-color: hsl(150 60% 40% / 0.4); }
+.pchip.done .pchip-t { text-decoration: line-through; opacity: .55; }
+.pchip.del { background: hsl(0 0% 60% / 0.12); border-color: hsl(0 0% 60% / 0.4); text-decoration: line-through; opacity: .6; cursor: default; }
+.pchip-check { width: 15px; height: 15px; accent-color: #009688; cursor: pointer; flex-shrink: 0; }
+.pchip-resp { font-size: 10px; color: hsl(var(--muted-foreground)); }
+.linea-completada { text-decoration: line-through; opacity: .5; }
