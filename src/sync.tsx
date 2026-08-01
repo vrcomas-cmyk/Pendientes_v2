@@ -83,7 +83,12 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   const claveLast = (uid: string) => 'pnp_lastsync_' + uid
 
   const cargarLast = (uid: string) => {
-    try { last.current = JSON.parse(localStorage.getItem(claveLast(uid)) || '') || vacio() } catch { last.current = vacio() }
+    // `{ ...vacio(), ...guardado }` migra cuentas que sincronizaron antes de que existiera alguna
+    // colección nueva (ej. `proyectos`): sin este merge, esa clave queda `undefined` y el resto del
+    // código revienta al hacer `Object.keys(last.current.proyectos)`, cortando la sincronización a
+    // medias — un borrado se aplica local pero nunca termina de subirse a la nube.
+    try { last.current = { ...vacio(), ...JSON.parse(localStorage.getItem(claveLast(uid)) || '{}') } }
+    catch { last.current = vacio() }
   }
   const guardarLast = () => { if (userId) { try { localStorage.setItem(claveLast(userId), JSON.stringify(last.current)) } catch { /* noop */ } } }
 
