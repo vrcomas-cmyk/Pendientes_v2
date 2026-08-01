@@ -77,6 +77,13 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   const ausenciaPr = useRef<Map<string, number>>(new Map())
   const pushTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const rtTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  // Si este dispositivo/navegador tiene el almacenamiento local vacío (perfil nuevo, caché
+  // borrada), `store.tsx` siembra 2 tareas de ejemplo antes de que la primera descarga (pull)
+  // alcance a traer los datos reales de la nube. Sin esta bandera, el efecto de "subir cambios"
+  // podía disparar con esos datos de ejemplo ANTES del primer pull y subirlos como pendientes
+  // nuevos — duplicando la semilla en la nube cada vez que alguien abre la app desde un
+  // dispositivo/perfil sin datos locales. Se activa una sola vez, al terminar el primer pull.
+  const primerPullListo = useRef(false)
 
   const userId = session?.user?.id || null
   const email = session?.user?.email || null
@@ -110,7 +117,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 
   /* ---- subir cambios locales (debounce) ---- */
   useEffect(() => {
-    if (!session) return
+    if (!session || !primerPullListo.current) return
     recalcularPendientes()
     clearTimeout(pushTimer.current)
     pushTimer.current = setTimeout(() => { sincronizar() }, 1000)
@@ -186,11 +193,18 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     const ahora = Date.now()
     try {
       if (dirtyP.length) { const { error } = await sb.from('pnp_pendientes').upsert(dirtyP.map(p => ({ id: p.id, user_id: userId, data: p, updated_at: p.modificado }))); if (error) throw error; dirtyP.forEach(p => { L.pendientes[p.id] = p.modificado; subidoReciente.current.set(p.id, ahora) }) }
-      if (delP.length) { const { error } = await sb.from('pnp_pendientes').delete().in('id', delP); if (error) throw error; delP.forEach(id => { delete L.pendientes[id]; subidoReciente.current.delete(id) }) }
+      // OJO: no se hace `delete L.pendientes[id]` aquí aunque el DELETE haya sido exitoso. Supabase
+      // puede tener un breve retraso de lectura-después-de-escritura: un pull() disparado segundos
+      // después (por ejemplo por el propio evento realtime de este borrado) a veces todavía ve la
+      // fila. Si ya hubiéramos olvidado el id aquí, ese pull() lo trataría como "alta remota nueva"
+      // y lo resucitaría. Dejar el id en `L.pendientes` mantiene `conocido = true` en reconciliar(),
+      // así que una lectura fantasma sigue tratándose como "borrado pendiente de confirmar" — el
+      // propio pull() lo limpia solo de `L.pendientes` en cuanto la nube confirme que ya no existe.
+      if (delP.length) { const { error } = await sb.from('pnp_pendientes').delete().in('id', delP); if (error) throw error; delP.forEach(id => { subidoReciente.current.delete(id) }) }
       if (dirtyN.length) { const { error } = await sb.from('pnp_notas').upsert(dirtyN.map(n => ({ id: n.id, user_id: userId, data: n, updated_at: n.modificado }))); if (error) throw error; dirtyN.forEach(n => { L.notas[n.id] = n.modificado; subidoReciente.current.set(n.id, ahora) }) }
-      if (delN.length) { const { error } = await sb.from('pnp_notas').delete().in('id', delN); if (error) throw error; delN.forEach(id => { delete L.notas[id]; subidoReciente.current.delete(id) }) }
+      if (delN.length) { const { error } = await sb.from('pnp_notas').delete().in('id', delN); if (error) throw error; delN.forEach(id => { subidoReciente.current.delete(id) }) }
       if (dirtyPr.length) { const { error } = await sb.from('pnp_proyectos').upsert(dirtyPr.map(p => ({ id: p.id, user_id: userId, data: p, updated_at: p.modificado }))); if (error) throw error; dirtyPr.forEach(p => { L.proyectos[p.id] = p.modificado; subidoReciente.current.set(p.id, ahora) }) }
-      if (delPr.length) { const { error } = await sb.from('pnp_proyectos').delete().in('id', delPr); if (error) throw error; delPr.forEach(id => { delete L.proyectos[id]; subidoReciente.current.delete(id) }) }
+      if (delPr.length) { const { error } = await sb.from('pnp_proyectos').delete().in('id', delPr); if (error) throw error; delPr.forEach(id => { subidoReciente.current.delete(id) }) }
       guardarLast()
       silenciar.current = Date.now() + 2500
       setEstado('sincronizado')
@@ -212,6 +226,9 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         sb.from('pnp_proyectos').select('data'),
       ])
       if (ep || en || epr) throw (ep || en || epr)
+      // A partir de aquí ya tenemos el estado real de la nube: recién ahora es seguro dejar que
+      // el efecto de "subir cambios" empiece a operar (ver comentario en `primerPullListo`).
+      primerPullListo.current = true
       const remoteP = (rp || []).map(r => (r as { data: Pendiente }).data)
       const remoteN = (rn || []).map(r => (r as { data: Nota }).data)
       const remotePr = (rpr || []).map(r => (r as { data: Proyecto }).data)
