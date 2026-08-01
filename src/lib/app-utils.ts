@@ -1,3 +1,4 @@
+import { toast } from 'sonner'
 import type { Pendiente, Prioridad } from '@/types'
 
 export function uid(): string {
@@ -57,18 +58,100 @@ export function fechaPorPrioridad(prioridad: Prioridad): string {
   return fechaRelativa(prioridad === 'Alta' ? 1 : prioridad === 'Baja' ? 7 : 3)
 }
 
+function isoLocal(d: Date): string {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0')
+}
+/** Fecha (ISO local) sumando `dias` a hoy. */
+export function isoMasDias(dias: number): string {
+  const d = new Date(); d.setDate(d.getDate() + dias); return isoLocal(d)
+}
+/** Próximo sábado (fin de semana) en ISO local. */
+export function isoProximoFinDeSemana(): string {
+  const d = new Date(); const diff = (6 - d.getDay() + 7) % 7 || 7; d.setDate(d.getDate() + diff); return isoLocal(d)
+}
+
 export interface LineaParseada {
   titulo: string
   descripcion: string
   responsable: string
   prioridad?: Prioridad
   fechaLimite?: string
+  repetir?: string
 }
 
-/** «- Título: descripción @Resp1 @Resp2 !alta >mañana» → campos del pendiente */
+const NOMBRES_DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado']
+const UNIDAD_RE = /^(d(?:ias?)?|s(?:em(?:anas?)?)?|m(?:es(?:es)?)?)$/i
+function normalizarUnidad(u: string): 'd' | 's' | 'm' {
+  const c = u.toLowerCase()[0]
+  return c === 's' || c === 'm' ? c : 'd'
+}
+const RE_REPETICION_CANTIDAD = /\*\s*cada(!)?\s*(\d+)\s*(d(?:ias?)?|s(?:em(?:anas?)?)?|m(?:es(?:es)?)?)\b/i
+const RE_REPETICION_DIAS = /\*\s*cada(!)?\s*((?:lunes|martes|miércoles|miercoles|jueves|viernes|sábado|sabado|domingo)(?:\s*(?:,|y)\s*(?:lunes|martes|miércoles|miercoles|jueves|viernes|sábado|sabado|domingo))*)\b/i
+
+/** Extrae `*cada 3d`, `*cada! 7d`, `*cada 2 semanas` o `*cada lunes y jueves` → regla normalizada ('7d', '!7d', 'w:1,4') */
+export function parsearRepeticion(texto: string): { regla?: string; resto: string } {
+  let resto = texto
+  let m = resto.match(RE_REPETICION_CANTIDAD)
+  if (m && UNIDAD_RE.test(m[3])) {
+    const desde = m[1] ? '!' : ''
+    resto = resto.replace(m[0], '')
+    return { regla: `${desde}${m[2]}${normalizarUnidad(m[3])}`, resto }
+  }
+  m = resto.match(RE_REPETICION_DIAS)
+  if (m) {
+    const desde = m[1] ? '!' : ''
+    const dias = [...new Set(m[2].split(/\s*(?:,|y)\s*/).map(d => NOMBRES_DIAS.indexOf(d.toLowerCase().replace('miercoles', 'miércoles').replace('sabado', 'sábado'))))].filter(d => d >= 0).sort()
+    resto = resto.replace(m[0], '')
+    if (dias.length) return { regla: `${desde}w:${dias.join(',')}`, resto }
+  }
+  return { resto }
+}
+
+/** Texto legible de una regla de recurrencia: "cada lunes", "cada 2 semanas (desde que se completa)" */
+export function describirRepeticion(regla: string): string {
+  const desde = regla.startsWith('!')
+  const cuerpo = desde ? regla.slice(1) : regla
+  let texto: string
+  if (cuerpo.startsWith('w:')) {
+    const dias = cuerpo.slice(2).split(',').map(Number)
+    texto = 'cada ' + dias.map(d => NOMBRES_DIAS[d]).join(' y ')
+  } else {
+    const n = parseInt(cuerpo, 10)
+    const unidad = cuerpo.slice(String(n).length)
+    if (unidad === 'd' && n === 1) texto = 'cada día'
+    else {
+      const nombre = unidad === 's' ? (n === 1 ? 'semana' : 'semanas') : unidad === 'm' ? (n === 1 ? 'mes' : 'meses') : (n === 1 ? 'día' : 'días')
+      texto = `cada ${n} ${nombre}`
+    }
+  }
+  return desde ? texto + ' (desde que se completa)' : texto
+}
+
+/** Siguiente fecha ISO local para una regla de recurrencia, contada a partir de `base` (ISO). */
+export function siguienteFecha(regla: string, base: string): string {
+  const cuerpo = regla.startsWith('!') ? regla.slice(1) : regla
+  const baseISO = base || hoyISO()
+  if (cuerpo.startsWith('w:')) {
+    const dias = cuerpo.slice(2).split(',').map(Number).filter(n => !Number.isNaN(n))
+    const d = new Date(baseISO + 'T00:00')
+    for (let i = 1; i <= 7; i++) {
+      const nd = new Date(d); nd.setDate(nd.getDate() + i)
+      if (!dias.length || dias.includes(nd.getDay())) return isoLocal(nd)
+    }
+    return isoLocal(d)
+  }
+  const n = parseInt(cuerpo, 10) || 1
+  const unidad = cuerpo.slice(String(n).length)
+  const dias = unidad === 's' ? n * 7 : unidad === 'm' ? n * 30 : n
+  const d = new Date(baseISO + 'T00:00'); d.setDate(d.getDate() + dias)
+  return isoLocal(d)
+}
+
+/** «- Título: descripción @Resp1 @Resp2 !alta >mañana *cada lunes» → campos del pendiente */
 export function parsearLinea(raw: string): LineaParseada | null {
   let t = String(raw).trim().replace(/^\s*[-*+•]\s*/, '').replace(/^\[[ xX]\]\s*/, '').trim()
   if (!t) return null
+  const rep = parsearRepeticion(t); t = rep.resto
   let prioridad: Prioridad | undefined
   t = t.replace(/!(alta|media|baja)\b/i, (_m, p: string) => { prioridad = (p[0].toUpperCase() + p.slice(1).toLowerCase()) as Prioridad; return '' })
   const resps: string[] = []
@@ -79,7 +162,7 @@ export function parsearLinea(raw: string): LineaParseada | null {
   let titulo = t, descripcion = ''
   if (idx > 0) { titulo = t.slice(0, idx).trim(); descripcion = t.slice(idx + 1).trim() }
   if (!titulo) return null
-  return { titulo, descripcion, responsable: resps.join(', '), prioridad, fechaLimite: ef.fecha }
+  return { titulo, descripcion, responsable: resps.join(', '), prioridad, fechaLimite: ef.fecha, repetir: rep.regla }
 }
 
 export function esBullet(texto: string): boolean {
@@ -88,6 +171,7 @@ export function esBullet(texto: string): boolean {
 
 /* Persistencia segura: localStorage si existe, memoria si no */
 const mem: Record<string, string> = {}
+let avisoQuotaMostrado = false
 export const storage = {
   get(k: string): string | null {
     try { const v = localStorage.getItem(k); if (v !== null) return v } catch { /* noop */ }
@@ -95,7 +179,14 @@ export const storage = {
   },
   set(k: string, v: string) {
     mem[k] = v
-    try { localStorage.setItem(k, v) } catch { /* noop */ }
+    try { localStorage.setItem(k, v) }
+    catch (e) {
+      const esQuota = e instanceof DOMException && (e.name === 'QuotaExceededError' || e.code === 22)
+      if (esQuota && !avisoQuotaMostrado) {
+        avisoQuotaMostrado = true
+        toast.error('Se llenó el almacenamiento local: los últimos cambios podrían no guardarse. Borra adjuntos/notas grandes o exporta y limpia datos.')
+      }
+    }
   },
 }
 

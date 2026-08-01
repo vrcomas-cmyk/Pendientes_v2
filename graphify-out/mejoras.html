@@ -1,0 +1,198 @@
+<title>Pendientes Pro — Roadmap de mejoras</title>
+<style>
+  :root{
+    --bg:#f6f8f7; --panel:#ffffff; --ink:#12201d; --ink-soft:#43524e; --ink-faint:#6b7a76;
+    --line:#e2e8e5; --line-soft:#eef2f0;
+    --accent:#0c8478; --accent-soft:#0c847814; --accent-ink:#0a6d63;
+    --alta:#d64550; --media:#c8891b; --baja:#2f9e63;
+    --done:#2f9e63; --new:#0c8478; --prop:#7a6bd8;
+    --shadow:0 1px 2px rgba(18,32,29,.04),0 8px 24px -12px rgba(18,32,29,.14);
+    --mono:ui-monospace,"SF Mono","Cascadia Code",Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --bg:#0d1310; --panel:#141c19; --ink:#e8efec; --ink-soft:#a7b5b0; --ink-faint:#75847f;
+      --line:#233029; --line-soft:#1b2521;
+      --accent:#2fbfae; --accent-soft:#2fbfae1a; --accent-ink:#5fd6c8;
+      --alta:#f0656f; --media:#e0a53c; --baja:#4bbd7e;
+      --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px -14px rgba(0,0,0,.6);
+    }
+  }
+  :root[data-theme="light"]{
+    --bg:#f6f8f7; --panel:#ffffff; --ink:#12201d; --ink-soft:#43524e; --ink-faint:#6b7a76;
+    --line:#e2e8e5; --line-soft:#eef2f0; --accent:#0c8478; --accent-soft:#0c847814; --accent-ink:#0a6d63;
+    --alta:#d64550; --media:#c8891b; --baja:#2f9e63;
+  }
+  :root[data-theme="dark"]{
+    --bg:#0d1310; --panel:#141c19; --ink:#e8efec; --ink-soft:#a7b5b0; --ink-faint:#75847f;
+    --line:#233029; --line-soft:#1b2521; --accent:#2fbfae; --accent-soft:#2fbfae1a; --accent-ink:#5fd6c8;
+    --alta:#f0656f; --media:#e0a53c; --baja:#4bbd7e;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.55;
+    -webkit-font-smoothing:antialiased;font-size:16px}
+  .wrap{max-width:920px;margin:0 auto;padding:clamp(28px,5vw,64px) clamp(18px,4vw,40px) 80px}
+  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--accent-ink);font-weight:600}
+  h1{font-size:clamp(30px,5.5vw,46px);line-height:1.05;letter-spacing:-.02em;font-weight:800;
+    margin:.35em 0 .3em;text-wrap:balance}
+  .lede{font-size:clamp(16px,2.4vw,19px);color:var(--ink-soft);max-width:60ch;margin:0}
+  h2{font-size:20px;letter-spacing:-.01em;font-weight:750;margin:0;display:flex;align-items:baseline;gap:.5rem}
+  h2 .n{font-family:var(--mono);font-size:13px;color:var(--ink-faint);font-weight:600}
+  section{margin-top:clamp(34px,5vw,52px)}
+  .sec-head{display:flex;align-items:baseline;justify-content:space-between;gap:1rem;
+    padding-bottom:12px;margin-bottom:20px;border-bottom:1px solid var(--line)}
+  .sec-head p{margin:.35rem 0 0;color:var(--ink-faint);font-size:13.5px;max-width:52ch}
+
+  /* legend */
+  .legend{display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:24px;padding:14px 16px;
+    background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow)}
+  .legend .k{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--ink-soft)}
+  .tag{font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.03em;
+    padding:2px 7px;border-radius:6px;white-space:nowrap;line-height:1.5}
+  .tag.done{color:#fff;background:var(--done)}
+  .tag.new{color:#fff;background:var(--new)}
+  .tag.prop{color:#fff;background:var(--prop)}
+  .dot{width:9px;height:9px;border-radius:50%;display:inline-block}
+
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:14px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 17px;
+    box-shadow:var(--shadow);position:relative;overflow:hidden}
+  .card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--rail,var(--line))}
+  .card.done{--rail:var(--done)} .card.new{--rail:var(--new)} .card.prop{--rail:var(--prop)}
+  .card h3{margin:0 0 6px;font-size:15.5px;font-weight:700;letter-spacing:-.01em;padding-left:4px}
+  .card p{margin:0 0 12px;font-size:13.5px;color:var(--ink-soft);padding-left:4px}
+  .meta{display:flex;flex-wrap:wrap;gap:6px;padding-left:4px}
+  .chip{font-family:var(--mono);font-size:10.5px;letter-spacing:.02em;padding:2px 7px;border-radius:5px;
+    border:1px solid var(--line);color:var(--ink-faint);background:var(--bg)}
+  .chip.imp-alto{color:var(--accent-ink);border-color:color-mix(in srgb,var(--accent) 40%,transparent)}
+  .chip.e-s::before{content:"Esfuerzo · S"} .chip.e-m::before{content:"Esfuerzo · M"} .chip.e-l::before{content:"Esfuerzo · L"}
+
+  .req{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--accent-ink);
+    font-weight:600;margin-top:8px;padding-left:4px}
+  .req::before{content:"★";font-size:12px}
+
+  /* highlight strip for "hecho hoy" */
+  .done-strip{background:var(--accent-soft);border:1px solid color-mix(in srgb,var(--accent) 30%,transparent);
+    border-radius:14px;padding:18px 20px}
+  .done-strip ul{margin:8px 0 0;padding-left:0;list-style:none;display:grid;gap:9px}
+  .done-strip li{display:flex;gap:10px;font-size:14px;align-items:flex-start}
+  .done-strip li b{font-weight:700}
+  .check{color:var(--done);font-weight:800;flex-shrink:0}
+
+  .next{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:4px}
+  .next .card::before{width:3px;background:var(--accent)}
+  .next .rank{font-family:var(--mono);font-size:12px;color:var(--accent-ink);font-weight:700}
+
+  footer{margin-top:56px;padding-top:20px;border-top:1px solid var(--line);
+    color:var(--ink-faint);font-size:12.5px;display:flex;flex-wrap:wrap;gap:6px 14px;justify-content:space-between}
+  a{color:var(--accent-ink)}
+  @media (prefers-reduced-motion:no-preference){.card{transition:transform .15s ease,box-shadow .15s ease}
+    .card:hover{transform:translateY(-2px);box-shadow:0 4px 10px rgba(18,32,29,.06),0 16px 34px -14px rgba(18,32,29,.22)}}
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Pendientes Pro · Roadmap de producto</div>
+    <h1>Mejoras de funcionalidad, UI y UX</h1>
+    <p class="lede">Auditoría de la app frente a los referentes del mercado —Todoist, TickTick y Things 3— con un backlog priorizado por impacto y esfuerzo. Lo entregado hoy va marcado; el resto es propuesta lista para elegir.</p>
+    <div class="legend" aria-label="Leyenda">
+      <span class="k"><span class="tag new">Hecho hoy</span> implementado en esta sesión</span>
+      <span class="k"><span class="tag done">Ya existía</span> presente en la app</span>
+      <span class="k"><span class="tag prop">Propuesto</span> pendiente de construir</span>
+      <span class="k"><span class="dot" style="background:var(--accent)"></span> ★ = lo que pediste explícitamente</span>
+    </div>
+  </header>
+
+  <section>
+    <div class="sec-head"><h2><span class="n">00</span> Entregado en esta sesión</h2></div>
+    <div class="done-strip">
+      <ul>
+        <li><span class="check">✓</span><span><b>Vista de solo lectura desde notas (peek).</b> Al tocar un pendiente dentro de una nota ya no se abre en modo edición: se muestra un resumen donde solo puedes marcar/agregar subtareas y completar, con un botón <b>Editar</b> para el resto. <span class="req" style="margin:0"> lo pediste</span></span></li>
+        <li><span class="check">✓</span><span><b>Fecha según prioridad</b> — Alta = día siguiente, Media = 3 días, Baja = 7 días. Ya estaba activa y ahora se ve reflejada en la captura y el peek. <span class="req" style="margin:0"> lo pediste</span></span></li>
+        <li><span class="check">✓</span><span><b>Corrección crítica de sincronización:</b> los pendientes creados desde notas ya no se borran (era un <i>closure obsoleto</i> que hacía a <code>flush()</code> borrar de la nube lo creado tras iniciar sesión), con doble protección anti-borrado.</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><h2><span class="n">01</span> Próximos 3 recomendados</h2>
+      <p>El mejor retorno inmediato: alto impacto, esfuerzo contenido.</p></div>
+    <div class="next">
+      <div class="card new" style="--rail:var(--accent)">
+        <div class="rank">01 · siguiente</div>
+        <h3>Recurrencia de tareas</h3>
+        <p>“Repetir: cada lunes / cada mes”. Es la función estrella de Todoist y hoy no existe. Al completar, se regenera con la próxima fecha.</p>
+        <div class="meta"><span class="chip imp-alto">Impacto · Alto</span><span class="chip e-m"></span></div>
+      </div>
+      <div class="card new" style="--rail:var(--accent)">
+        <div class="rank">02</div>
+        <h3>Posponer rápido (snooze)</h3>
+        <p>Botón para mover a “mañana / +1 semana / fin de semana” sin abrir el modal. Un gesto que Things y TickTick vuelven adictivo.</p>
+        <div class="meta"><span class="chip imp-alto">Impacto · Alto</span><span class="chip e-s"></span></div>
+      </div>
+      <div class="card new" style="--rail:var(--accent)">
+        <div class="rank">03</div>
+        <h3>Recordatorios / notificaciones</h3>
+        <p>Avisos con la Notifications API (y push en PWA) cuando algo vence. Cierra el ciclo: capturar → recordar → hacer.</p>
+        <div class="meta"><span class="chip imp-alto">Impacto · Alto</span><span class="chip e-m"></span></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><h2><span class="n">02</span> Funcionalidad</h2>
+      <p>Cierran las brechas frente a los líderes del mercado.</p></div>
+    <div class="grid">
+      <div class="card prop"><h3>Lenguaje natural ampliado</h3><p>La captura ya entiende <code>@resp !alta &gt;mañana</code>. Añadir <code>#proyecto</code>, <code>*etiqueta</code> y recurrencia (“cada viernes”) en la misma línea.</p><div class="meta"><span class="chip imp-alto">Impacto · Alto</span><span class="chip e-s"></span></div></div>
+      <div class="card prop"><h3>Subtareas con prioridad</h3><p>Hoy la subtarea tiene responsable y fecha; falta prioridad propia y poder convertirla en pendiente completo.</p><div class="meta"><span class="chip">Impacto · Medio</span><span class="chip e-s"></span></div></div>
+      <div class="card prop"><h3>Plantillas / checklists</h3><p>Guardar un conjunto de subtareas reutilizable (“alta de cliente”, “cierre mensual”) y aplicarlo con un clic.</p><div class="meta"><span class="chip">Impacto · Medio</span><span class="chip e-m"></span></div></div>
+      <div class="card prop"><h3>Papelera / borrado suave</h3><p>El tipo ya prevé un campo <code>borrado</code> sin usar. Mover a papelera 30 días y restaurar, en vez de borrar duro.</p><div class="meta"><span class="chip imp-alto">Impacto · Alto</span><span class="chip e-m"></span></div></div>
+      <div class="card prop"><h3>Hábitos y Pomodoro</h3><p>Lo que hace único a TickTick: temporizador de enfoque y hábitos recurrentes con racha. Módulo opcional.</p><div class="meta"><span class="chip">Impacto · Medio</span><span class="chip e-l"></span></div></div>
+      <div class="card done"><h3>Exportar / importar</h3><p>JSON y CSV ya funcionan. Extender con exportación por proyecto y respaldo automático.</p><div class="meta"><span class="chip">Impacto · Bajo</span><span class="chip e-s"></span></div></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><h2><span class="n">03</span> Experiencia (UX)</h2>
+      <p>Menos fricción por acción — el criterio de “2–3 toques por tarea”.</p></div>
+    <div class="grid">
+      <div class="card new"><h3>Peek desde notas</h3><p>Resumen de solo lectura con subtareas y botón Editar. <span class="req" style="margin:6px 0 0"> lo pediste</span></p><div class="meta"><span class="chip imp-alto">Impacto · Alto</span><span class="chip">Entregado</span></div></div>
+      <div class="card prop"><h3>Paleta de comandos (Ctrl/⌘ K)</h3><p>La dependencia <code>cmdk</code> ya está instalada. Buscar, crear y saltar de vista sin tocar el ratón.</p><div class="meta"><span class="chip imp-alto">Impacto · Alto</span><span class="chip e-m"></span></div></div>
+      <div class="card prop"><h3>Gestos en móvil</h3><p>Deslizar a la derecha = completar; a la izquierda = posponer/eliminar. Estándar en apps móviles de tareas.</p><div class="meta"><span class="chip imp-alto">Impacto · Alto</span><span class="chip e-m"></span></div></div>
+      <div class="card prop"><h3>Reordenar arrastrando</h3><p>El Kanban ya usa drag; falta ordenar manualmente dentro de la lista y guardar ese orden.</p><div class="meta"><span class="chip">Impacto · Medio</span><span class="chip e-m"></span></div></div>
+      <div class="card prop"><h3>Selección múltiple</h3><p>Marcar varias tareas y completar / mover / reasignar en lote.</p><div class="meta"><span class="chip">Impacto · Medio</span><span class="chip e-m"></span></div></div>
+      <div class="card prop"><h3>Atajos + hoja de ayuda</h3><p>Ya existen <kbd>N</kbd> y <kbd>/</kbd>. Añadir j/k para navegar, <kbd>e</kbd> editar, <kbd>c</kbd> completar y un panel <kbd>?</kbd>.</p><div class="meta"><span class="chip">Impacto · Medio</span><span class="chip e-s"></span></div></div>
+      <div class="card done"><h3>Deshacer al eliminar</h3><p>Ya hay “Deshacer” al borrar un pendiente. Extenderlo también a completar y a mover de estado.</p><div class="meta"><span class="chip">Impacto · Bajo</span><span class="chip e-s"></span></div></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><h2><span class="n">04</span> Interfaz y vistas</h2>
+      <p>Que el estado que necesita atención se lea de un vistazo.</p></div>
+    <div class="grid">
+      <div class="card done"><h3>Lista · Tablero · Calendario</h3><p>Las tres vistas ya existen y están enrutadas. Pulir el Calendario con arrastrar-para-reprogramar.</p><div class="meta"><span class="chip">Impacto · Medio</span><span class="chip e-m"></span></div></div>
+      <div class="card prop"><h3>Agrupar por proyecto / etiqueta</h3><p>Ya se agrupa por estado, prioridad y responsable; falta por proyecto y etiqueta, con progreso por grupo.</p><div class="meta"><span class="chip">Impacto · Medio</span><span class="chip e-s"></span></div></div>
+      <div class="card prop"><h3>Estados vacíos con intención</h3><p>Ilustración + acción clara en “Bandeja vacía”, “Sin notas”, etc. en vez de solo texto gris.</p><div class="meta"><span class="chip">Impacto · Bajo</span><span class="chip e-s"></span></div></div>
+      <div class="card prop"><h3>Densidad y tema</h3><p>Modo compacto para listas largas y selector de acento además de claro/oscuro.</p><div class="meta"><span class="chip">Impacto · Bajo</span><span class="chip e-s"></span></div></div>
+      <div class="card prop"><h3>Panel más accionable</h3><p>El Panel ya tiene KPIs; añadir racha de completados, tendencia semanal y “qué está en riesgo hoy”.</p><div class="meta"><span class="chip">Impacto · Medio</span><span class="chip e-m"></span></div></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><h2><span class="n">05</span> Salud técnica</h2>
+      <p>Rendimiento, robustez y accesibilidad — la base que no se ve pero se nota.</p></div>
+    <div class="grid">
+      <div class="card new"><h3>Sincronización robusta</h3><p>Corregido el borrado de pendientes por closure obsoleto + protección anti-borrado y confirmación por doble ausencia.</p><div class="meta"><span class="chip imp-alto">Impacto · Alto</span><span class="chip">Entregado</span></div></div>
+      <div class="card prop"><h3>Carga diferida de vistas</h3><p>El bundle pesa ~635 KB. Dividir por vista con <code>import()</code> baja el arranque notablemente.</p><div class="meta"><span class="chip">Impacto · Medio</span><span class="chip e-s"></span></div></div>
+      <div class="card prop"><h3>Accesibilidad de los chips</h3><p>Roles ARIA y foco visible en los chips de nota y en el Kanban; navegación por teclado completa.</p><div class="meta"><span class="chip">Impacto · Medio</span><span class="chip e-m"></span></div></div>
+      <div class="card done"><h3>PWA offline</h3><p>Ya hay <code>manifest</code> y service worker. Verificar caché de assets y funcionamiento sin conexión.</p><div class="meta"><span class="chip">Impacto · Medio</span><span class="chip e-s"></span></div></div>
+    </div>
+  </section>
+
+  <footer>
+    <span>Pendientes Pro — auditoría comparativa con Todoist · TickTick · Things 3</span>
+    <span>★ = solicitado explícitamente · S/M/L = esfuerzo estimado</span>
+  </footer>
+</div>

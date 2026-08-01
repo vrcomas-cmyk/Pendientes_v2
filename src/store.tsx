@@ -1,7 +1,8 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
-import type { Nota, Pendiente, Estado } from '@/types'
-import { hoyISO, normalizar, storage, uid } from '@/lib/app-utils'
+import type { Nota, Pendiente, Estado, FiltroFecha, Proyecto } from '@/types'
+import { PROYECTO_COLORES_KEYS } from '@/types'
+import { hoyISO, normalizar, storage, uid, siguienteFecha, describirRepeticion } from '@/lib/app-utils'
 
 interface ModalState { open: boolean; editId: string | null; defaults: Partial<Pendiente> }
 
@@ -15,21 +16,34 @@ interface AppCtx {
   eliminarPendiente: (id: string) => void
   toggleCompletar: (id: string) => void
   toggleSubtarea: (pid: string, sid: string) => void
+  agregarSubtarea: (pid: string, texto: string) => void
   agregarComentario: (pid: string, texto: string, adjuntos?: import('@/types').Adjunto[]) => void
   moverEstado: (id: string, estado: Estado) => void
   crearNota: () => Nota
   actualizarNota: (id: string, datos: Partial<Nota>) => void
   eliminarNota: (id: string) => void
-  reemplazarTodo: (p: Pendiente[], n: Nota[], u?: string) => void
+  proyectos: Proyecto[]
+  crearProyecto: (nombre: string, color?: string, cuentaGoogleId?: string) => Proyecto
+  actualizarProyecto: (id: string, datos: Partial<Proyecto>) => void
+  eliminarProyecto: (id: string) => void
+  reemplazarTodo: (p: Pendiente[], n: Nota[], u?: string, pr?: Proyecto[]) => void
   personas: string[]
   modal: ModalState
   abrirModal: (editId?: string | null, defaults?: Partial<Pendiente>) => void
   cerrarModal: () => void
+  peekId: string | null
+  abrirPeek: (id: string) => void
+  cerrarPeek: () => void
   notaActualId: string | null
   setNotaActualId: (id: string | null) => void
+  proyectoAbiertoId: string | null
+  setProyectoAbiertoId: (id: string | null) => void
+  filtroFecha: FiltroFecha
+  setFiltroFecha: (f: FiltroFecha) => void
 }
 
 const Ctx = createContext<AppCtx>(null as unknown as AppCtx)
+// eslint-disable-next-line react-refresh/only-export-components -- context hook shared alongside its provider
 export const useApp = () => useContext(Ctx)
 
 function semilla(): { p: Pendiente[]; n: Nota[] } {
@@ -65,13 +79,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } catch { /* noop */ }
     return semillaCache.n
   })
+  const [proyectos, setProyectos] = useState<Proyecto[]>(() => {
+    try {
+      const raw = storage.get('pn_proyectos')
+      if (raw) return JSON.parse(raw) as Proyecto[]
+    } catch { /* noop */ }
+    return []
+  })
   const [usuario, setUsuarioState] = useState(() => storage.get('pn_usuario') || 'Yo')
   const [modal, setModal] = useState<ModalState>({ open: false, editId: null, defaults: {} })
   const [notaActualId, setNotaActualId] = useState<string | null>(null)
+  const [proyectoAbiertoId, setProyectoAbiertoId] = useState<string | null>(null)
+  const [peekId, setPeekId] = useState<string | null>(null)
+  const [filtroFecha, setFiltroFecha] = useState<FiltroFecha>('todos')
   const ultimoEliminado = useRef<Pendiente | null>(null)
+  const ultimaNotaEliminada = useRef<{ nota: Nota; desvinculados: string[] } | null>(null)
 
   useEffect(() => { storage.set('pn_pendientes', JSON.stringify(pendientes)) }, [pendientes])
   useEffect(() => { storage.set('pn_notas', JSON.stringify(notas)) }, [notas])
+  useEffect(() => { storage.set('pn_proyectos', JSON.stringify(proyectos)) }, [proyectos])
 
   const setUsuario = (u: string) => { setUsuarioState(u); storage.set('pn_usuario', u) }
 
@@ -133,6 +159,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
         modificado: new Date().toISOString(),
       }
     }))
+    // Recurrencia: al completar (no al reabrir) un pendiente con regla, se crea la siguiente instancia.
+    if (p && p.estado !== 'completado' && p.repetir) {
+      const base = p.repetir.startsWith('!') ? hoyISO() : (p.fechaLimite || hoyISO())
+      const nuevaFecha = siguienteFecha(p.repetir, base)
+      crearPendiente({
+        titulo: p.titulo, descripcion: p.descripcion, responsable: p.responsable, solicitante: p.solicitante,
+        prioridad: p.prioridad, proyecto: p.proyecto, etiquetas: p.etiquetas, hora: p.hora, repetir: p.repetir,
+        fechaLimite: nuevaFecha,
+        subtareas: (p.subtareas || []).map(s => ({ ...s, id: uid(), completada: false })),
+      })
+      toast.success(`Se repite: próxima el ${nuevaFecha} (${describirRepeticion(p.repetir)})`)
+    }
   }
 
   const agregarComentario = (pid: string, texto: string, adjuntos?: import('@/types').Adjunto[]) => {
@@ -153,6 +191,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }))
   }
 
+  const agregarSubtarea = (pid: string, texto: string) => {
+    const t = texto.trim()
+    if (!t) return
+    setPendientes(prev => prev.map(p => p.id !== pid ? p : {
+      ...p,
+      subtareas: [...p.subtareas, { id: uid(), texto: t, completada: false, responsable: '', fechaLimite: '' }],
+      modificado: new Date().toISOString(),
+    }))
+  }
+
   const moverEstado = (id: string, estado: Estado) => actualizarPendiente(id, { estado })
 
   const crearNota = (): Nota => {
@@ -165,17 +213,53 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setNotas(prev => prev.map(n => n.id !== id ? n : { ...n, ...datos, modificado: new Date().toISOString() }))
   }
   const eliminarNota = (id: string) => {
+    const n = notas.find(x => x.id === id) || null
+    const desvinculados = pendientes.filter(p => p.origenNota?.notaId === id).map(p => p.id)
+    ultimaNotaEliminada.current = n ? { nota: n, desvinculados } : null
     setNotas(prev => prev.filter(n => n.id !== id))
     // Desvincular pendientes (no se borran)
     setPendientes(prev => prev.map(p => p.origenNota?.notaId === id ? { ...p, origenNota: null, modificado: new Date().toISOString() } : p))
     if (notaActualId === id) setNotaActualId(null)
-    toast('Nota eliminada (sus pendientes se conservan)')
+    toast('Nota eliminada (sus pendientes se conservan)', {
+      action: {
+        label: 'Deshacer',
+        onClick: () => {
+          const u = ultimaNotaEliminada.current
+          if (!u) return
+          setNotas(prev => [u.nota, ...prev])
+          setPendientes(prev => prev.map(p => u.desvinculados.includes(p.id) ? { ...p, origenNota: { notaId: u.nota.id }, modificado: new Date().toISOString() } : p))
+        },
+      },
+    })
   }
 
-  const reemplazarTodo = (p: Pendiente[], n: Nota[], u?: string) => {
+  const crearProyecto = (nombre: string, color?: string, cuentaGoogleId?: string): Proyecto => {
+    const p: Proyecto = {
+      id: uid(), nombre: nombre.trim(), color: color || PROYECTO_COLORES_KEYS[proyectos.length % PROYECTO_COLORES_KEYS.length],
+      cuentaGoogleId, creado: new Date().toISOString(), modificado: new Date().toISOString(),
+    }
+    setProyectos(prev => [...prev, p])
+    return p
+  }
+  const actualizarProyecto = (id: string, datos: Partial<Proyecto>) => {
+    setProyectos(prev => prev.map(p => p.id !== id ? p : { ...p, ...datos, modificado: new Date().toISOString() }))
+    // El nombre del proyecto se refleja en `pendiente.proyecto` (texto) para exports/badges antiguos.
+    if (datos.nombre) {
+      setPendientes(prev => prev.map(p => p.proyectoId === id ? { ...p, proyecto: datos.nombre!, modificado: new Date().toISOString() } : p))
+    }
+  }
+  const eliminarProyecto = (id: string) => {
+    setProyectos(prev => prev.filter(p => p.id !== id))
+    // Desvincular pendientes (no se borran)
+    setPendientes(prev => prev.map(p => p.proyectoId === id ? { ...p, proyectoId: undefined, modificado: new Date().toISOString() } : p))
+    toast('Proyecto eliminado (sus pendientes se conservan)')
+  }
+
+  const reemplazarTodo = (p: Pendiente[], n: Nota[], u?: string, pr?: Proyecto[]) => {
     setPendientes(p.map(normalizarConservandoId))
     setNotas(n)
     if (u) setUsuario(u)
+    if (pr) setProyectos(pr)
   }
 
   const personas = useMemo(() => {
@@ -184,15 +268,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return [...s].sort()
   }, [pendientes, usuario])
 
-  const abrirModal = (editId: string | null = null, defaults: Partial<Pendiente> = {}) =>
+  const abrirModal = (editId: string | null = null, defaults: Partial<Pendiente> = {}) => {
+    setPeekId(null)
     setModal({ open: true, editId, defaults })
+  }
   const cerrarModal = () => setModal(m => ({ ...m, open: false }))
+  const abrirPeek = (id: string) => setPeekId(id)
+  const cerrarPeek = () => setPeekId(null)
 
   const value: AppCtx = {
     pendientes, notas, usuario, setUsuario,
-    crearPendiente, actualizarPendiente, eliminarPendiente, toggleCompletar, toggleSubtarea, agregarComentario, moverEstado,
-    crearNota, actualizarNota, eliminarNota, reemplazarTodo,
-    personas, modal, abrirModal, cerrarModal, notaActualId, setNotaActualId,
+    crearPendiente, actualizarPendiente, eliminarPendiente, toggleCompletar, toggleSubtarea, agregarSubtarea, agregarComentario, moverEstado,
+    crearNota, actualizarNota, eliminarNota, proyectos, crearProyecto, actualizarProyecto, eliminarProyecto, reemplazarTodo,
+    personas, modal, abrirModal, cerrarModal, peekId, abrirPeek, cerrarPeek, notaActualId, setNotaActualId,
+    proyectoAbiertoId, setProyectoAbiertoId,
+    filtroFecha, setFiltroFecha,
   }
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }

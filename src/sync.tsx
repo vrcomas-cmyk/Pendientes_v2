@@ -2,9 +2,9 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import type { Session } from '@supabase/supabase-js'
 import { toast } from 'sonner'
 import { useApp } from '@/store'
-import type { Nota, Pendiente } from '@/types'
+import type { Nota, Pendiente, Proyecto } from '@/types'
 import { getConfig, getSupabase, isConfigured, saveConfig } from '@/lib/supabase'
-import { mergeNota, mergePendiente, reconciliar, type MapaSync } from '@/lib/sync-merge'
+import { mergeNota, mergePendiente, mergeProyecto, reconciliar, type MapaSync } from '@/lib/sync-merge'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -26,10 +26,14 @@ const Ctx = createContext<SyncCtx>({
   email: null, estado: 'local', modoLocal: true, enLinea: true, porSubir: 0,
   logout: () => {}, activarSync: () => {}, sincronizarAhora: () => {},
 })
+// eslint-disable-next-line react-refresh/only-export-components -- context hook shared alongside its provider
 export const useSync = () => useContext(Ctx)
 
-interface UltimoSync { pendientes: MapaSync; notas: MapaSync }
-const vacio = (): UltimoSync => ({ pendientes: {}, notas: {} })
+interface UltimoSync { pendientes: MapaSync; notas: MapaSync; proyectos: MapaSync }
+const vacio = (): UltimoSync => ({ pendientes: {}, notas: {}, proyectos: {} })
+
+/** Ventana (ms) durante la cual un ítem recién subido está protegido de un borrado remoto fantasma por lag de replicación. */
+const GRACIA_SUBIDA = 30000
 
 /** ¿Dos listas tienen exactamente el mismo contenido? (sin importar el orden) */
 function mismaLista<T extends { id: string }>(a: T[], b: T[]): boolean {
@@ -43,6 +47,12 @@ function mismaLista<T extends { id: string }>(a: T[], b: T[]): boolean {
 
 export function SyncProvider({ children }: { children: ReactNode }) {
   const app = useApp()
+  // Referencia SIEMPRE al día del estado. Los handlers de realtime / intervalo /
+  // visibilitychange viven en un efecto con deps [session], así que capturan `app`
+  // del login. Sin esta ref, flush() vería una lista vieja de pendientes y borraría
+  // de la nube todo lo creado después de iniciar sesión. Ver bug "pendiente eliminado".
+  const appRef = useRef(app)
+  appRef.current = app
   const [listo, setListo] = useState(false)
   const [session, setSession] = useState<Session | null>(null)
   const [estado, setEstado] = useState<EstadoSync>('local')
@@ -55,6 +65,16 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   const sincronizando = useRef(false)
   const sincPendiente = useRef(false)
   const silenciar = useRef(0)
+  // id -> timestamp de la última subida a la nube. Protege contra el
+  // read-after-write lag: si leemos la nube justo después de crear/subir un
+  // pendiente y aún no aparece, NO lo tratamos como borrado remoto.
+  const subidoReciente = useRef<Map<string, number>>(new Map())
+  // id -> nº de lecturas remotas CONSECUTIVAS en las que un ítem conocido no
+  // apareció. Solo se acepta el borrado tras confirmarlo en 2 lecturas seguidas
+  // (una sola ausencia puede ser lag de replicación, no un borrado real).
+  const ausenciaP = useRef<Map<string, number>>(new Map())
+  const ausenciaN = useRef<Map<string, number>>(new Map())
+  const ausenciaPr = useRef<Map<string, number>>(new Map())
   const pushTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const rtTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
@@ -70,7 +90,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   /* ---- sesión + auth ---- */
   useEffect(() => {
     const sb = getSupabase()
-    if (!sb) { setListo(true); return }
+    if (!sb) { setListo(true); return } // eslint-disable-line react-hooks/set-state-in-effect -- no Supabase configured, unblock the ready gate immediately
     sb.auth.getSession().then(({ data }) => { setSession(data.session); setListo(true) })
     const { data: sub } = sb.auth.onAuthStateChange((_e, s) => setSession(s))
     return () => sub.subscription.unsubscribe()
@@ -89,7 +109,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     recalcularPendientes()
     clearTimeout(pushTimer.current)
     pushTimer.current = setTimeout(() => { sincronizar() }, 1000)
-  }, [app.pendientes, app.notas]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [app.pendientes, app.notas, app.proyectos]) // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ---- online / offline ---- */
   useEffect(() => {
@@ -113,6 +133,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     const ch = sb.channel('rt-pnp')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'pnp_pendientes' }, onRemote)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'pnp_notas' }, onRemote)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pnp_proyectos' }, onRemote)
       .subscribe()
     const intervalo = setInterval(() => { if (navigator.onLine) sincronizar() }, 60000)
     const onVis = () => { if (document.visibilityState === 'visible' && session) sincronizar() }
@@ -122,13 +143,17 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 
   function recalcularPendientes() {
     const L = last.current
-    const dP = app.pendientes.filter(p => L.pendientes[p.id] !== p.modificado).length
-    const localPids = new Set(app.pendientes.map(p => p.id))
+    const { pendientes, notas, proyectos } = appRef.current
+    const dP = pendientes.filter(p => L.pendientes[p.id] !== p.modificado).length
+    const localPids = new Set(pendientes.map(p => p.id))
     const delP = Object.keys(L.pendientes).filter(id => !localPids.has(id)).length
-    const dN = app.notas.filter(n => L.notas[n.id] !== n.modificado).length
-    const localNids = new Set(app.notas.map(n => n.id))
+    const dN = notas.filter(n => L.notas[n.id] !== n.modificado).length
+    const localNids = new Set(notas.map(n => n.id))
     const delN = Object.keys(L.notas).filter(id => !localNids.has(id)).length
-    setPorSubir(dP + delP + dN + delN)
+    const dPr = proyectos.filter(p => L.proyectos[p.id] !== p.modificado).length
+    const localPrids = new Set(proyectos.map(p => p.id))
+    const delPr = Object.keys(L.proyectos).filter(id => !localPrids.has(id)).length
+    setPorSubir(dP + delP + dN + delN + dPr + delPr)
   }
 
   async function flush() {
@@ -136,19 +161,31 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     const sb = getSupabase()
     if (!sb) return
     const L = last.current
-    const dirtyP = app.pendientes.filter(p => L.pendientes[p.id] !== p.modificado)
-    const localPids = new Set(app.pendientes.map(p => p.id))
-    const delP = Object.keys(L.pendientes).filter(id => !localPids.has(id))
-    const dirtyN = app.notas.filter(n => L.notas[n.id] !== n.modificado)
-    const localNids = new Set(app.notas.map(n => n.id))
-    const delN = Object.keys(L.notas).filter(id => !localNids.has(id))
-    if (!dirtyP.length && !delP.length && !dirtyN.length && !delN.length) { setEstado('sincronizado'); recalcularPendientes(); return }
+    const { pendientes, notas, proyectos } = appRef.current
+    // Defensa: NUNCA borrar de la nube algo subido hace muy poco. Si un ítem
+    // recién creado desaparece de la lista local por cualquier carrera de estado,
+    // no debe propagarse como borrado. Un borrado real del usuario se aplica igual
+    // pasada la ventana de gracia.
+    const recienSubido = (id: string) => (subidoReciente.current.get(id) ?? 0) >= Date.now() - GRACIA_SUBIDA
+    const dirtyP = pendientes.filter(p => L.pendientes[p.id] !== p.modificado)
+    const localPids = new Set(pendientes.map(p => p.id))
+    const delP = Object.keys(L.pendientes).filter(id => !localPids.has(id) && !recienSubido(id))
+    const dirtyN = notas.filter(n => L.notas[n.id] !== n.modificado)
+    const localNids = new Set(notas.map(n => n.id))
+    const delN = Object.keys(L.notas).filter(id => !localNids.has(id) && !recienSubido(id))
+    const dirtyPr = proyectos.filter(p => L.proyectos[p.id] !== p.modificado)
+    const localPrids = new Set(proyectos.map(p => p.id))
+    const delPr = Object.keys(L.proyectos).filter(id => !localPrids.has(id) && !recienSubido(id))
+    if (!dirtyP.length && !delP.length && !dirtyN.length && !delN.length && !dirtyPr.length && !delPr.length) { setEstado('sincronizado'); recalcularPendientes(); return }
     setEstado('sincronizando')
+    const ahora = Date.now()
     try {
-      if (dirtyP.length) { const { error } = await sb.from('pnp_pendientes').upsert(dirtyP.map(p => ({ id: p.id, user_id: userId, data: p, updated_at: p.modificado }))); if (error) throw error; dirtyP.forEach(p => { L.pendientes[p.id] = p.modificado }) }
-      if (delP.length) { const { error } = await sb.from('pnp_pendientes').delete().in('id', delP); if (error) throw error; delP.forEach(id => { delete L.pendientes[id] }) }
-      if (dirtyN.length) { const { error } = await sb.from('pnp_notas').upsert(dirtyN.map(n => ({ id: n.id, user_id: userId, data: n, updated_at: n.modificado }))); if (error) throw error; dirtyN.forEach(n => { L.notas[n.id] = n.modificado }) }
-      if (delN.length) { const { error } = await sb.from('pnp_notas').delete().in('id', delN); if (error) throw error; delN.forEach(id => { delete L.notas[id] }) }
+      if (dirtyP.length) { const { error } = await sb.from('pnp_pendientes').upsert(dirtyP.map(p => ({ id: p.id, user_id: userId, data: p, updated_at: p.modificado }))); if (error) throw error; dirtyP.forEach(p => { L.pendientes[p.id] = p.modificado; subidoReciente.current.set(p.id, ahora) }) }
+      if (delP.length) { const { error } = await sb.from('pnp_pendientes').delete().in('id', delP); if (error) throw error; delP.forEach(id => { delete L.pendientes[id]; subidoReciente.current.delete(id) }) }
+      if (dirtyN.length) { const { error } = await sb.from('pnp_notas').upsert(dirtyN.map(n => ({ id: n.id, user_id: userId, data: n, updated_at: n.modificado }))); if (error) throw error; dirtyN.forEach(n => { L.notas[n.id] = n.modificado; subidoReciente.current.set(n.id, ahora) }) }
+      if (delN.length) { const { error } = await sb.from('pnp_notas').delete().in('id', delN); if (error) throw error; delN.forEach(id => { delete L.notas[id]; subidoReciente.current.delete(id) }) }
+      if (dirtyPr.length) { const { error } = await sb.from('pnp_proyectos').upsert(dirtyPr.map(p => ({ id: p.id, user_id: userId, data: p, updated_at: p.modificado }))); if (error) throw error; dirtyPr.forEach(p => { L.proyectos[p.id] = p.modificado; subidoReciente.current.set(p.id, ahora) }) }
+      if (delPr.length) { const { error } = await sb.from('pnp_proyectos').delete().in('id', delPr); if (error) throw error; delPr.forEach(id => { delete L.proyectos[id]; subidoReciente.current.delete(id) }) }
       guardarLast()
       silenciar.current = Date.now() + 2500
       setEstado('sincronizado')
@@ -164,24 +201,52 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     if (!sb) return
     setEstado('sincronizando')
     try {
-      const [{ data: rp, error: ep }, { data: rn, error: en }] = await Promise.all([
+      const [{ data: rp, error: ep }, { data: rn, error: en }, { data: rpr, error: epr }] = await Promise.all([
         sb.from('pnp_pendientes').select('data'),
         sb.from('pnp_notas').select('data'),
+        sb.from('pnp_proyectos').select('data'),
       ])
-      if (ep || en) throw (ep || en)
+      if (ep || en || epr) throw (ep || en || epr)
       const remoteP = (rp || []).map(r => (r as { data: Pendiente }).data)
       const remoteN = (rn || []).map(r => (r as { data: Nota }).data)
+      const remotePr = (rpr || []).map(r => (r as { data: Proyecto }).data)
       const L = last.current
-      const resP = reconciliar(app.pendientes, remoteP, L.pendientes, mergePendiente)
-      const resN = reconciliar(app.notas, remoteN, L.notas, mergeNota)
+      const limite = Date.now() - GRACIA_SUBIDA
+      // Purga entradas viejas para que el mapa no crezca sin límite.
+      subidoReciente.current.forEach((t, id) => { if (t < limite) subidoReciente.current.delete(id) })
+      const remotePids = new Set(remoteP.map(p => p.id))
+      const remoteNids = new Set(remoteN.map(n => n.id))
+      const remotePrids = new Set(remotePr.map(p => p.id))
+      // Cuenta ausencias remotas consecutivas de ítems conocidos; resetea si reaparecen.
+      const contarAusencias = (local: { id: string }[], remoteIds: Set<string>, lastMap: MapaSync, cont: Map<string, number>) => {
+        const vivos = new Set(local.map(x => x.id))
+        cont.forEach((_n, id) => { if (!vivos.has(id) || remoteIds.has(id)) cont.delete(id) })
+        for (const it of local) {
+          if (lastMap[it.id] !== undefined && !remoteIds.has(it.id)) cont.set(it.id, (cont.get(it.id) ?? 0) + 1)
+          else cont.delete(it.id)
+        }
+      }
+      const { pendientes, notas, proyectos, reemplazarTodo } = appRef.current
+      contarAusencias(pendientes, remotePids, L.pendientes, ausenciaP.current)
+      contarAusencias(notas, remoteNids, L.notas, ausenciaN.current)
+      contarAusencias(proyectos, remotePrids, L.proyectos, ausenciaPr.current)
+      // Protegido = recién subido (lag) O aún sin confirmar el borrado (menos de 2 ausencias seguidas).
+      const protegidoP = (id: string) => (subidoReciente.current.get(id) ?? 0) >= limite || (ausenciaP.current.get(id) ?? 0) < 2
+      const protegidoN = (id: string) => (subidoReciente.current.get(id) ?? 0) >= limite || (ausenciaN.current.get(id) ?? 0) < 2
+      const protegidoPr = (id: string) => (subidoReciente.current.get(id) ?? 0) >= limite || (ausenciaPr.current.get(id) ?? 0) < 2
+      const resP = reconciliar(pendientes, remoteP, L.pendientes, mergePendiente, protegidoP)
+      const resN = reconciliar(notas, remoteN, L.notas, mergeNota, protegidoN)
+      const resPr = reconciliar(proyectos, remotePr, L.proyectos, mergeProyecto, protegidoPr)
       L.pendientes = resP.nextLast
       L.notas = resN.nextLast
+      L.proyectos = resPr.nextLast
       guardarLast()
       // Solo reemplazar el estado si el contenido REALMENTE cambió (evita refrescos que borran lo que escribes)
-      const cambioP = !mismaLista(app.pendientes, resP.resultado)
-      const cambioN = !mismaLista(app.notas, resN.resultado)
-      if (cambioP || cambioN) app.reemplazarTodo(resP.resultado, resN.resultado)
-      const conf = resP.conflictos.length + resN.conflictos.length
+      const cambioP = !mismaLista(pendientes, resP.resultado)
+      const cambioN = !mismaLista(notas, resN.resultado)
+      const cambioPr = !mismaLista(proyectos, resPr.resultado)
+      if (cambioP || cambioN || cambioPr) reemplazarTodo(resP.resultado, resN.resultado, undefined, resPr.resultado)
+      const conf = resP.conflictos.length + resN.conflictos.length + resPr.conflictos.length
       if (conf > 0) toast.info(`Se combinaron cambios de otro dispositivo en ${conf} elemento(s)`)
       recalcularPendientes()
     } catch {

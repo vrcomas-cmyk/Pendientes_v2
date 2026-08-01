@@ -1,21 +1,24 @@
 import { useState } from 'react'
-import ListView, { type FiltroFecha } from '@/views/ListView'
+import { useApp } from '@/store'
+import ListView from '@/views/ListView'
 import { KanbanView, CalendarView } from '@/views/OtherViews'
-import { List, Columns3, CalendarDays } from 'lucide-react'
+import AgendaView from '@/views/AgendaView'
+import { List, Columns3, CalendarDays, CalendarClock } from 'lucide-react'
 
-type Modo = 'lista' | 'tablero' | 'calendario'
+type Modo = 'lista' | 'tablero' | 'calendario' | 'agenda'
 
 const MODOS: { id: Modo; label: string; icon: React.ReactNode }[] = [
   { id: 'lista', label: 'Lista', icon: <List size={14} /> },
   { id: 'tablero', label: 'Tablero', icon: <Columns3 size={14} /> },
   { id: 'calendario', label: 'Calendario', icon: <CalendarDays size={14} /> },
+  { id: 'agenda', label: 'Agenda', icon: <CalendarClock size={14} /> },
 ]
 
 export default function PendientesView() {
   const [modo, setModo] = useState<Modo>(() => {
     try { return (localStorage.getItem('pn_modo_vista') as Modo) || 'lista' } catch { return 'lista' }
   })
-  const [filtroFecha, setFiltroFecha] = useState<FiltroFecha>('todos')
+  const { filtroFecha, setFiltroFecha } = useApp()
 
   const cambiar = (m: Modo) => {
     setModo(m)
@@ -37,6 +40,7 @@ export default function PendientesView() {
         {modo === 'lista' && <ListView filtroFecha={filtroFecha} setFiltroFecha={setFiltroFecha} />}
         {modo === 'tablero' && <KanbanView />}
         {modo === 'calendario' && <CalendarView />}
+        {modo === 'agenda' && <AgendaView />}
       </div>
     </div>
   )

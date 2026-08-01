@@ -1,10 +1,13 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useApp } from '@/store'
 import type { Pendiente, Adjunto } from '@/types'
-import { ESTADOS } from '@/types'
-import { googleCalendarUrl, hoyISO, progresoSub, vencido } from '@/lib/app-utils'
+import { ESTADOS, PROYECTO_COLORES } from '@/types'
+import type { FiltroFecha } from '@/types'
+export type { FiltroFecha } from '@/types'
+import { googleCalendarUrl, hoyISO, progresoSub, vencido, describirRepeticion } from '@/lib/app-utils'
 import { useIsMobile } from '@/hooks/use-is-mobile'
 import TaskRow from '@/components/TaskRow'
+import PosponerMenu from '@/components/PosponerMenu'
 import AdjuntosUI, { Miniatura } from '@/components/AdjuntosUI'
 import { subirAdjunto } from '@/lib/adjuntos'
 import { Input } from '@/components/ui/input'
@@ -14,10 +17,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge'
 import { Pencil, Trash2, StickyNote, Search, SlidersHorizontal, ChevronLeft, CalendarPlus, Send, User, Calendar, ImagePlus, X } from 'lucide-react'
 
-export type FiltroFecha = 'todos' | 'abiertos' | 'vencidos' | 'hoy' | 'semana'
-
 function TaskDetail({ detalle, onBack, mobile }: { detalle: Pendiente; onBack: () => void; mobile: boolean }) {
-  const { abrirModal, eliminarPendiente, toggleSubtarea, setNotaActualId, agregarComentario, actualizarPendiente } = useApp()
+  const { abrirModal, eliminarPendiente, toggleSubtarea, setNotaActualId, agregarComentario, actualizarPendiente, proyectos } = useApp()
+  const proyectoDetalle = detalle.proyectoId ? proyectos.find(x => x.id === detalle.proyectoId) : null
   const [com, setCom] = useState('')
   const [comImgs, setComImgs] = useState<Adjunto[]>([])
   const sub = progresoSub(detalle)
@@ -54,6 +56,7 @@ function TaskDetail({ detalle, onBack, mobile }: { detalle: Pendiente; onBack: (
         <div className="flex items-start justify-between gap-2">
           <h2 className={'text-lg font-bold ' + (detalle.estado === 'completado' ? 'linea-completada' : '')}>{detalle.titulo}</h2>
           <div className="flex shrink-0 gap-1">
+            <PosponerMenu id={detalle.id} variant="secondary" />
             <Button size="sm" variant="secondary" onClick={() => abrirModal(detalle.id)}><Pencil size={13} className="mr-1" />Editar</Button>
             <Button size="sm" variant="ghost" className="text-destructive" onClick={() => { eliminarPendiente(detalle.id); onBack() }}><Trash2 size={13} /></Button>
           </div>
@@ -61,7 +64,10 @@ function TaskDetail({ detalle, onBack, mobile }: { detalle: Pendiente; onBack: (
         <div className="mt-2 flex flex-wrap gap-1.5 text-[11px]">
           <span className={'rounded-full px-2 py-0.5 ' + ESTADOS[detalle.estado].badge}>{ESTADOS[detalle.estado].label}</span>
           <Badge variant="secondary">Prioridad: {detalle.prioridad}</Badge>
-          {detalle.proyecto && <Badge variant="secondary">📁 {detalle.proyecto}</Badge>}
+          {proyectoDetalle
+            ? <Badge variant="secondary"><span className={'mr-1 inline-block h-2 w-2 rounded-full ' + (PROYECTO_COLORES[proyectoDetalle.color]?.dot || '')} />{proyectoDetalle.nombre}</Badge>
+            : detalle.proyecto && <Badge variant="secondary">📁 {detalle.proyecto}</Badge>}
+          {detalle.repetir && <Badge variant="secondary">🔁 {describirRepeticion(detalle.repetir)}</Badge>}
         </div>
         <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
           <div><span className="text-muted-foreground">Solicita:</span> {detalle.solicitante || '—'}</div>
@@ -152,18 +158,33 @@ function TaskDetail({ detalle, onBack, mobile }: { detalle: Pendiente; onBack: (
   )
 }
 
+const LS_FILTROS = 'pn_lista_filtros'
+interface FiltrosGuardados { fEstado: string; fPrioridad: string; fResp: string; orden: string; grupo: string; verSub: boolean }
+const filtrosPorDefecto: FiltrosGuardados = { fEstado: 'todos', fPrioridad: 'todos', fResp: 'todos', orden: 'creacion_desc', grupo: 'ninguno', verSub: true }
+function cargarFiltros(): FiltrosGuardados {
+  try { const raw = localStorage.getItem(LS_FILTROS); if (raw) return { ...filtrosPorDefecto, ...JSON.parse(raw) } } catch { /* noop */ }
+  return filtrosPorDefecto
+}
+
 export default function ListView({ filtroFecha, setFiltroFecha }: { filtroFecha: FiltroFecha; setFiltroFecha: (f: FiltroFecha) => void }) {
-  const { pendientes, personas, toggleSubtarea } = useApp()
+  const { pendientes, personas, toggleSubtarea, abrirModal } = useApp()
   const isMobile = useIsMobile()
   const [q, setQ] = useState('')
-  const [fEstado, setFEstado] = useState('todos')
-  const [fPrioridad, setFPrioridad] = useState('todos')
-  const [fResp, setFResp] = useState('todos')
-  const [orden, setOrden] = useState('creacion_desc')
-  const [grupo, setGrupo] = useState('ninguno')
-  const [verSub, setVerSub] = useState(true)
+  const [fEstado, setFEstado] = useState(() => cargarFiltros().fEstado)
+  const [fPrioridad, setFPrioridad] = useState(() => cargarFiltros().fPrioridad)
+  const [fResp, setFResp] = useState(() => cargarFiltros().fResp)
+  const [orden, setOrden] = useState(() => cargarFiltros().orden)
+  const [grupo, setGrupo] = useState(() => cargarFiltros().grupo)
+  const [verSub, setVerSub] = useState(() => cargarFiltros().verSub)
   const [detalleId, setDetalleId] = useState<string | null>(null)
   const [filtrosAbiertos, setFiltrosAbiertos] = useState(false)
+
+  useEffect(() => {
+    try { localStorage.setItem(LS_FILTROS, JSON.stringify({ fEstado, fPrioridad, fResp, orden, grupo, verSub })) } catch { /* noop */ }
+  }, [fEstado, fPrioridad, fResp, orden, grupo, verSub])
+
+  const hayFiltrosActivos = q !== '' || fEstado !== 'todos' || fPrioridad !== 'todos' || fResp !== 'todos' || filtroFecha !== 'todos'
+  const limpiarFiltros = () => { setQ(''); setFEstado('todos'); setFPrioridad('todos'); setFResp('todos'); setFiltroFecha('todos') }
 
   const pasaFecha = (p: Pendiente) => {
     const h = hoyISO()
@@ -190,7 +211,7 @@ export default function ListView({ filtroFecha, setFiltroFecha }: { filtroFecha:
         return pasaFecha(p)
       })
       .sort((a, b) => {
-        if (orden === 'fecha_asc') return (a.fechaLimite || '9999') < (b.fechaLimite || '9999') ? -1 : 1
+        if (orden === 'fecha_asc') return (a.fechaLimite || '9999').localeCompare(b.fechaLimite || '9999')
         if (orden === 'prioridad') return rank[a.prioridad] - rank[b.prioridad]
         if (orden === 'titulo') return a.titulo.localeCompare(b.titulo)
         return new Date(b.creado).getTime() - new Date(a.creado).getTime()
@@ -207,7 +228,10 @@ export default function ListView({ filtroFecha, setFiltroFecha }: { filtroFecha:
     return g
   }, [filtrados, grupo])
 
-  const detalle = pendientes.find(p => p.id === detalleId) || null
+  // Si el pendiente seleccionado quedó fuera de los filtros actuales, se deja de mostrar
+  // su detalle (derivado, no vía efecto, para no encadenar renders).
+  const detalleId2 = detalleId && filtrados.some(p => p.id === detalleId) ? detalleId : null
+  const detalle = pendientes.find(p => p.id === detalleId2) || null
 
   if (isMobile && detalle) {
     return <div className="h-full rounded-xl border bg-card"><TaskDetail detalle={detalle} mobile onBack={() => setDetalleId(null)} /></div>
@@ -254,7 +278,15 @@ export default function ListView({ filtroFecha, setFiltroFecha }: { filtroFecha:
 
   const listado = (
     <div className="flex-1 space-y-1 overflow-y-auto pr-1 scroll-thin">
-      {!filtrados.length && <p className="p-6 text-center text-xs text-muted-foreground">Sin pendientes que coincidan.</p>}
+      {!filtrados.length && (
+        <div className="flex flex-col items-center gap-2 p-6 text-center text-xs text-muted-foreground">
+          <p>Sin pendientes que coincidan.</p>
+          <div className="flex gap-2">
+            {hayFiltrosActivos && <Button size="sm" variant="secondary" onClick={limpiarFiltros}>Limpiar filtros</Button>}
+            <Button size="sm" onClick={() => abrirModal()}>Crear pendiente</Button>
+          </div>
+        </div>
+      )}
       {grupos
         ? Object.entries(grupos).map(([k, items]) => (
             <div key={k}>
@@ -274,7 +306,14 @@ export default function ListView({ filtroFecha, setFiltroFecha }: { filtroFecha:
             <Search size={13} className="absolute left-2.5 top-2.5 text-muted-foreground" />
             <Input value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar..." className="h-8 pl-8 text-xs" />
           </div>
-          <Button size="sm" variant={filtrosAbiertos ? 'default' : 'secondary'} className="h-8 shrink-0 md:hidden" onClick={() => setFiltrosAbiertos(v => !v)}><SlidersHorizontal size={14} /></Button>
+          <Button size="sm" variant={filtrosAbiertos || hayFiltrosActivos ? 'default' : 'secondary'} className="relative h-8 shrink-0 md:hidden" onClick={() => setFiltrosAbiertos(v => !v)}>
+            <SlidersHorizontal size={14} />
+            {hayFiltrosActivos && <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-red-500" />}
+          </Button>
+        </div>
+        <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+          <span>{filtrados.length} resultado{filtrados.length === 1 ? '' : 's'}</span>
+          {hayFiltrosActivos && <button onClick={limpiarFiltros} className="font-medium text-primary hover:underline">Limpiar filtros</button>}
         </div>
         <div className="flex gap-1.5 overflow-x-auto pb-1 scroll-thin">
           {chips.map(c => (

@@ -4,48 +4,55 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 0 0% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 0 0% 3.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 3.9%;
-    --primary: 174 100% 29%;
+    /* Neutros con un tinte cálido muy leve (no gris plano de plantilla) */
+    --background: 40 20% 98%;
+    --foreground: 250 25% 12%;
+    --card: 40 25% 99%;
+    --card-foreground: 250 25% 12%;
+    --popover: 40 25% 99%;
+    --popover-foreground: 250 25% 12%;
+    /* Índigo-violeta: primario distintivo, no el teal genérico de apps de tareas */
+    --primary: 250 65% 58%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 0 0% 96.1%;
-    --secondary-foreground: 0 0% 9%;
-    --muted: 0 0% 96.1%;
-    --muted-foreground: 0 0% 45.1%;
-    --accent: 0 0% 96.1%;
-    --accent-foreground: 0 0% 9%;
+    --secondary: 250 15% 94%;
+    --secondary-foreground: 250 20% 15%;
+    --muted: 250 15% 94%;
+    --muted-foreground: 250 10% 45%;
+    --accent: 250 20% 93%;
+    --accent-foreground: 250 20% 15%;
+    /* Ámbar cálido: acento del centro de mando (anillo de progreso, rachas, highlights) */
+    --accent-2: 38 92% 55%;
+    --accent-2-foreground: 30 40% 12%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 89.8%;
-    --input: 0 0% 89.8%;
-    --ring: 174 100% 29%;
-    --radius: 0.5rem;
+    --border: 250 12% 89%;
+    --input: 250 12% 89%;
+    --ring: 250 65% 58%;
+    --radius: 0.75rem;
   }
 
   .dark {
-    --background: 0 0% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 0 0% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 0 0% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 174 65% 45%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 0 0% 14.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 0 0% 14.9%;
-    --muted-foreground: 0 0% 63.9%;
-    --accent: 0 0% 14.9%;
-    --accent-foreground: 0 0% 98%;
+    --background: 245 28% 7%;
+    --foreground: 250 20% 96%;
+    --card: 245 25% 10%;
+    --card-foreground: 250 20% 96%;
+    --popover: 245 25% 10%;
+    --popover-foreground: 250 20% 96%;
+    --primary: 250 75% 70%;
+    --primary-foreground: 250 30% 10%;
+    --secondary: 245 18% 16%;
+    --secondary-foreground: 250 20% 96%;
+    --muted: 245 18% 16%;
+    --muted-foreground: 250 10% 68%;
+    --accent: 245 18% 17%;
+    --accent-foreground: 250 20% 96%;
+    --accent-2: 38 92% 60%;
+    --accent-2-foreground: 30 40% 10%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 14.9%;
-    --input: 0 0% 14.9%;
-    --ring: 0 0% 83.1%;
+    --border: 245 16% 18%;
+    --input: 245 16% 18%;
+    --ring: 250 75% 70%;
   }
 }
 
@@ -54,13 +61,19 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-body;
   }
+  h1, h2, h3 { font-family: theme('fontFamily.display'); }
 }
 
 /* ===== Pendientes Pro ===== */
 html, body, #root { height: 100%; }
-body { font-family: "Avenir Next", "Segoe UI", system-ui, -apple-system, sans-serif; }
+
+/* Entrada escalonada de tarjetas (franja semanal, resumen de proyectos, notas recientes en Hoy).
+   Respeta prefers-reduced-motion: sin la clase motion-safe: los navegadores que la piden no animan. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in-up { animation: none; }
+}
 
 .scroll-thin::-webkit-scrollbar { width: 7px; height: 7px; }
 .scroll-thin::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 4px; }
@@ -73,17 +86,29 @@ body { font-family: "Avenir Next", "Segoe UI", system-ui, -apple-system, sans-se
 .nota-editor table { border-collapse: collapse; margin: 6px 0; font-size: 0.85em; }
 .nota-editor td, .nota-editor th { border: 1px solid hsl(var(--border)); padding: 4px 8px; }
 
-/* Chip de pendiente dentro de la nota */
-.pchip {
-  display: inline-flex; align-items: center; gap: 7px; padding: 3px 10px 3px 7px; margin: 2px 2px;
-  border-radius: 8px; background: hsl(174 100% 29% / 0.08); border: 1px solid hsl(174 100% 29% / 0.35);
-  font-size: 13px; cursor: pointer; user-select: none; white-space: normal; vertical-align: middle;
-  transition: background .15s;
+/* Pendiente como TEXTO EDITABLE dentro de la nota (no un recuadro congelado) */
+.nota-task {
+  position: relative; display: block; padding: 7px 12px 7px 34px; margin: 5px 0;
+  border: 1px solid hsl(var(--border)); border-left: 3px solid hsl(var(--primary));
+  border-radius: 9px; background: hsl(var(--primary) / 0.06); line-height: 1.5;
 }
-.pchip:hover { background: hsl(174 100% 29% / 0.16); }
-.pchip.done { background: hsl(150 60% 45% / 0.10); border-color: hsl(150 60% 40% / 0.4); }
-.pchip.done .pchip-t { text-decoration: line-through; opacity: .55; }
-.pchip.del { background: hsl(0 0% 60% / 0.12); border-color: hsl(0 0% 60% / 0.4); text-decoration: line-through; opacity: .6; cursor: default; }
-.pchip-check { width: 15px; height: 15px; accent-color: #009688; cursor: pointer; flex-shrink: 0; }
-.pchip-resp { font-size: 10px; color: hsl(var(--muted-foreground)); }
+.nota-task[data-prio="Alta"]  { border-left-color: #ef4444; }
+.nota-task[data-prio="Media"] { border-left-color: #f59e0b; }
+.nota-task[data-prio="Baja"]  { border-left-color: #10b981; }
+/* checkbox dibujado con CSS (no es un elemento, para no estorbar la edición del texto) */
+.nota-task::before {
+  content: ""; position: absolute; left: 11px; top: 9px; width: 15px; height: 15px;
+  border: 1.5px solid hsl(var(--primary) / 0.6); border-radius: 4px; background: hsl(var(--card));
+  cursor: pointer;
+}
+.nota-task.done::before {
+  content: "\2713"; color: #fff; background: hsl(var(--primary)); border-color: hsl(var(--primary));
+  font-size: 11px; line-height: 14px; text-align: center;
+}
+.nota-task.done { text-decoration: line-through; opacity: .6; }
+/* mientras escribes «- » y aún no confirmas con Enter */
+.nota-task-draft {
+  border-left: 3px dashed hsl(var(--primary) / .6); padding-left: 10px;
+  background: hsl(var(--primary) / 0.04); border-radius: 6px;
+}
 .linea-completada { text-decoration: line-through; opacity: .5; }

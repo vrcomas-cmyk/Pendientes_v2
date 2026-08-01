@@ -1,4 +1,4 @@
-import type { Nota, Pendiente } from '@/types'
+import type { Nota, Pendiente, Proyecto } from '@/types'
 
 export interface ItemBase { id: string; modificado: string }
 export type MapaSync = Record<string, string>
@@ -10,7 +10,10 @@ export function unionBy<T>(arr: T[], key: (t: T) => string): T[] {
   return out
 }
 
-const CAMPOS_ESCALARES: (keyof Pendiente)[] = ['titulo', 'descripcion', 'estado', 'prioridad', 'responsable', 'solicitante', 'fechaLimite', 'hora', 'proyecto']
+const CAMPOS_ESCALARES: (keyof Pendiente)[] = ['titulo', 'descripcion', 'estado', 'prioridad', 'responsable', 'solicitante', 'fechaLimite', 'hora', 'proyecto', 'repetir', 'duracionMin']
+// `googleEventos` (mapa cuentaId -> eventId) no es un campo escalar comparable: no se incluye
+// aquí ni se une a mano — al no ser información que el usuario edite a propósito, basta con que
+// "gane" el lado más reciente, que es justo lo que hace `merged = {...newer}` más abajo.
 
 /** Fusiona dos versiones del mismo pendiente sin perder comentarios ni adjuntos. */
 export function mergePendiente(local: Pendiente, remote: Pendiente): { merged: Pendiente; conflicto: boolean } {
@@ -40,6 +43,12 @@ export function mergeNota(local: Nota, remote: Nota): { merged: Nota; conflicto:
   return { merged: localNewer ? local : remote, conflicto }
 }
 
+export function mergeProyecto(local: Proyecto, remote: Proyecto): { merged: Proyecto; conflicto: boolean } {
+  const localNewer = (local.modificado || '') >= (remote.modificado || '')
+  const conflicto = local.nombre !== remote.nombre || local.color !== remote.color || local.cuentaGoogleId !== remote.cuentaGoogleId
+  return { merged: localNewer ? local : remote, conflicto }
+}
+
 function sinVolatil<T extends ItemBase>(x: T): string {
   const clon = { ...x } as Record<string, unknown>
   delete clon.modificado
@@ -64,6 +73,12 @@ export function reconciliar<T extends ItemBase>(
   remote: T[],
   last: MapaSync,
   merge: (l: T, r: T) => { merged: T; conflicto: boolean },
+  /**
+   * Devuelve `true` si el id se acaba de subir a la nube y todavía puede no
+   * reflejarse en una lectura (read-after-write lag). Esos ítems NUNCA se
+   * tratan como borrado remoto, para no perder pendientes recién creados.
+   */
+  protegido?: (id: string) => boolean,
 ): ResultadoReconcilia<T> {
   const mapL = new Map(local.map(x => [x.id, x]))
   const mapR = new Map(remote.map(x => [x.id, x]))
@@ -98,7 +113,8 @@ export function reconciliar<T extends ItemBase>(
       if (conocido) {
         const dirty = l.modificado !== last[id]
         if (dirty) resultado.push(l) // editado local tras borrado remoto -> gana la edición y se re-sube
-        // si no estaba sucio: aceptar borrado remoto (no se agrega, no entra a nextLast)
+        else if (protegido?.(id)) { resultado.push(l); nextLast[id] = last[id] } // ausencia incierta (lag / recién subido): conservar SIN re-subir ni borrar hasta confirmar
+        // si no estaba sucio ni protegido: aceptar borrado remoto (no se agrega, no entra a nextLast)
       } else {
         resultado.push(l) // alta local aún no subida
       }

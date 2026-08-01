@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '@/store'
 import type { Comentario, Estado, Prioridad, Subtarea, Adjunto } from '@/types'
-import { uid, fechaPorPrioridad } from '@/lib/app-utils'
+import { PROYECTO_COLORES, PROYECTO_COLORES_KEYS } from '@/types'
+import { uid, fechaPorPrioridad, describirRepeticion } from '@/lib/app-utils'
 import AdjuntosUI, { Miniatura } from '@/components/AdjuntosUI'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -14,9 +15,9 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { ChevronDown, ChevronRight, Plus, Trash2, X, StickyNote } from 'lucide-react'
 
 export default function TaskModal() {
-  const { modal, cerrarModal, pendientes, crearPendiente, actualizarPendiente, eliminarPendiente, usuario, personas } = useApp()
+  const { modal, cerrarModal, pendientes, crearPendiente, actualizarPendiente, eliminarPendiente, usuario, personas, proyectos, crearProyecto } = useApp()
   const editando = modal.editId ? pendientes.find(p => p.id === modal.editId) : null
-  const draftId = useRef<string>(uid())
+  const [draftId, setDraftId] = useState<string>(() => uid())
 
   const [titulo, setTitulo] = useState('')
   const [solicitante, setSolicitante] = useState('')
@@ -27,7 +28,10 @@ export default function TaskModal() {
   const [fechaLimite, setFechaLimite] = useState('')
   const [fechaTocada, setFechaTocada] = useState(false)
   const [hora, setHora] = useState('')
-  const [proyecto, setProyecto] = useState('')
+  const [proyectoId, setProyectoId] = useState('')
+  const [nuevoProyectoVal, setNuevoProyectoVal] = useState('')
+  const [creandoProyecto, setCreandoProyecto] = useState(false)
+  const [repetir, setRepetir] = useState('')
   const [etiquetas, setEtiquetas] = useState('')
   const [subtareas, setSubtareas] = useState<Subtarea[]>([])
   const [comentarios, setComentarios] = useState<Comentario[]>([])
@@ -38,7 +42,7 @@ export default function TaskModal() {
 
   useEffect(() => {
     if (!modal.open) return
-    draftId.current = editando?.id || uid()
+    setDraftId(editando?.id || uid()) // eslint-disable-line react-hooks/set-state-in-effect -- intentional form reset when the modal opens
     const d = modal.defaults
     setTitulo(editando?.titulo ?? d.titulo ?? '')
     setSolicitante(editando?.solicitante ?? d.solicitante ?? '')
@@ -51,7 +55,9 @@ export default function TaskModal() {
     if (fechaInicial) { setFechaLimite(fechaInicial); setFechaTocada(true) }
     else { setFechaLimite(fechaPorPrioridad(prioInicial)); setFechaTocada(false) }
     setHora(editando?.hora ?? d.hora ?? '')
-    setProyecto(editando?.proyecto ?? d.proyecto ?? '')
+    setProyectoId(editando?.proyectoId ?? d.proyectoId ?? '')
+    setCreandoProyecto(false); setNuevoProyectoVal('')
+    setRepetir(editando?.repetir ?? d.repetir ?? '')
     setEtiquetas((editando?.etiquetas ?? d.etiquetas ?? []).join(', '))
     setSubtareas(JSON.parse(JSON.stringify(editando?.subtareas ?? d.subtareas ?? [])))
     setComentarios(JSON.parse(JSON.stringify(editando?.comentarios ?? d.comentarios ?? [])))
@@ -81,14 +87,16 @@ export default function TaskModal() {
       toast.error('No puedes marcarlo como completado: faltan subtareas')
       return
     }
+    const nombreProyecto = proyectos.find(p => p.id === proyectoId)?.nombre || ''
     const datos = {
       titulo: t, solicitante: solicitante.trim(), responsable: responsable.trim(),
-      descripcion: descripcion.trim(), prioridad, estado, fechaLimite, hora, proyecto: proyecto.trim(),
+      descripcion: descripcion.trim(), prioridad, estado, fechaLimite, hora,
+      proyecto: nombreProyecto, proyectoId: proyectoId || undefined,
       etiquetas: etiquetas.split(',').map(s => s.trim()).filter(Boolean),
-      subtareas, comentarios, adjuntos,
+      subtareas, comentarios, adjuntos, repetir: repetir || undefined,
     }
     if (editando) actualizarPendiente(editando.id, datos)
-    else crearPendiente({ ...datos, id: draftId.current })
+    else crearPendiente({ ...datos, id: draftId })
     cerrarModal()
     toast.success('Guardado')
   }
@@ -152,6 +160,24 @@ export default function TaskModal() {
             </div>
           </div>
 
+          {/* Repetición */}
+          <div className="space-y-1.5">
+            <Label className="text-[11px] uppercase text-muted-foreground">Repetir</Label>
+            <Select value={repetir || 'nunca'} onValueChange={v => setRepetir(v === 'nunca' ? '' : v)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="nunca">No se repite</SelectItem>
+                <SelectItem value="1d">Cada día</SelectItem>
+                <SelectItem value="7d">Cada semana</SelectItem>
+                <SelectItem value="14d">Cada 2 semanas</SelectItem>
+                <SelectItem value="1m">Cada mes</SelectItem>
+                <SelectItem value="!1d">Cada día (desde que se completa)</SelectItem>
+                <SelectItem value="!7d">Cada semana (desde que se completa)</SelectItem>
+              </SelectContent>
+            </Select>
+            {repetir && <p className="text-[10px] text-muted-foreground">Al completarlo se creará el siguiente: {describirRepeticion(repetir)}.</p>}
+          </div>
+
           {/* Subtareas con responsable y fecha */}
           <div className="space-y-1.5">
             <Label className="text-[11px] uppercase text-muted-foreground">Subtareas {faltanSub > 0 && <span className="text-amber-600">· {faltanSub} por completar</span>}</Label>
@@ -180,7 +206,7 @@ export default function TaskModal() {
           {/* Adjuntos */}
           <div className="space-y-1.5">
             <Label className="text-[11px] uppercase text-muted-foreground">Adjuntos (archivos / imágenes)</Label>
-            <AdjuntosUI adjuntos={adjuntos} taskId={draftId.current} onChange={setAdjuntos} />
+            <AdjuntosUI adjuntos={adjuntos} taskId={draftId} onChange={setAdjuntos} />
           </div>
 
           {/* Comentarios / bitácora */}
@@ -214,7 +240,34 @@ export default function TaskModal() {
             <div className="space-y-4 border-t pt-4">
               <div className="space-y-1.5">
                 <Label className="text-[11px] uppercase text-muted-foreground">Proyecto</Label>
-                <Input value={proyecto} onChange={e => setProyecto(e.target.value)} placeholder="Ej: Ventas" />
+                {creandoProyecto ? (
+                  <div className="flex gap-2">
+                    <Input autoFocus value={nuevoProyectoVal} onChange={e => setNuevoProyectoVal(e.target.value)} placeholder="Nombre del proyecto nuevo"
+                      onKeyDown={e => {
+                        if (e.key !== 'Enter') return
+                        e.preventDefault()
+                        const n = nuevoProyectoVal.trim()
+                        if (!n) return
+                        const p = crearProyecto(n)
+                        setProyectoId(p.id); setCreandoProyecto(false); setNuevoProyectoVal('')
+                      }} />
+                    <Button variant="secondary" size="sm" onClick={() => setCreandoProyecto(false)}>Cancelar</Button>
+                  </div>
+                ) : (
+                  <Select value={proyectoId || '__ninguno'} onValueChange={v => { if (v === '__nuevo') setCreandoProyecto(true); else setProyectoId(v === '__ninguno' ? '' : v) }}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__ninguno">Sin proyecto</SelectItem>
+                      {proyectos.map(p => (
+                        <SelectItem key={p.id} value={p.id}>
+                          <span className={'mr-1.5 inline-block h-2 w-2 rounded-full ' + (PROYECTO_COLORES[p.color]?.dot || PROYECTO_COLORES[PROYECTO_COLORES_KEYS[0]].dot)} />
+                          {p.nombre}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="__nuevo">+ Crear nuevo proyecto…</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
               <div className="space-y-1.5">
                 <Label className="text-[11px] uppercase text-muted-foreground">Etiquetas (coma)</Label>

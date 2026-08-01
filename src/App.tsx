@@ -6,53 +6,109 @@ import { descargar, hoyISO, vencido, parsearLinea, fechaPorPrioridad } from '@/l
 import { useIsMobile } from '@/hooks/use-is-mobile'
 import { SyncProvider, useSync, SyncBadge } from '@/sync'
 import TaskModal from '@/components/TaskModal'
+import PendientePeek from '@/components/PendientePeek'
+import PreviaParseo from '@/components/PreviaParseo'
+import AyudaAtajos from '@/components/AyudaAtajos'
+import ErrorBoundary from '@/components/ErrorBoundary'
+import PaletaComandos from '@/components/PaletaComandos'
+import { manejarCallbackOAuth, listarCuentasGoogle, type CuentaGoogle } from '@/lib/googleCalendar'
+import CuentasGoogleDialog from '@/components/CuentasGoogleDialog'
 import PendientesView from '@/views/PendientesView'
 import NotesView from '@/views/NotesView'
+import ProyectosView from '@/views/ProyectosView'
 import { TodayView, DashboardView } from '@/views/OtherViews'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
 import {
-  Star, ListTodo, BarChart3, StickyNote,
-  Plus, Moon, Sun, Download, Upload, FileSpreadsheet, AlertTriangle, User, MoreVertical, LogOut, LogIn,
+  Star, ListTodo, BarChart3, StickyNote, Briefcase,
+  Plus, Moon, Sun, Download, Upload, FileSpreadsheet, AlertTriangle, User, MoreVertical, LogOut, LogIn, HelpCircle, CalendarClock,
 } from 'lucide-react'
 
-type Vista = 'hoy' | 'pendientes' | 'notas' | 'dashboard'
+const LS_VISTA = 'pn_vista'
+const VISTAS_VALIDAS = ['hoy', 'pendientes', 'notas', 'proyectos', 'dashboard'] as const
+
+type Vista = 'hoy' | 'pendientes' | 'notas' | 'proyectos' | 'dashboard'
 
 const VISTAS: { id: Vista; label: string; corto: string; icon: React.ReactNode }[] = [
   { id: 'hoy', label: 'Hoy', corto: 'Hoy', icon: <Star size={18} /> },
   { id: 'pendientes', label: 'Pendientes', corto: 'Tareas', icon: <ListTodo size={18} /> },
   { id: 'notas', label: 'Notas', corto: 'Notas', icon: <StickyNote size={18} /> },
+  { id: 'proyectos', label: 'Proyectos', corto: 'Proyectos', icon: <Briefcase size={18} /> },
   { id: 'dashboard', label: 'Panel', corto: 'Panel', icon: <BarChart3 size={18} /> },
 ]
 
 function Shell() {
   const app = useApp()
-  const { pendientes, notas, usuario, setUsuario, crearPendiente, abrirModal, reemplazarTodo, notaActualId, setNotaActualId } = app
+  const { pendientes, notas, proyectos, usuario, setUsuario, crearPendiente, crearNota, abrirModal, reemplazarTodo, notaActualId, setNotaActualId, proyectoAbiertoId, setProyectoAbiertoId, setFiltroFecha } = app
   const sync = useSync()
   const isMobile = useIsMobile()
-  const [vista, setVistaState] = useState<Vista>('hoy')
+  const [vista, setVistaState] = useState<Vista>(() => {
+    try { const v = localStorage.getItem(LS_VISTA); if (v && (VISTAS_VALIDAS as readonly string[]).includes(v)) return v as Vista } catch { /* noop */ }
+    return 'hoy'
+  })
   const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'))
   const [menuAbierto, setMenuAbierto] = useState(false)
+  const [nombreDlg, setNombreDlg] = useState(false)
+  const [nombreVal, setNombreVal] = useState('')
+  const [importDlg, setImportDlg] = useState(false)
+  const [ayudaAbierta, setAyudaAbierta] = useState(false)
+  const [paletaAbierta, setPaletaAbierta] = useState(false)
+  const [cuentasGoogle, setCuentasGoogle] = useState<CuentaGoogle[]>([])
+  const [cuentasGoogleDlg, setCuentasGoogleDlg] = useState(false)
+  const [quickTexto, setQuickTexto] = useState('')
+  const [fabAbierto, setFabAbierto] = useState(false)
   const quickRef = useRef<HTMLInputElement>(null)
+  const quickMovilRef = useRef<HTMLInputElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+  const importPendiente = useRef<{ pendientes: unknown[]; notas: unknown[]; usuario?: string } | null>(null)
+
+  const abrirNombreDlg = () => { setNombreVal(usuario); setNombreDlg(true) }
+  const confirmarNombre = () => { const n = nombreVal.trim(); if (n) setUsuario(n); setNombreDlg(false) }
 
   const setVista = (v: Vista) => {
-    // Al tocar "Notas" en la navegación, siempre mostrar la lista (no una nota abierta)
+    // Al tocar "Notas"/"Proyectos" en la navegación, siempre mostrar la lista (no un detalle abierto)
     if (v === 'notas') setNotaActualId(null)
+    if (v === 'proyectos') setProyectoAbiertoId(null)
     setVistaState(v)
+    try { localStorage.setItem(LS_VISTA, v) } catch { /* noop */ }
   }
 
-  useEffect(() => { if (notaActualId && vista !== 'notas') setVistaState('notas') }, [notaActualId]) // eslint-disable-line react-hooks/exhaustive-deps
+  const verVencidos = () => { setNotaActualId(null); setVista('pendientes'); setFiltroFecha('vencidos') }
+
+  // notaActualId/proyectoAbiertoId son globales: así una tarjeta de "Hoy" puede abrir directamente
+  // una nota o un proyecto sin que la vista deba conocer el detalle de cómo se navega.
+  const vistaMostrada: Vista = notaActualId ? 'notas' : proyectoAbiertoId ? 'proyectos' : vista
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement).tagName
       const editando = tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable
+      if (e.key === '?' && !editando) { e.preventDefault(); setAyudaAbierta(true); return }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setPaletaAbierta(v => !v); return }
       if (editando) return
+      if (e.key.toLowerCase() === 'n' && e.shiftKey) { e.preventDefault(); crearNota(); return }
       if (e.key.toLowerCase() === 'n') { e.preventDefault(); abrirModal() }
       if (e.key === '/') { e.preventDefault(); quickRef.current?.focus() }
+      if (e.key === 'Escape') { if (notaActualId) setNotaActualId(null); else if (proyectoAbiertoId) setProyectoAbiertoId(null) }
+      if (['1', '2', '3', '4', '5'].includes(e.key)) { e.preventDefault(); setVista(VISTAS_VALIDAS[Number(e.key) - 1] as Vista) }
     }
     window.addEventListener('keydown', h)
     return () => window.removeEventListener('keydown', h)
-  }, [abrirModal])
+  }, [abrirModal, crearNota, notaActualId, proyectoAbiertoId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Tema: si el usuario ya eligió explícitamente (toggleDark guardó 'darkMode'), se respeta.
+  // Si nunca lo tocó, la app sigue el tema del sistema operativo en vivo.
+  useEffect(() => {
+    let elegidoManual: string | null = null
+    try { elegidoManual = localStorage.getItem('darkMode') } catch { /* noop */ }
+    if (elegidoManual !== null) return
+    const mq = window.matchMedia('(prefers-color-scheme: dark)')
+    const aplicar = (d: boolean) => { document.documentElement.classList.toggle('dark', d); setDark(d) }
+    const onChange = (e: MediaQueryListEvent) => aplicar(e.matches)
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
 
   const toggleDark = () => {
     const d = document.documentElement.classList.toggle('dark')
@@ -60,25 +116,45 @@ function Shell() {
     try { localStorage.setItem('darkMode', String(d)) } catch { /* noop */ }
   }
 
+  // Conexión con Google Calendar: requiere sesión sincronizada (la Edge Function identifica
+  // al usuario por su JWT de Supabase). Al volver del consentimiento de Google, la URL trae
+  // `?code=...`; se intercambia una sola vez al montar. Se soportan varias cuentas conectadas
+  // a la vez (espejo): por eso se recarga la lista completa tras cada cambio.
+  const recargarCuentasGoogle = () => { listarCuentasGoogle().then(r => setCuentasGoogle(r.cuentas)).catch(() => setCuentasGoogle([])) }
+
+  useEffect(() => {
+    let vivo = true
+    if (sync.modoLocal) { Promise.resolve().then(() => { if (vivo) setCuentasGoogle([]) }); return () => { vivo = false } }
+    manejarCallbackOAuth()
+      .then(r => { if (r) toast.success('Google Calendar conectado: ' + r.email) })
+      .catch(err => toast.error(err instanceof Error ? err.message : 'No se pudo conectar con Google Calendar'))
+      .finally(() => { listarCuentasGoogle().then(s => { if (vivo) setCuentasGoogle(s.cuentas) }) })
+    return () => { vivo = false }
+  }, [sync.modoLocal])
+
   const quickAdd = () => {
-    const inp = quickRef.current
-    if (!inp) return
-    let txt = inp.value.trim()
-    if (!txt) return
-    let proyecto = ''
-    txt = txt.replace(/#(\S+)/, (_m, p: string) => { proyecto = p; return '' })
-    const parsed = parsearLinea('- ' + txt) // reusa la misma sintaxis de las notas (@ ! >)
-    if (!parsed) return
+    const txt0 = quickTexto.trim()
+    if (!txt0) return
+    const etiquetasHash: string[] = []
+    const txt = txt0.replace(/#(\S+)/g, (_m, p: string) => { etiquetasHash.push(p); return '' })
+    const parsed = parsearLinea('- ' + txt) // reusa la misma sintaxis de las notas (@ ! > *)
+    if (!parsed) { toast.error('No se entendió el texto. Revisa la sintaxis con "?"'); return }
     const prioridad = parsed.prioridad || 'Media'
+    const nombreProyecto = etiquetasHash[0] || ''
+    // Si el #hashtag coincide con un proyecto gestionado existente, hereda su ruteo de espejo.
+    const proyectoExistente = nombreProyecto ? proyectos.find(p => p.nombre.toLowerCase() === nombreProyecto.toLowerCase()) : null
     crearPendiente({
       titulo: parsed.titulo,
       descripcion: parsed.descripcion,
       responsable: parsed.responsable,
       prioridad,
-      proyecto,
+      proyecto: nombreProyecto,
+      proyectoId: proyectoExistente?.id,
+      etiquetas: etiquetasHash.slice(1),
       fechaLimite: parsed.fechaLimite || fechaPorPrioridad(prioridad),
+      repetir: parsed.repetir,
     })
-    inp.value = ''
+    setQuickTexto('')
     toast.success('Pendiente creado')
   }
 
@@ -99,13 +175,19 @@ function Shell() {
     r.onload = ev => {
       try {
         const d = JSON.parse(String(ev.target?.result))
-        if (!confirm('Esto reemplazará tus datos actuales. ¿Continuar?')) return
-        reemplazarTodo(d.pendientes || [], d.notas || [], d.usuario)
-        toast.success('Datos importados')
+        importPendiente.current = { pendientes: d.pendientes || [], notas: d.notas || [], usuario: d.usuario }
+        setImportDlg(true)
       } catch { toast.error('Archivo inválido') }
     }
     r.readAsText(f)
     e.target.value = ''
+  }
+  const confirmarImportacion = () => {
+    const d = importPendiente.current
+    setImportDlg(false)
+    if (!d) return
+    reemplazarTodo(d.pendientes as Parameters<typeof reemplazarTodo>[0], d.notas as Parameters<typeof reemplazarTodo>[1], d.usuario)
+    toast.success('Datos importados')
   }
 
   const nVencidos = pendientes.filter(vencido).length
@@ -113,32 +195,93 @@ function Shell() {
 
   const vistaActual = (
     <>
-      {vista === 'hoy' && <TodayView />}
-      {vista === 'pendientes' && <PendientesView />}
-      {vista === 'notas' && <NotesView />}
-      {vista === 'dashboard' && <DashboardView />}
+      {vistaMostrada === 'hoy' && <TodayView />}
+      {vistaMostrada === 'pendientes' && <PendientesView />}
+      {vistaMostrada === 'notas' && <NotesView />}
+      {vistaMostrada === 'proyectos' && <ProyectosView />}
+      {vistaMostrada === 'dashboard' && <DashboardView />}
     </>
   )
 
   const inputImport = <input ref={fileRef} type="file" accept="application/json" className="hidden" onChange={importarJSON} />
 
+  // Captura universal: crear pendiente o nota desde CUALQUIER vista, no solo desde el header de
+  // escritorio (que solo crea pendientes) o el FAB móvil (que antes se ocultaba en Notas).
+  const fabCaptura = (
+    <>
+      {fabAbierto && <div className="fixed inset-0 z-30" onClick={() => setFabAbierto(false)} />}
+      <div className={'fixed z-40 flex flex-col items-end gap-2 ' + (isMobile ? 'bottom-20 right-4' : 'bottom-6 right-6')}>
+        {fabAbierto && (
+          <div className="flex flex-col items-end gap-2 animate-in fade-in slide-in-from-bottom-2 duration-150 motion-reduce:animate-none">
+            <button onClick={() => { setFabAbierto(false); crearNota() }}
+              className="flex items-center gap-2 rounded-full border bg-card py-1.5 pl-3.5 pr-1.5 text-sm shadow-lg transition-transform hover:-translate-y-0.5">
+              Nueva nota
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary text-secondary-foreground"><StickyNote size={15} /></span>
+            </button>
+            <button onClick={() => { setFabAbierto(false); abrirModal() }}
+              className="flex items-center gap-2 rounded-full border bg-card py-1.5 pl-3.5 pr-1.5 text-sm shadow-lg transition-transform hover:-translate-y-0.5">
+              Nuevo pendiente
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary text-secondary-foreground"><ListTodo size={15} /></span>
+            </button>
+          </div>
+        )}
+        <button onClick={() => setFabAbierto(v => !v)} aria-label="Crear pendiente o nota" aria-expanded={fabAbierto}
+          className={'flex items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 transition-transform active:scale-95 ' +
+            (isMobile ? 'h-14 w-14' : 'h-12 w-12') + (fabAbierto ? ' rotate-45' : '')}>
+          <Plus size={isMobile ? 26 : 22} />
+        </button>
+      </div>
+    </>
+  )
+
+  const dialogosGlobales = (
+    <>
+      <Dialog open={nombreDlg} onOpenChange={setNombreDlg}>
+        <DialogContent className="max-w-xs">
+          <DialogHeader><DialogTitle className="text-base">Tu nombre</DialogTitle></DialogHeader>
+          <Input autoFocus value={nombreVal} onChange={e => setNombreVal(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); confirmarNombre() } }} placeholder="Tu nombre" />
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setNombreDlg(false)}>Cancelar</Button>
+            <Button onClick={confirmarNombre}>Guardar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={importDlg} onOpenChange={setImportDlg}>
+        <DialogContent className="max-w-xs">
+          <DialogHeader><DialogTitle className="text-base">Importar datos</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">Esto reemplazará tus pendientes y notas actuales. ¿Continuar?</p>
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setImportDlg(false)}>Cancelar</Button>
+            <Button onClick={confirmarImportacion}>Reemplazar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <AyudaAtajos open={ayudaAbierta} onOpenChange={setAyudaAbierta} />
+      <CuentasGoogleDialog open={cuentasGoogleDlg} onOpenChange={setCuentasGoogleDlg} cuentas={cuentasGoogle} onCambio={recargarCuentasGoogle} />
+      <PaletaComandos open={paletaAbierta} onOpenChange={setPaletaAbierta}
+        onIrVista={setVista} onAlternarTema={toggleDark} onExportarJSON={exportarJSON} onExportarCSV={exportarCSV} onVerVencidos={verVencidos} />
+    </>
+  )
+
   /* ===================== MÓVIL ===================== */
   if (isMobile) {
-    const tituloVista = VISTAS.find(v => v.id === vista)?.label || ''
+    const tituloVista = VISTAS.find(v => v.id === vistaMostrada)?.label || ''
     return (
       <div className="flex h-screen flex-col overflow-hidden bg-background text-foreground">
         {/* Header compacto */}
         <header className="relative flex shrink-0 items-center gap-2 border-b bg-card px-3 py-2.5 shadow-sm">
           <span className="text-base font-bold">{tituloVista}</span>
-          {vista === 'pendientes' && nVencidos > 0 && (
-            <button onClick={() => { setVista('pendientes') }}
+          {nVencidos > 0 && (
+            <button onClick={verVencidos}
               className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-700 dark:bg-red-900/40 dark:text-red-300">
               {nVencidos} vencidos
             </button>
           )}
           <div className="ml-auto flex items-center gap-1">
-            <button onClick={toggleDark} className="rounded-md p-2 hover:bg-accent">{dark ? <Sun size={16} /> : <Moon size={16} />}</button>
-            <button onClick={() => setMenuAbierto(v => !v)} className="rounded-md p-2 hover:bg-accent"><MoreVertical size={16} /></button>
+            <button onClick={() => setAyudaAbierta(true)} aria-label="Ayuda y atajos" className="rounded-md p-2 hover:bg-accent"><HelpCircle size={16} /></button>
+            <button onClick={toggleDark} aria-label="Cambiar tema" className="rounded-md p-2 hover:bg-accent">{dark ? <Sun size={16} /> : <Moon size={16} />}</button>
+            <button onClick={() => setMenuAbierto(v => !v)} aria-label="Más opciones" className="rounded-md p-2 hover:bg-accent"><MoreVertical size={16} /></button>
           </div>
           {menuAbierto && (
             <>
@@ -152,10 +295,13 @@ function Shell() {
                     <div className="truncate px-3 pb-1 text-[11px] text-muted-foreground">{sync.email}</div>
                     <button onClick={() => { setMenuAbierto(false); sync.sincronizarAhora() }} className="flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-accent"><User size={15} /> Sincronizar ahora</button>
                     <button onClick={() => { setMenuAbierto(false); sync.logout() }} className="flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-accent"><LogOut size={15} /> Cerrar sesión</button>
+                    <button onClick={() => { setMenuAbierto(false); setCuentasGoogleDlg(true) }} className="flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-accent">
+                      <CalendarClock size={15} /> Google Calendar{cuentasGoogle.length ? ` (${cuentasGoogle.length})` : ''}
+                    </button>
                   </>
                 )}
                 <div className="border-t" />
-                <button onClick={() => { setMenuAbierto(false); const n = prompt('Tu nombre:', usuario); if (n?.trim()) setUsuario(n.trim()) }} className="flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-accent"><User size={15} /> Nombre: {usuario}</button>
+                <button onClick={() => { setMenuAbierto(false); abrirNombreDlg() }} className="flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-accent"><User size={15} /> Nombre: {usuario}</button>
                 <div className="border-t" />
                 <button onClick={() => { setMenuAbierto(false); exportarJSON() }} className="flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-accent"><Download size={15} /> Exportar JSON</button>
                 <button onClick={() => { setMenuAbierto(false); exportarCSV() }} className="flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-accent"><FileSpreadsheet size={15} /> Exportar CSV</button>
@@ -165,22 +311,26 @@ function Shell() {
           )}
         </header>
 
+        {vistaMostrada !== 'notas' && (
+          <div className="shrink-0 space-y-1 border-b bg-card px-3 py-2">
+            <input ref={quickMovilRef} value={quickTexto} onChange={e => setQuickTexto(e.target.value)}
+              placeholder='Captura rápida: "cotización !alta @Liz mañana"'
+              onKeyDown={e => { if (e.key === 'Enter') quickAdd() }}
+              className="w-full rounded-full border bg-muted/60 px-4 py-1.5 text-xs outline-none focus:ring-2 focus:ring-primary" />
+            <PreviaParseo texto={quickTexto} />
+          </div>
+        )}
+
         <main className="relative min-h-0 flex-1 overflow-auto p-3 scroll-thin">
-          {vistaActual}
-          {/* FAB nuevo pendiente (oculto en Notas, que tiene su propio botón) */}
-          {vista !== 'notas' && (
-            <button onClick={() => abrirModal()} aria-label="Nuevo pendiente"
-              className="fixed bottom-20 right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg active:scale-95">
-              <Plus size={26} />
-            </button>
-          )}
+          <div key={vistaMostrada} className="animate-in fade-in slide-in-from-bottom-1 duration-200 motion-reduce:animate-none">{vistaActual}</div>
         </main>
+        {fabCaptura}
 
         {/* Barra inferior de vistas */}
-        <nav className="grid shrink-0 grid-cols-6 border-t bg-card">
+        <nav className="grid shrink-0 grid-cols-5 border-t bg-card">
           {VISTAS.map(v => (
-            <button key={v.id} onClick={() => setVista(v.id)}
-              className={'flex flex-col items-center gap-0.5 py-2 text-[10px] ' + (vista === v.id ? 'text-primary' : 'text-muted-foreground')}>
+            <button key={v.id} onClick={() => setVista(v.id)} aria-current={vistaMostrada === v.id ? 'page' : undefined}
+              className={'flex flex-col items-center gap-0.5 py-2 text-[10px] ' + (vistaMostrada === v.id ? 'text-primary' : 'text-muted-foreground')}>
               {v.icon}
               <span>{v.corto}</span>
             </button>
@@ -188,6 +338,8 @@ function Shell() {
         </nav>
         {inputImport}
         <TaskModal />
+        <PendientePeek />
+        {dialogosGlobales}
         <Toaster position="top-center" richColors />
       </div>
     )
@@ -206,8 +358,8 @@ function Shell() {
         </div>
         <div className="flex-1 space-y-0.5 overflow-y-auto overflow-x-hidden px-1 scroll-thin">
           {VISTAS.map(v => (
-            <button key={v.id} onClick={() => setVista(v.id)}
-              className={'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm ' + (vista === v.id ? 'bg-primary text-primary-foreground' : 'hover:bg-accent')}>
+            <button key={v.id} onClick={() => setVista(v.id)} aria-current={vistaMostrada === v.id ? 'page' : undefined}
+              className={'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm ' + (vistaMostrada === v.id ? 'bg-primary text-primary-foreground' : 'hover:bg-accent')}>
               <span className="w-5 shrink-0">{v.icon}</span>
               <span className="flex-1 whitespace-nowrap text-left opacity-0 transition-opacity group-hover/rail:opacity-100">{v.label}</span>
               {v.id === 'pendientes' && nAbiertos > 0 && (
@@ -216,7 +368,7 @@ function Shell() {
             </button>
           ))}
           <div className="my-2 border-t" />
-          <button onClick={() => { setVista('pendientes') }}
+          <button onClick={verVencidos}
             className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-accent">
             <AlertTriangle size={16} className="w-5 shrink-0 text-red-500" />
             <span className="flex-1 whitespace-nowrap text-left opacity-0 transition-opacity group-hover/rail:opacity-100">Vencidos</span>
@@ -234,24 +386,39 @@ function Shell() {
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <div className="flex shrink-0 items-center gap-3 border-b bg-card px-4 py-2 shadow-sm">
           <h1 className="hidden whitespace-nowrap text-sm font-bold md:block">Pendientes <span className="text-primary">Pro</span></h1>
-          <input ref={quickRef} placeholder='Captura rápida ( / ):  "cotización Soriana !alta @Liz mañana"'
-            onKeyDown={e => { if (e.key === 'Enter') quickAdd() }}
-            className="max-w-2xl flex-1 rounded-full border bg-muted/60 px-4 py-1.5 text-xs outline-none focus:ring-2 focus:ring-primary" />
-          <button onClick={toggleDark} title="Modo oscuro" className="rounded-md bg-muted p-1.5">{dark ? <Sun size={14} /> : <Moon size={14} />}</button>
+          <div className="max-w-2xl flex-1 space-y-1">
+            <input ref={quickRef} value={quickTexto} onChange={e => setQuickTexto(e.target.value)}
+              placeholder='Captura rápida ( / ):  "cotización Soriana !alta @Liz mañana"'
+              onKeyDown={e => { if (e.key === 'Enter') quickAdd() }}
+              className="w-full rounded-full border bg-muted/60 px-4 py-1.5 text-xs outline-none focus:ring-2 focus:ring-primary" />
+            <PreviaParseo texto={quickTexto} />
+          </div>
+          <button onClick={() => setAyudaAbierta(true)} title="Ayuda y atajos (?)" aria-label="Ayuda y atajos" className="rounded-md bg-muted p-1.5"><HelpCircle size={14} /></button>
+          <button onClick={toggleDark} title="Modo oscuro" aria-label="Cambiar tema" className="rounded-md bg-muted p-1.5">{dark ? <Sun size={14} /> : <Moon size={14} />}</button>
           <SyncBadge />
+          {!sync.modoLocal && (
+            <button onClick={() => setCuentasGoogleDlg(true)} className="flex items-center gap-1 whitespace-nowrap text-xs font-medium hover:underline">
+              <CalendarClock size={13} /> {cuentasGoogle.length ? `Calendar (${cuentasGoogle.length})` : 'Conectar Calendar'}
+            </button>
+          )}
           {sync.modoLocal ? (
             <button onClick={sync.activarSync} className="flex items-center gap-1 whitespace-nowrap text-xs font-medium text-primary hover:underline"><LogIn size={13} /> Sincronizar</button>
           ) : (
             <button onClick={sync.logout} title={sync.email || ''} className="flex items-center gap-1 whitespace-nowrap text-xs font-medium hover:underline"><LogOut size={13} /> Salir</button>
           )}
-          <button onClick={() => { const n = prompt('Tu nombre:', usuario); if (n?.trim()) setUsuario(n.trim()) }}
+          <button onClick={abrirNombreDlg}
             className="flex items-center gap-1 whitespace-nowrap text-xs font-medium hover:underline"><User size={13} /> {usuario}</button>
         </div>
 
-        <main className="min-h-0 flex-1 overflow-auto p-4 scroll-thin">{vistaActual}</main>
+        <main className="min-h-0 flex-1 overflow-auto p-4 scroll-thin">
+          <div key={vistaMostrada} className="animate-in fade-in slide-in-from-bottom-1 duration-200 motion-reduce:animate-none">{vistaActual}</div>
+        </main>
       </div>
 
+      {fabCaptura}
       <TaskModal />
+      <PendientePeek />
+      {dialogosGlobales}
       <Toaster position="bottom-right" richColors />
     </div>
   )
@@ -259,10 +426,12 @@ function Shell() {
 
 export default function App() {
   return (
-    <AppProvider>
-      <SyncProvider>
-        <Shell />
-      </SyncProvider>
-    </AppProvider>
+    <ErrorBoundary>
+      <AppProvider>
+        <SyncProvider>
+          <Shell />
+        </SyncProvider>
+      </AppProvider>
+    </ErrorBoundary>
   )
 }

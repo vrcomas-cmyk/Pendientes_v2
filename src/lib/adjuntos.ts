@@ -20,7 +20,7 @@ export async function subirAdjunto(file: File, taskId: string): Promise<Adjunto>
   const userId = sb ? (await sb.auth.getUser()).data.user?.id : null
 
   if (sb && userId) {
-    const safe = file.name.replace(/[^\w.\-]+/g, '_')
+    const safe = file.name.replace(/[^\w.-]+/g, '_')
     const path = `${userId}/${taskId}/${uid()}-${safe}`
     const { error } = await sb.storage.from(BUCKET).upload(path, file, {
       contentType: file.type || 'application/octet-stream',
