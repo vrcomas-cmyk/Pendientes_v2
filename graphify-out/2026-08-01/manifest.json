@@ -15,9 +15,9 @@
     "semantic_hash": "0355276bc79439afe3c53e3a2470ca1e"
   },
   "package.json": {
-    "mtime": 1784084179.0229974,
-    "ast_hash": "fa2eed9f87fa881c521f2308a257ebd7",
-    "semantic_hash": "fa2eed9f87fa881c521f2308a257ebd7"
+    "mtime": 1785568146.6977215,
+    "ast_hash": "9280d6ae9a4edcf06834ddfcd1bd8d95",
+    "semantic_hash": ""
   },
   "postcss.config.js": {
     "mtime": 1784084179.0150013,
@@ -25,13 +25,13 @@
     "semantic_hash": "ef3ba2a81ba19f8ea5ddf625521e96f0"
   },
   "public/sw.js": {
-    "mtime": 1784095421.2330196,
-    "ast_hash": "3c6a11a08431adc5a2c71f218896ad6a",
+    "mtime": 1785568172.4348345,
+    "ast_hash": "bad530766b5b366fd0e93811ee7e9e98",
     "semantic_hash": ""
   },
   "src/App.tsx": {
-    "mtime": 1785563511.4632535,
-    "ast_hash": "96398991bcaeb908c2db58dc357e3b21",
+    "mtime": 1785568600.990576,
+    "ast_hash": "afbb5c403ca379a696b6ca100369b343",
     "semantic_hash": ""
   },
   "src/components/AdjuntosUI.tsx": {
@@ -70,8 +70,8 @@
     "semantic_hash": "ce4fe60f4c48c01a5a601d9835648b40"
   },
   "src/components/ui/badge.tsx": {
-    "mtime": 1784085344.849481,
-    "ast_hash": "6e9522ee06725294a0c19de9c6f9a21e",
+    "mtime": 1785568356.5393655,
+    "ast_hash": "e1650e6a0e4b20ec710c62c7aa106d96",
     "semantic_hash": ""
   },
   "src/components/ui/breadcrumb.tsx": {
@@ -80,8 +80,8 @@
     "semantic_hash": "60485fccd28b1bb7690978d2f0ea91a7"
   },
   "src/components/ui/button.tsx": {
-    "mtime": 1784085345.9541051,
-    "ast_hash": "10812024dcd6253134017a7f37c0c5d5",
+    "mtime": 1785568350.0940447,
+    "ast_hash": "01bedb8f4bbabe610e3f84d34dfdc207",
     "semantic_hash": ""
   },
   "src/components/ui/card.tsx": {
@@ -290,18 +290,18 @@
     "semantic_hash": "5a6fd53fdcf2be529e9cc0b718fde352"
   },
   "src/main.tsx": {
-    "mtime": 1784095413.8165858,
-    "ast_hash": "db758f885686df33c4da2733c0ea9b5c",
+    "mtime": 1785568182.921285,
+    "ast_hash": "b94bcd3438076737d1abd4cbf41c2eb7",
     "semantic_hash": ""
   },
   "src/store.tsx": {
-    "mtime": 1785563094.189808,
-    "ast_hash": "791ad01b6b273b75049ff761557fd7f2",
+    "mtime": 1785568381.128048,
+    "ast_hash": "97d83d295ccc2680bed00e3b656ffa1a",
     "semantic_hash": ""
   },
   "src/sync.tsx": {
-    "mtime": 1785563045.7285411,
-    "ast_hash": "36ab963cb7b16309eca80fc775ed592f",
+    "mtime": 1785604380.8622959,
+    "ast_hash": "1fc75c8e0a27e011bccc20513e6bab38",
     "semantic_hash": ""
   },
   "src/types.ts": {
@@ -320,8 +320,8 @@
     "semantic_hash": ""
   },
   "src/views/OtherViews.tsx": {
-    "mtime": 1785552605.1953738,
-    "ast_hash": "2abf62b2e82dbd27892febc2d5c23c1c",
+    "mtime": 1785568498.1815865,
+    "ast_hash": "367dc96363f17998983d5298bbb9e522",
     "semantic_hash": ""
   },
   "src/views/PendientesView.tsx": {
@@ -330,9 +330,9 @@
     "semantic_hash": ""
   },
   "tailwind.config.js": {
-    "mtime": 1784084178.9046257,
-    "ast_hash": "ee676646a95284dec46b04d10b6cc394",
-    "semantic_hash": "ee676646a95284dec46b04d10b6cc394"
+    "mtime": 1785568206.7363913,
+    "ast_hash": "a6dcfac50a6f30a0972a1efe584d7b0b",
+    "semantic_hash": ""
   },
   "tsconfig.app.json": {
     "mtime": 1784084178.939667,
@@ -430,8 +430,8 @@
     "semantic_hash": ""
   },
   "index.html": {
-    "mtime": 1784084178.9657755,
-    "ast_hash": "8dba5ba6b470dec2a438fff965d74ac6",
+    "mtime": 1785568278.5146172,
+    "ast_hash": "21f7905cb2673f38fc33e88f9177c6f3",
     "semantic_hash": ""
   },
   "public/favicon.svg": {
@@ -475,8 +475,8 @@
     "semantic_hash": ""
   },
   "src/components/AyudaAtajos.tsx": {
-    "mtime": 1785563467.610288,
-    "ast_hash": "6f3d36949c781a517cc18ee352da50d3",
+    "mtime": 1785568614.8262565,
+    "ast_hash": "15cb365e6e3dc3104845eba251851433",
     "semantic_hash": ""
   },
   "src/components/ErrorBoundary.tsx": {
@@ -495,13 +495,13 @@
     "semantic_hash": ""
   },
   "src/lib/googleCalendar.ts": {
-    "mtime": 1785563138.9336998,
-    "ast_hash": "362ad9edd993f6fd282e67f3d52d8bf5",
+    "mtime": 1785571320.1743586,
+    "ast_hash": "fc3554acabbd7a79eeb799cbb2d217f8",
     "semantic_hash": ""
   },
   "src/lib/googleCalendarConfig.ts": {
-    "mtime": 1785552862.0226371,
-    "ast_hash": "7e6aa7a31d93769cb05c48fcea92e6fc",
+    "mtime": 1785570617.6804974,
+    "ast_hash": "ea48e20ff4412515aa683e0b0d6979f7",
     "semantic_hash": ""
   },
   "src/views/AgendaView.tsx": {
@@ -515,7 +515,7 @@
     "semantic_hash": ""
   },
   "GOOGLE_CALENDAR_SETUP.md": {
-    "mtime": 1785557104.0122995,
+    "mtime": 1785570588.4399314,
     "ast_hash": "9489ac25f2e51ccf9f520c4c5839880b",
     "semantic_hash": ""
   },
@@ -525,8 +525,13 @@
     "semantic_hash": ""
   },
   "src/views/ProyectosView.tsx": {
-    "mtime": 1785563550.280036,
-    "ast_hash": "721eff05bc4b1a48269d70817db548b1",
+    "mtime": 1785568400.8254483,
+    "ast_hash": "55f9a4b348d1c5354f179d5be2e40b9a",
+    "semantic_hash": ""
+  },
+  "src/components/ProgressRing.tsx": {
+    "mtime": 1785568332.3284829,
+    "ast_hash": "d55e34ba0450b45977497dd92998c31b",
     "semantic_hash": ""
   }
 }

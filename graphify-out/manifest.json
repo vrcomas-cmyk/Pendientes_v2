@@ -300,8 +300,8 @@
     "semantic_hash": ""
   },
   "src/sync.tsx": {
-    "mtime": 1785563045.7285411,
-    "ast_hash": "36ab963cb7b16309eca80fc775ed592f",
+    "mtime": 1785617100.8024886,
+    "ast_hash": "26b71b60bbf77b23fa0d67dd19444026",
     "semantic_hash": ""
   },
   "src/types.ts": {
@@ -495,13 +495,13 @@
     "semantic_hash": ""
   },
   "src/lib/googleCalendar.ts": {
-    "mtime": 1785563138.9336998,
-    "ast_hash": "362ad9edd993f6fd282e67f3d52d8bf5",
+    "mtime": 1785571320.1743586,
+    "ast_hash": "fc3554acabbd7a79eeb799cbb2d217f8",
     "semantic_hash": ""
   },
   "src/lib/googleCalendarConfig.ts": {
-    "mtime": 1785552862.0226371,
-    "ast_hash": "7e6aa7a31d93769cb05c48fcea92e6fc",
+    "mtime": 1785570617.6804974,
+    "ast_hash": "ea48e20ff4412515aa683e0b0d6979f7",
     "semantic_hash": ""
   },
   "src/views/AgendaView.tsx": {
@@ -515,7 +515,7 @@
     "semantic_hash": ""
   },
   "GOOGLE_CALENDAR_SETUP.md": {
-    "mtime": 1785557104.0122995,
+    "mtime": 1785570588.4399314,
     "ast_hash": "9489ac25f2e51ccf9f520c4c5839880b",
     "semantic_hash": ""
   },

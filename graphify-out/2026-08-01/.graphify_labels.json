@@ -71,6 +71,7 @@
   "69": "tailwind-merge",
   "70": "vaul",
   "71": "zod",
+  "72": "@radix-ui/react-collapsible",
   "73": "@parcel/config-default",
   "74": "parcel-resolver-tspaths",
   "75": "postcss",
@@ -92,6 +93,7 @@
   "91": "accordion.tsx",
   "92": "graphify reference: GitHub clone and cross-repo merge",
   "93": "graphify reference: transcribe video and audio",
+  "94": "@radix-ui/react-dialog",
   "95": "CLAUDE.md",
   "96": "CLAUDE.md",
   "97": "extraction-spec.md",
@@ -102,6 +104,12 @@
   "102": "googleCalendar.ts",
   "103": "index.ts",
   "104": "Conectar Google Calendar (time-blocking / vista Agenda)",
+  "105": "supabase.ts",
   "106": "@radix-ui/react-accordion",
-  "110": "buffer"
+  "107": "tabs.tsx",
+  "108": "label.tsx",
+  "109": "radio-group.tsx",
+  "110": "cmdk",
+  "111": "use-is-mobile.ts",
+  "112": "adjuntos.ts"
 }
