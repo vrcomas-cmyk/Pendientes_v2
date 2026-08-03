@@ -104,12 +104,6 @@
   "102": "googleCalendar.ts",
   "103": "index.ts",
   "104": "Conectar Google Calendar (time-blocking / vista Agenda)",
-  "105": "supabase.ts",
   "106": "@radix-ui/react-accordion",
-  "107": "tabs.tsx",
-  "108": "label.tsx",
-  "109": "radio-group.tsx",
-  "110": "cmdk",
-  "111": "use-is-mobile.ts",
-  "112": "adjuntos.ts"
+  "110": "cmdk"
 }

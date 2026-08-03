@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '@/store'
 import type { Comentario, Estado, Prioridad, Subtarea, Adjunto } from '@/types'
+type Modalidad = 'individual' | 'equipo'
 import { PROYECTO_COLORES, PROYECTO_COLORES_KEYS } from '@/types'
 import { uid, fechaPorPrioridad, describirRepeticion } from '@/lib/app-utils'
 import AdjuntosUI, { Miniatura } from '@/components/AdjuntosUI'
@@ -33,6 +34,8 @@ export default function TaskModal() {
   const [creandoProyecto, setCreandoProyecto] = useState(false)
   const [repetir, setRepetir] = useState('')
   const [etiquetas, setEtiquetas] = useState('')
+  const [ponderacion, setPonderacion] = useState('')
+  const [modalidad, setModalidad] = useState<Modalidad | ''>('')
   const [subtareas, setSubtareas] = useState<Subtarea[]>([])
   const [comentarios, setComentarios] = useState<Comentario[]>([])
   const [adjuntos, setAdjuntos] = useState<Adjunto[]>([])
@@ -59,6 +62,9 @@ export default function TaskModal() {
     setCreandoProyecto(false); setNuevoProyectoVal('')
     setRepetir(editando?.repetir ?? d.repetir ?? '')
     setEtiquetas((editando?.etiquetas ?? d.etiquetas ?? []).join(', '))
+    const ponderacionInicial = editando?.ponderacion ?? d.ponderacion
+    setPonderacion(ponderacionInicial != null ? String(ponderacionInicial) : '')
+    setModalidad(editando?.modalidad ?? d.modalidad ?? '')
     setSubtareas(JSON.parse(JSON.stringify(editando?.subtareas ?? d.subtareas ?? [])))
     setComentarios(JSON.parse(JSON.stringify(editando?.comentarios ?? d.comentarios ?? [])))
     setAdjuntos(JSON.parse(JSON.stringify(editando?.adjuntos ?? d.adjuntos ?? [])))
@@ -94,6 +100,8 @@ export default function TaskModal() {
       proyecto: nombreProyecto, proyectoId: proyectoId || undefined,
       etiquetas: etiquetas.split(',').map(s => s.trim()).filter(Boolean),
       subtareas, comentarios, adjuntos, repetir: repetir || undefined,
+      ponderacion: ponderacion.trim() ? Math.max(0, Math.min(100, Number(ponderacion))) : undefined,
+      modalidad: modalidad || undefined,
     }
     if (editando) actualizarPendiente(editando.id, datos)
     else crearPendiente({ ...datos, id: draftId })
@@ -272,6 +280,23 @@ export default function TaskModal() {
               <div className="space-y-1.5">
                 <Label className="text-[11px] uppercase text-muted-foreground">Etiquetas (coma)</Label>
                 <Input value={etiquetas} onChange={e => setEtiquetas(e.target.value)} placeholder="urgente, cliente" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-[11px] uppercase text-muted-foreground">Ponderación (%)</Label>
+                  <Input type="number" min={0} max={100} value={ponderacion} onChange={e => setPonderacion(e.target.value)} placeholder="Ej: 20" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[11px] uppercase text-muted-foreground">Modalidad</Label>
+                  <Select value={modalidad || '__ninguna'} onValueChange={v => setModalidad(v === '__ninguna' ? '' : v as Modalidad)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__ninguna">Sin especificar</SelectItem>
+                      <SelectItem value="individual">Individual</SelectItem>
+                      <SelectItem value="equipo">Equipo</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
               {editando?.origenNota && <p className="flex items-center gap-1 text-xs text-muted-foreground"><StickyNote size={13} /> Vinculado a una nota.</p>}
             </div>

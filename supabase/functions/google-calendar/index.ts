@@ -155,11 +155,17 @@ function cuentasDestino(cuentas: Cuenta[], origenCuentaId?: string): Cuenta[] {
 }
 
 async function accionCreateEvent(admin: SupabaseClient, userId: string, body: Record<string, unknown>) {
-  const { titulo, descripcion, inicioISO, finISO, origenCuentaId } = body as { titulo?: string; descripcion?: string; inicioISO?: string; finISO?: string; origenCuentaId?: string }
+  const { titulo, descripcion, inicioISO, finISO, origenCuentaId, soloEstaCuenta } = body as { titulo?: string; descripcion?: string; inicioISO?: string; finISO?: string; origenCuentaId?: string; soloEstaCuenta?: boolean }
   if (!titulo || !inicioISO || !finISO) return json({ error: 'Falta titulo/inicioISO/finISO' }, 400)
   const todasLasCuentas = await cuentasDelUsuario(admin, userId)
   if (!todasLasCuentas.length) return json({ error: 'No hay ninguna cuenta de Google Calendar conectada' }, 400)
-  const cuentas = cuentasDestino(todasLasCuentas, origenCuentaId)
+  // `soloEstaCuenta` es para eventos sueltos creados desde una cuenta "propio" (perfil laboral):
+  // en vez del fan-out normal de espejo, el evento vive SOLO en esa cuenta, sin reflejarse en las
+  // cuentas "todo" (perfil personal). Sin esta bandera se preserva el comportamiento de siempre
+  // (usado por el time-blocking de pendientes, que sí debe reflejarse en todo lo que dice "todo").
+  const cuentas = soloEstaCuenta && origenCuentaId
+    ? todasLasCuentas.filter(c => c.id === origenCuentaId)
+    : cuentasDestino(todasLasCuentas, origenCuentaId)
   const eventos: Record<string, string> = {}
   const errores: Record<string, string> = {}
   await Promise.all(cuentas.map(async cuenta => {

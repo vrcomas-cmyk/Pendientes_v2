@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useApp } from '@/store'
 import type { Estado, Pendiente } from '@/types'
 import { ESTADOS, PRIORIDAD_BORDER, PROYECTO_COLORES, PROYECTO_COLORES_KEYS } from '@/types'
-import { hoyISO, isoMasDias, progresoSub, vencido } from '@/lib/app-utils'
+import { hoyISO, isoMasDias, progresoSub, vencido, activo } from '@/lib/app-utils'
 import TaskRow from '@/components/TaskRow'
 import ProgressRing from '@/components/ProgressRing'
 import { Button } from '@/components/ui/button'
@@ -102,7 +102,8 @@ function FranjaSemanal({ pendientes, diaSel, onSeleccionar }: { pendientes: Pend
 
 /** Resumen por proyecto: progreso, abiertos y vencidos de un vistazo — clic navega al tablero. */
 function ResumenProyectos() {
-  const { proyectos, pendientes, setProyectoAbiertoId } = useApp()
+  const { proyectos, pendientes: todosPendientes, setProyectoAbiertoId } = useApp()
+  const pendientes = useMemo(() => todosPendientes.filter(activo), [todosPendientes])
   if (!proyectos.length) return null
   return (
     <div>
@@ -168,7 +169,8 @@ function NotasRecientes() {
 }
 
 export function TodayView() {
-  const { pendientes } = useApp()
+  const { pendientes: todosPendientes } = useApp()
+  const pendientes = useMemo(() => todosPendientes.filter(activo), [todosPendientes])
   const [diaSel, setDiaSel] = useState<string | null>(null)
   const h = hoyISO()
   const limite7 = isoMasDias(7)
@@ -239,7 +241,8 @@ const COLS: { estado: Estado; bg: string }[] = [
   { estado: 'completado', bg: 'bg-green-50 dark:bg-green-900/20' },
 ]
 export function KanbanView() {
-  const { pendientes, moverEstado, abrirModal } = useApp()
+  const { pendientes: todosPendientes, moverEstado, abrirModal } = useApp()
+  const pendientes = useMemo(() => todosPendientes.filter(activo), [todosPendientes])
   const [dragId, setDragId] = useState<string | null>(null)
   return (
     <div className="grid h-full grid-cols-1 gap-3 md:grid-cols-4">
@@ -282,7 +285,8 @@ export function KanbanView() {
 /* ============ CALENDARIO ============ */
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
 export function CalendarView() {
-  const { pendientes, abrirModal } = useApp()
+  const { pendientes: todosPendientes, abrirModal } = useApp()
+  const pendientes = useMemo(() => todosPendientes.filter(activo), [todosPendientes])
   const ahora = new Date()
   const [mes, setMes] = useState(ahora.getMonth())
   const [anio, setAnio] = useState(ahora.getFullYear())
@@ -347,7 +351,8 @@ function Barra({ label, v, max, color }: { label: string; v: number; max: number
   )
 }
 export function DashboardView() {
-  const { pendientes, notas } = useApp()
+  const { pendientes: todosPendientes, notas } = useApp()
+  const pendientes = useMemo(() => todosPendientes.filter(activo), [todosPendientes])
   const stats = useMemo(() => {
     const abiertos = pendientes.filter(p => p.estado !== 'completado')
     let subPend = 0

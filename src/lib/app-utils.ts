@@ -221,6 +221,58 @@ export function googleCalendarUrl(titulo: string, fecha: string, hora?: string, 
   return `https://calendar.google.com/calendar/render?${params.toString()}`
 }
 
+/** Pendiente "activo": no archivado. Usado para excluir archivados de las vistas normales. */
+export function activo(p: Pendiente): boolean {
+  return !p.archivado
+}
+
+/** Fecha flexible desde texto pegado de Excel: `dd/mm/aaaa`, `dd-mm-aaaa`, `aaaa-mm-dd`,
+    `dd/mm/aa`. Devuelve ISO (aaaa-mm-dd) o '' si no reconoce el formato. */
+export function parsearFechaFlexible(texto: string): string {
+  const t = String(texto || '').trim()
+  if (!t) return ''
+  let m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/)
+  if (m) return isoDesdePartes(+m[1], +m[2], +m[3])
+  m = t.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/)
+  if (m) {
+    let anio = +m[3]
+    if (anio < 100) anio += anio < 70 ? 2000 : 1900
+    return isoDesdePartes(anio, +m[2], +m[1])
+  }
+  // Excel a veces exporta fechas como número de serie (días desde 1899-12-30)
+  m = t.match(/^\d{4,6}$/)
+  if (m) {
+    const serie = +t
+    const base = new Date(Date.UTC(1899, 11, 30))
+    base.setUTCDate(base.getUTCDate() + serie)
+    return isoDesdePartes(base.getUTCFullYear(), base.getUTCMonth() + 1, base.getUTCDate())
+  }
+  return ''
+}
+
+function isoDesdePartes(anio: number, mes: number, dia: number): string {
+  if (!anio || mes < 1 || mes > 12 || dia < 1 || dia > 31) return ''
+  const d = new Date(anio, mes - 1, dia)
+  if (d.getFullYear() !== anio || d.getMonth() !== mes - 1 || d.getDate() !== dia) return ''
+  return anio + '-' + String(mes).padStart(2, '0') + '-' + String(dia).padStart(2, '0')
+}
+
+/** Hora flexible desde texto pegado de Excel: `10:00`, `10:00 am/pm`, `22:00`, `10 am`.
+    Devuelve 'HH:MM' o '' si no reconoce el formato. */
+export function parsearHoraFlexible(texto: string): string {
+  const t = String(texto || '').trim().toLowerCase()
+  if (!t) return ''
+  const m = t.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm|a\.?m\.?|p\.?m\.?)?$/)
+  if (!m) return ''
+  let h = +m[1]
+  const min = m[2] ? +m[2] : 0
+  const suf = m[3]?.replace(/\./g, '')
+  if (suf === 'pm' && h < 12) h += 12
+  if (suf === 'am' && h === 12) h = 0
+  if (h > 23 || min > 59) return ''
+  return String(h).padStart(2, '0') + ':' + String(min).padStart(2, '0')
+}
+
 export function descargar(nombre: string, contenido: string, tipo: string) {
   const blob = new Blob([contenido], { type: tipo })
   const url = URL.createObjectURL(blob)

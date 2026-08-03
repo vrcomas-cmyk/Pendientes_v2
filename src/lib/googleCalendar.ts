@@ -7,7 +7,10 @@ const SCOPE = 'https://www.googleapis.com/auth/calendar.events https://www.googl
 export { isGoogleConfigurado }
 
 function redirectUri(): string {
-  return window.location.origin + window.location.pathname
+  // Siempre la raíz del dominio, sin importar desde qué pantalla de la app se dio clic en
+  // "Conectar" — así el redirect_uri enviado a Google es siempre el mismo string por dominio,
+  // y solo hace falta registrar esa única URL raíz en Google Cloud Console (no una por ruta).
+  return window.location.origin + '/'
 }
 
 /** Navega a la pantalla de consentimiento de Google. `prompt=consent select_account` fuerza que
@@ -94,10 +97,10 @@ function combinarFechaHora(fecha: string, hora: string): string {
     "todo", más la dueña del proyecto (`origenCuentaId`) si esa cuenta está en modo "propio".
     Devuelve el mapa cuentaId -> eventId para guardarlo en el pendiente, y los errores por cuenta
     si alguna falló (no se revierte lo que sí funcionó en las demás). */
-export async function agendarPendiente(fecha: string, hora: string, duracionMin: number, titulo: string, descripcion?: string, origenCuentaId?: string): Promise<{ eventos: Record<string, string> } & RespuestaConErrores> {
+export async function agendarPendiente(fecha: string, hora: string, duracionMin: number, titulo: string, descripcion?: string, origenCuentaId?: string, soloEstaCuenta?: boolean): Promise<{ eventos: Record<string, string> } & RespuestaConErrores> {
   const inicioISO = combinarFechaHora(fecha, hora)
   const finISO = new Date(new Date(inicioISO).getTime() + duracionMin * 60_000).toISOString()
-  return invocar('create-event', { titulo, descripcion, inicioISO, finISO, origenCuentaId })
+  return invocar('create-event', { titulo, descripcion, inicioISO, finISO, origenCuentaId, soloEstaCuenta })
 }
 
 export async function actualizarEventoAgenda(eventos: Record<string, string>, fecha: string, hora: string, duracionMin: number, titulo: string, descripcion?: string, origenCuentaId?: string): Promise<{ eventos: Record<string, string> } & RespuestaConErrores> {

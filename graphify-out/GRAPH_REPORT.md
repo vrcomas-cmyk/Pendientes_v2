@@ -1,16 +1,16 @@
 # Graph Report - pendientes-pro  (2026-08-01)
 
 ## Corpus Check
-- 98 files · ~49,924 words
+- 99 files · ~52,550 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 751 nodes · 1154 edges · 113 communities (48 shown, 65 thin omitted)
-- Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 5 edges (avg confidence: 0.74)
+- 764 nodes · 1402 edges · 107 communities (44 shown, 63 thin omitted)
+- Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 12 edges (avg confidence: 0.78)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `bc290132`
+- Built from commit: `e4370cdd`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -114,25 +114,20 @@
 - googleCalendar.ts
 - index.ts
 - Conectar Google Calendar (time-blocking / vista Agenda)
-- supabase.ts
 - @radix-ui/react-accordion
-- tabs.tsx
-- label.tsx
-- radio-group.tsx
 - cmdk
-- adjuntos.ts
 
 ## God Nodes (most connected - your core abstractions)
-1. `cn()` - 45 edges
-2. `useApp()` - 34 edges
+1. `cn()` - 52 edges
+2. `useApp()` - 38 edges
 3. `hoyISO()` - 20 edges
 4. `compilerOptions` - 20 edges
-5. `compilerOptions` - 16 edges
-6. `vencido()` - 15 edges
-7. `Button` - 13 edges
-8. `describirRepeticion()` - 13 edges
-9. `What You Must Do When Invoked` - 12 edges
-10. `Shell()` - 11 edges
+5. `Button` - 17 edges
+6. `compilerOptions` - 16 edges
+7. `vencido()` - 15 edges
+8. `activo()` - 15 edges
+9. `describirRepeticion()` - 13 edges
+10. `Shell()` - 12 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `useCarousel()` --references--> `react`  [EXTRACTED]
@@ -143,37 +138,37 @@
   src/hooks/use-toast.ts → package.json
 - `Shell()` --indirect_call--> `vencido()`  [INFERRED]
   src/App.tsx → src/lib/app-utils.ts
-- `NotesView()` --calls--> `useApp()`  [EXTRACTED]
-  src/views/NotesView.tsx → src/store.tsx
+- `PaletaComandos()` --calls--> `useApp()`  [EXTRACTED]
+  src/components/PaletaComandos.tsx → src/store.tsx
 
 ## Import Cycles
 - None detected.
 
-## Communities (113 total, 65 thin omitted)
+## Communities (107 total, 63 thin omitted)
 
 ### Community 0 - "App.tsx"
-Cohesion: 0.06
-Nodes (34): Shell(), Vista, VISTAS, VISTAS_VALIDAS, ATAJOS, SINTAXIS, ErrorBoundary, Props (+26 more)
+Cohesion: 0.07
+Nodes (34): Shell(), Vista, VISTAS, VISTAS_VALIDAS, ErrorBoundary, Props, State, Input (+26 more)
 
 ### Community 1 - "sync.tsx"
-Cohesion: 0.23
-Nodes (9): CAMPOS_ESCALARES, contenidoIgual(), ItemBase, MapaSync, mergePendiente(), reconciliar(), ResultadoReconcilia, sinVolatil() (+1 more)
+Cohesion: 0.10
+Nodes (38): conDia(), PosponerMenu(), COLOR_PRIORIDAD, PreviaParseo(), TaskModal(), DIAS_SEMANA, extraerFecha(), fechaPorPrioridad() (+30 more)
 
 ### Community 2 - "command.tsx"
-Cohesion: 0.12
-Nodes (14): Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator, CommandShortcut() (+6 more)
+Cohesion: 0.26
+Nodes (11): PaletaComandos(), Vista, Command, CommandDialog(), CommandEmpty, CommandGroup, CommandInput, CommandItem (+3 more)
 
 ### Community 3 - "compilerOptions"
 Cohesion: 0.08
 Nodes (26): DOM, vite/client, compilerOptions, allowImportingTsExtensions, baseUrl, erasableSyntaxOnly, ignoreDeprecations, jsx (+18 more)
 
 ### Community 4 - "use-toast.ts"
-Cohesion: 0.12
+Cohesion: 0.13
 Nodes (22): Toast, ToastAction, ToastActionElement, ToastClose, ToastDescription, ToastProps, ToastTitle, toastVariants (+14 more)
 
 ### Community 5 - "cn"
-Cohesion: 0.11
-Nodes (14): Checkbox, HoverCardContent, Input, PopoverContent, Progress, ScrollArea, ScrollBar, Separator (+6 more)
+Cohesion: 0.10
+Nodes (17): DropdownMenuShortcut(), HoverCardContent, PopoverContent, Progress, RadioGroup, RadioGroupItem, ScrollArea, ScrollBar (+9 more)
 
 ### Community 6 - "compilerOptions"
 Cohesion: 0.10
@@ -181,7 +176,7 @@ Nodes (20): node, vite.config.ts, compilerOptions, allowImportingTsExtensions, e
 
 ### Community 7 - "carousel.tsx"
 Cohesion: 0.07
-Nodes (25): react, react, Carousel, CarouselApi, CarouselContent, CarouselContext, CarouselContextProps, CarouselItem (+17 more)
+Nodes (27): react, react, Carousel, CarouselApi, CarouselContent, CarouselContext, CarouselContextProps, CarouselItem (+19 more)
 
 ### Community 8 - "components.json"
 Cohesion: 0.12
@@ -252,24 +247,24 @@ Cohesion: 0.50
 Nodes (3): Avatar, AvatarFallback, AvatarImage
 
 ### Community 26 - "badge.tsx"
-Cohesion: 0.20
-Nodes (9): DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuShortcut(), DropdownMenuSubContent (+1 more)
+Cohesion: 0.08
+Nodes (36): ATAJOS, SINTAXIS, adivinarPorEncabezado(), Columna, FilaPreview, ImportarPlanDialog(), OPCIONES_COLUMNA, parsearModalidad() (+28 more)
 
 ### Community 28 - "Pendientes + Notas Pro — PWA modular"
 Cohesion: 0.22
 Nodes (8): Base de datos, Compilar para producción, Cómo actualizar a TODOS los dispositivos, Desarrollo, Desplegar (una sola vez), Estructura (modular, para escalar fácil), Notas de sincronización, Pendientes + Notas Pro — PWA modular
 
 ### Community 30 - "class-variance-authority"
-Cohesion: 0.06
-Nodes (72): PaletaComandos(), Vista, PendientePeek(), conDia(), DIAS, PosponerMenu(), ProgressRing(), TaskModal() (+64 more)
+Cohesion: 0.08
+Nodes (55): AdjuntosUI(), Miniatura(), PendientePeek(), ProgressRing(), TaskRow(), Button, ButtonProps, buttonVariants (+47 more)
 
 ### Community 32 - "cmdk"
 Cohesion: 0.15
 Nodes (13): class-variance-authority, dependencies, class-variance-authority, @radix-ui/react-radio-group, @radix-ui/react-scroll-area, @radix-ui/react-toast, @radix-ui/react-tooltip, vaul (+5 more)
 
 ### Community 41 - "dependencies"
-Cohesion: 0.25
-Nodes (7): SelectContent, SelectItem, SelectLabel, SelectScrollDownButton, SelectScrollUpButton, SelectSeparator, SelectTrigger
+Cohesion: 0.67
+Nodes (3): Badge(), BadgeProps, badgeVariants
 
 ### Community 43 - "graphify reference: query, path, explain"
 Cohesion: 0.33
@@ -292,8 +287,8 @@ Cohesion: 0.50
 Nodes (3): AccordionContent, AccordionItem, AccordionTrigger
 
 ### Community 102 - "googleCalendar.ts"
-Cohesion: 0.20
-Nodes (20): CuentasGoogleDialog(), actualizarEventoAgenda(), actualizarModoEspejo(), agendarPendiente(), combinarFechaHora(), CuentaGoogle, desconectarGoogle(), eliminarEventoAgenda() (+12 more)
+Cohesion: 0.18
+Nodes (22): CuentasGoogleDialog(), actualizarEventoAgenda(), actualizarModoEspejo(), agendarPendiente(), combinarFechaHora(), CuentaGoogle, desconectarGoogle(), eliminarEventoAgenda() (+14 more)
 
 ### Community 103 - "index.ts"
 Cohesion: 0.29
@@ -303,37 +298,25 @@ Nodes (16): accionCreateEvent(), accionDeleteEvent(), accionDisconnect(), accion
 Cohesion: 0.25
 Nodes (7): 1. Crear el proyecto y habilitar la API, 2. Configurar la pantalla de consentimiento OAuth, 3. Crear las credenciales OAuth, 4. Dónde pegar cada credencial, 5. Probar la conexión (una cuenta o varias), Conectar Google Calendar (time-blocking / vista Agenda), Notas de seguridad
 
-### Community 105 - "supabase.ts"
-Cohesion: 0.70
-Nodes (3): getConfig(), getSupabase(), isConfigured()
-
-### Community 107 - "tabs.tsx"
-Cohesion: 0.50
-Nodes (3): TabsContent, TabsList, TabsTrigger
-
-### Community 112 - "adjuntos.ts"
-Cohesion: 0.35
-Nodes (10): AdjuntosUI(), Miniatura(), eliminarAdjunto(), esImagen(), formatoTamano(), leerComoDataUrl(), subirAdjunto(), urlAdjunto() (+2 more)
-
 ## Knowledge Gaps
-- **369 isolated node(s):** `EstadoSync`, `SyncCtx`, `Ctx`, `UltimoSync`, `graphify` (+364 more)
+- **350 isolated node(s):** `$schema`, `style`, `rsc`, `tsx`, `config` (+345 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **65 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **63 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `react` connect `carousel.tsx` to `cmdk`, `use-toast.ts`?**
-  _High betweenness centrality (0.366) - this node is a cross-community bridge._
 - **Why does `dependencies` connect `cmdk` to `carousel.tsx`, `@hookform/resolvers`, `package.json`, `clsx`, `date-fns`, `embla-carousel-react`, `lucide-react`, `next-themes`, `@radix-ui/react-aspect-ratio`, `@radix-ui/react-checkbox`, `@radix-ui/react-dropdown-menu`, `@radix-ui/react-hover-card`, `@radix-ui/react-label`, `@radix-ui/react-menubar`, `@radix-ui/react-navigation-menu`, `@radix-ui/react-popover`, `@radix-ui/react-progress`, `@radix-ui/react-radio-group`, `@radix-ui/react-scroll-area`, `@radix-ui/react-select`, `@radix-ui/react-separator`, `@radix-ui/react-slider`, `@radix-ui/react-slot`, `@radix-ui/react-switch`, `@radix-ui/react-toggle`, `@radix-ui/react-toggle-group`, `@radix-ui/react-tooltip`, `react-day-picker`, `react-dom`, `react-hook-form`, `react-resizable-panels`, `tailwind-merge`, `vaul`, `zod`, `@radix-ui/react-collapsible`, `@radix-ui/react-dialog`, `@radix-ui/react-context-menu`, `@radix-ui/react-tabs`, `@radix-ui/react-toast`, `@supabase/supabase-js`, `@radix-ui/react-accordion`, `cmdk`?**
-  _High betweenness centrality (0.242) - this node is a cross-community bridge._
-- **What connects `EstadoSync`, `SyncCtx`, `Ctx` to the rest of the system?**
-  _369 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _High betweenness centrality (0.248) - this node is a cross-community bridge._
+- **Why does `react` connect `carousel.tsx` to `cmdk`, `use-toast.ts`?**
+  _High betweenness centrality (0.220) - this node is a cross-community bridge._
+- **Why does `cn()` connect `cn` to `App.tsx`, `command.tsx`, `use-toast.ts`, `carousel.tsx`, `menubar.tsx`, `context-menu.tsx`, `sheet.tsx`, `table.tsx`, `breadcrumb.tsx`, `drawer.tsx`, `navigation-menu.tsx`, `card.tsx`, `toggle-group.tsx`, `alert.tsx`, `avatar.tsx`, `badge.tsx`, `class-variance-authority`, `dependencies`, `accordion.tsx`?**
+  _High betweenness centrality (0.156) - this node is a cross-community bridge._
+- **What connects `$schema`, `style`, `rsc` to the rest of the system?**
+  _350 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `App.tsx` be split into smaller, more focused modules?**
-  _Cohesion score 0.057912457912457915 - nodes in this community are weakly interconnected._
-- **Should `command.tsx` be split into smaller, more focused modules?**
-  _Cohesion score 0.125 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.07358156028368794 - nodes in this community are weakly interconnected._
+- **Should `sync.tsx` be split into smaller, more focused modules?**
+  _Cohesion score 0.09619450317124736 - nodes in this community are weakly interconnected._
 - **Should `compilerOptions` be split into smaller, more focused modules?**
   _Cohesion score 0.07692307692307693 - nodes in this community are weakly interconnected._
-- **Should `use-toast.ts` be split into smaller, more focused modules?**
-  _Cohesion score 0.12333333333333334 - nodes in this community are weakly interconnected._

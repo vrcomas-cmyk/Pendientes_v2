@@ -39,6 +39,9 @@ export interface Pendiente {
   duracionMin?: number    // duración del bloque en la Agenda (time-blocking), en minutos
   googleEventos?: Record<string, string>  // cuentaId de Google Calendar -> id del evento creado ahí
   proyectoId?: string     // referencia a Proyecto.id; `proyecto` (string) se mantiene como espejo del nombre para compatibilidad (export CSV, badges antiguos)
+  ponderacion?: number    // porcentaje (0-100) que vale la entrega, ej. para planes de estudio importados
+  modalidad?: 'individual' | 'equipo'
+  archivado?: boolean     // "archivar" (estilo Gmail): se saca de las vistas activas sin borrarlo
   borrado?: boolean
   creado: string
   modificado: string

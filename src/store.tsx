@@ -14,6 +14,8 @@ interface AppCtx {
   crearPendiente: (datos: Partial<Pendiente>) => Pendiente
   actualizarPendiente: (id: string, datos: Partial<Pendiente>) => void
   eliminarPendiente: (id: string) => void
+  archivarPendiente: (id: string) => void
+  desarchivarPendiente: (id: string) => void
   toggleCompletar: (id: string) => void
   toggleSubtarea: (pid: string, sid: string) => void
   agregarSubtarea: (pid: string, texto: string) => void
@@ -136,6 +138,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
       action: {
         label: 'Deshacer',
         onClick: () => { const u = ultimoEliminado.current; if (u) setPendientes(prev => [u, ...prev]) },
+      },
+    })
+  }
+
+  const archivarPendiente = (id: string) => {
+    setPendientes(prev => prev.map(p => p.id !== id ? p : { ...p, archivado: true, modificado: new Date().toISOString() }))
+    toast('Pendiente archivado', {
+      action: {
+        label: 'Deshacer',
+        onClick: () => setPendientes(prev => prev.map(p => p.id !== id ? p : { ...p, archivado: false, modificado: new Date().toISOString() })),
+      },
+    })
+  }
+
+  const desarchivarPendiente = (id: string) => {
+    setPendientes(prev => prev.map(p => p.id !== id ? p : { ...p, archivado: false, modificado: new Date().toISOString() }))
+    toast('Pendiente desarchivado', {
+      action: {
+        label: 'Deshacer',
+        onClick: () => setPendientes(prev => prev.map(p => p.id !== id ? p : { ...p, archivado: true, modificado: new Date().toISOString() })),
       },
     })
   }
@@ -278,7 +300,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const value: AppCtx = {
     pendientes, notas, usuario, setUsuario,
-    crearPendiente, actualizarPendiente, eliminarPendiente, toggleCompletar, toggleSubtarea, agregarSubtarea, agregarComentario, moverEstado,
+    crearPendiente, actualizarPendiente, eliminarPendiente, archivarPendiente, desarchivarPendiente, toggleCompletar, toggleSubtarea, agregarSubtarea, agregarComentario, moverEstado,
     crearNota, actualizarNota, eliminarNota, proyectos, crearProyecto, actualizarProyecto, eliminarProyecto, reemplazarTodo,
     personas, modal, abrirModal, cerrarModal, peekId, abrirPeek, cerrarPeek, notaActualId, setNotaActualId,
     proyectoAbiertoId, setProyectoAbiertoId,

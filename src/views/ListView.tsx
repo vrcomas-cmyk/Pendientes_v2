@@ -4,7 +4,7 @@ import type { Pendiente, Adjunto } from '@/types'
 import { ESTADOS, PROYECTO_COLORES } from '@/types'
 import type { FiltroFecha } from '@/types'
 export type { FiltroFecha } from '@/types'
-import { googleCalendarUrl, hoyISO, progresoSub, vencido, describirRepeticion } from '@/lib/app-utils'
+import { googleCalendarUrl, hoyISO, progresoSub, vencido, describirRepeticion, activo } from '@/lib/app-utils'
 import { useIsMobile } from '@/hooks/use-is-mobile'
 import TaskRow from '@/components/TaskRow'
 import PosponerMenu from '@/components/PosponerMenu'
@@ -178,6 +178,7 @@ export default function ListView({ filtroFecha, setFiltroFecha }: { filtroFecha:
   const [verSub, setVerSub] = useState(() => cargarFiltros().verSub)
   const [detalleId, setDetalleId] = useState<string | null>(null)
   const [filtrosAbiertos, setFiltrosAbiertos] = useState(false)
+  const [mostrarArchivados, setMostrarArchivados] = useState(false)
 
   useEffect(() => {
     try { localStorage.setItem(LS_FILTROS, JSON.stringify({ fEstado, fPrioridad, fResp, orden, grupo, verSub })) } catch { /* noop */ }
@@ -208,6 +209,8 @@ export default function ListView({ filtroFecha, setFiltroFecha }: { filtroFecha:
         if (fEstado !== 'todos' && p.estado !== fEstado) return false
         if (fPrioridad !== 'todos' && p.prioridad !== fPrioridad) return false
         if (fResp !== 'todos' && p.responsable !== fResp) return false
+        if (mostrarArchivados) return !!p.archivado
+        if (!activo(p)) return false
         return pasaFecha(p)
       })
       .sort((a, b) => {
@@ -216,7 +219,7 @@ export default function ListView({ filtroFecha, setFiltroFecha }: { filtroFecha:
         if (orden === 'titulo') return a.titulo.localeCompare(b.titulo)
         return new Date(b.creado).getTime() - new Date(a.creado).getTime()
       })
-  }, [pendientes, q, fEstado, fPrioridad, fResp, orden, filtroFecha]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [pendientes, q, fEstado, fPrioridad, fResp, orden, filtroFecha, mostrarArchivados]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const grupos = useMemo(() => {
     if (grupo === 'ninguno') return null
@@ -255,7 +258,7 @@ export default function ListView({ filtroFecha, setFiltroFecha }: { filtroFecha:
 
   const itemConSub = (p: Pendiente) => (
     <div key={p.id} className="space-y-0.5">
-      <TaskRow p={p} seleccionado={p.id === detalleId} onClick={() => setDetalleId(p.id)} />
+      <TaskRow p={p} seleccionado={p.id === detalleId} onClick={() => setDetalleId(p.id)} modoArchivados={mostrarArchivados} />
       {subtareasDe(p)}
     </div>
   )
@@ -317,9 +320,11 @@ export default function ListView({ filtroFecha, setFiltroFecha }: { filtroFecha:
         </div>
         <div className="flex gap-1.5 overflow-x-auto pb-1 scroll-thin">
           {chips.map(c => (
-            <button key={c.f} onClick={() => setFiltroFecha(c.f)}
-              className={'shrink-0 rounded-full border px-2.5 py-1 text-[11px] ' + (filtroFecha === c.f ? 'border-primary bg-primary text-primary-foreground' : 'hover:bg-accent')}>{c.label}</button>
+            <button key={c.f} disabled={mostrarArchivados} onClick={() => setFiltroFecha(c.f)}
+              className={'shrink-0 rounded-full border px-2.5 py-1 text-[11px] disabled:opacity-40 ' + (!mostrarArchivados && filtroFecha === c.f ? 'border-primary bg-primary text-primary-foreground' : 'hover:bg-accent')}>{c.label}</button>
           ))}
+          <button onClick={() => setMostrarArchivados(v => !v)}
+            className={'shrink-0 rounded-full border px-2.5 py-1 text-[11px] ' + (mostrarArchivados ? 'border-primary bg-primary text-primary-foreground' : 'hover:bg-accent')}>🗄 Archivados</button>
         </div>
         <div className="hidden md:block">{filtrosAvanzados}</div>
         {filtrosAbiertos && <div className="md:hidden">{filtrosAvanzados}</div>}

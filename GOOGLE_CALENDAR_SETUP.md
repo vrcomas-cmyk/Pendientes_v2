@@ -82,6 +82,39 @@ no en una sola elegida.
 6. Para quitar una cuenta, ábrela en el diálogo y pulsa la "X" de esa fila — las
    demás cuentas y los eventos ya creados en ellas no se ven afectados.
 
+## Solucionar "Error 400: redirect_uri_mismatch" o "Error 403: access_denied"
+
+Estos dos errores son casi siempre configuración de Google Cloud Console, no un bug de la app:
+
+### `redirect_uri_mismatch`
+La app siempre pide como `redirect_uri` la **raíz de tu dominio** (ej.
+`https://pendientes-v2.vercel.app/`, con `/` final), sin importar desde qué pantalla de la app
+diste clic en "Conectar". Eso significa que solo necesitas registrar **una URL por dominio**, no
+una por persona ni por cuenta de Google:
+- En **Orígenes de JavaScript autorizados**: `https://tu-dominio.com` (sin ruta).
+- En **URI de redirección autorizados**: `https://tu-dominio.com/` (con `/` final, exacto).
+- Si además usas Vercel, añade igual la URL de cada dominio real que uses (ej. tu dominio
+  personalizado y/o `https://pendientes-v2.vercel.app/`) — pero solo una vez cada uno, no por
+  usuario.
+- Para desarrollo local, deja también `http://localhost:5173/`.
+
+### `access_denied` ("solo los verificadores aprobados pueden acceder")
+Esto no es un problema de URL: la **Pantalla de consentimiento de OAuth** está en modo
+**"Testing"**, que solo deja entrar a los correos que el desarrollador añadió a mano en
+"Usuarios de prueba" (máx. 100). Si quieres que **cualquier persona** pueda conectar su cuenta de
+Google sin que tengas que darle acceso manualmente cada vez, tienes dos caminos:
+
+1. **Publicar la app** (Pantalla de consentimiento de OAuth → botón "Publicar app", pasa de
+   "Testing" a "In production"). Cualquiera puede conectar su cuenta sin estar en una lista. Como
+   la app sigue sin estar *verificada* por Google, cada usuario nuevo verá una pantalla de aviso
+   "Google no ha verificado esta app", con un enlace **Avanzado → Ir a [tu app] (no seguro)** que
+   deben pulsar para continuar — es solo un clic extra, no un bloqueo. **Recomendado** si el uso
+   es entre varias cuentas propias, familia o un equipo pequeño de confianza.
+2. **Verificación completa de Google**: elimina esa pantalla de aviso, pero exige política de
+   privacidad pública, dominio verificado en Search Console y una revisión de Google que puede
+   tardar días o semanas (aplica porque el scope de Calendar es "sensible"). Solo vale la pena si
+   la app va a tener uso público real, más allá de un grupo cerrado.
+
 ## Notas de seguridad
 
 - El `refresh_token` y el `access_token` de Google nunca llegan al navegador: se

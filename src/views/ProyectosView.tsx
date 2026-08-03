@@ -3,13 +3,15 @@ import { useApp } from '@/store'
 import type { Estado } from '@/types'
 import { ESTADOS, PROYECTO_COLORES, PROYECTO_COLORES_KEYS } from '@/types'
 import { listarCuentasGoogle, type CuentaGoogle } from '@/lib/googleCalendar'
+import { activo } from '@/lib/app-utils'
 import TaskRow from '@/components/TaskRow'
+import ImportarPlanDialog from '@/components/ImportarPlanDialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useIsMobile } from '@/hooks/use-is-mobile'
-import { Plus, Briefcase, ChevronLeft, List, Columns3, Trash2 } from 'lucide-react'
+import { Plus, Briefcase, ChevronLeft, List, Columns3, Trash2, Upload } from 'lucide-react'
 
 const COLS: Estado[] = ['pendiente', 'en_progreso', 'bloqueado', 'completado']
 
@@ -74,7 +76,7 @@ function NuevoProyectoDialog({ open, onOpenChange }: { open: boolean; onOpenChan
 function TableroProyecto({ proyectoId }: { proyectoId: string }) {
   const { pendientes, moverEstado, abrirModal } = useApp()
   const [dragId, setDragId] = useState<string | null>(null)
-  const items = pendientes.filter(p => p.proyectoId === proyectoId)
+  const items = pendientes.filter(p => p.proyectoId === proyectoId && activo(p))
   return (
     <div className="grid h-full grid-cols-1 gap-3 overflow-y-auto scroll-thin md:grid-cols-4">
       {COLS.map(estado => {
@@ -103,7 +105,7 @@ function TableroProyecto({ proyectoId }: { proyectoId: string }) {
 
 function ListaProyecto({ proyectoId }: { proyectoId: string }) {
   const { pendientes, abrirModal } = useApp()
-  const items = pendientes.filter(p => p.proyectoId === proyectoId)
+  const items = pendientes.filter(p => p.proyectoId === proyectoId && activo(p))
   return (
     <div className="h-full space-y-1.5 overflow-y-auto p-1 scroll-thin">
       {items.map(p => <TaskRow key={p.id} p={p} onClick={() => abrirModal(p.id)} />)}
@@ -117,6 +119,7 @@ export default function ProyectosView() {
   const isMobile = useIsMobile()
   const [modo, setModo] = useState<'tablero' | 'lista'>('tablero')
   const [nuevoDlg, setNuevoDlg] = useState(false)
+  const [importarDlg, setImportarDlg] = useState(false)
 
   const proyecto = proyectos.find(p => p.id === proyectoSelId) || null
 
@@ -128,7 +131,7 @@ export default function ProyectosView() {
       </div>
       <div className="flex-1 space-y-1 overflow-y-auto p-1 scroll-thin">
         {proyectos.map(p => {
-          const items = pendientes.filter(x => x.proyectoId === p.id)
+          const items = pendientes.filter(x => x.proyectoId === p.id && activo(x))
           const abiertos = items.filter(x => x.estado !== 'completado').length
           const colores = PROYECTO_COLORES[p.color] || PROYECTO_COLORES[PROYECTO_COLORES_KEYS[0]]
           return (
@@ -161,12 +164,16 @@ export default function ProyectosView() {
               <button onClick={() => setModo('tablero')} className={'rounded-md p-1.5 ' + (modo === 'tablero' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground')}><Columns3 size={14} /></button>
               <button onClick={() => setModo('lista')} className={'rounded-md p-1.5 ' + (modo === 'lista' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground')}><List size={14} /></button>
             </div>
+            <Button size="sm" variant="secondary" onClick={() => setImportarDlg(true)} className="shrink-0" title="Importar plan de estudio">
+              <Upload size={13} className="mr-1" /> {!isMobile && 'Importar plan'}
+            </Button>
             <button onClick={() => { eliminarProyecto(proyecto.id); setProyectoSelId(null) }} title="Eliminar proyecto"
               className="shrink-0 px-1 text-muted-foreground hover:text-destructive"><Trash2 size={15} /></button>
           </div>
           <div className="min-h-0 flex-1 p-2">
             {modo === 'tablero' ? <TableroProyecto proyectoId={proyecto.id} /> : <ListaProyecto proyectoId={proyecto.id} />}
           </div>
+          <ImportarPlanDialog open={importarDlg} onOpenChange={setImportarDlg} proyectoId={proyecto.id} />
         </>
       )}
     </div>
