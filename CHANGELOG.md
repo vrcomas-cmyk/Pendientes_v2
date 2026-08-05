@@ -5,24 +5,53 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el v
 [SemVer](https://semver.org/lang/es/). El cache del Service Worker (`public/sw.js`) se
 incrementa por hito funcional-visible al usuario (no así en refactor internos).
 
+## [0.1.0-pre.1] — 2026-08-05 — Fase 1: Base técnica
+
+Primera pre-release. Refactor interno sin cambios visibles para el usuario pero que
+sienta las bases para las siguientes fases. El cache del Service Worker sube a `v7`.
+
+### Añadido
+- `CHANGELOG.md` y `vitest.config.ts` + `tests/setup.ts`.
+- Dependencias de testeo (vitest, jsdom, `@testing-library/*`, `@vitest/coverage-v8`).
+- Suite inicial: 93 tests para `src/lib/app-utils.ts` (parsers, recurrencias, fechas
+  flexibles, hora, `googleCalendarUrl`, `normalizar`, `defaultsHorario`) y
+  `src/lib/sync-merge.ts` (merge pendiente/nota/proyecto/evento, unión determinista de
+  comentarios/adjuntos/subtareas/etiquetas, reconciliación con lag de replicación,
+  idempotencia). Smoke test del store valida el contrato `AppCtx`.
+- `tsconfig.app.json` reconoce `vitest/globals`.
+
+### Cambiado
+- `tsconfig.app.json` activa `strict`, `strictNullChecks`, `noImplicitAny` y
+  `forceConsistentCasingInFileNames`. El código defensivo existente cumple sin
+  correcciones de lógica.
+
+### Eliminado
+- Dead code: `src/hooks/use-toast.ts`, `src/components/ui/toast.tsx`,
+  `src/components/ui/toaster.tsx`, `src/components/ui/sonner.tsx`,
+  `src/assets/react.svg`, `src/assets/vite.svg` (la app usa `sonner` directamente).
+- 17 componentes shadcn no usados: `accordion`, `aspect-ratio`, `avatar`, `breadcrumb`,
+  `carousel`, `collapsible`, `form`, `hover-card`, `menubar`, `navigation-menu`,
+  `radio-group`, `scroll-area`, `slider`, `table`, `toggle`, `toggle-group`, `drawer`.
+- 17 deps no usadas: `@radix-ui/react-{accordion,aspect-ratio,avatar,collapsible,
+  hover-card,menubar,navigation-menu,radio-group,scroll-area,slider,toast,toggle,
+  toggle-group}`, `embla-carousel-react`, `react-day-picker`, `react-hook-form`,
+  `@hookform/resolvers`, `react-resizable-panels`, `vaul`, `zod`.
+- Conserva `alert`, `card`, `popover`, `progress`, `separator`, `sheet`, `skeleton`,
+  `switch`, `tabs`, `tooltip` (se usarán en fases 3-5).
+
+### Refactor
+- Unificación de `TaskDetail` (`ListView`) y `PendientePeek` en
+  `src/components/PendienteCuerpo.tsx` con props `permitirAgregarSubtarea`,
+  `destacarOrigenNota`, `mostrarCreado`. Elimina ~150 LOC duplicados.
+- Unificación de `KanbanView` (`OtherViews`) y `TableroProyecto` (`ProyectosView`) en
+  `src/components/KanbanDnd.tsx` con props `pendientes`, `defaultsAlAgregar`,
+  `minColW`. Elimina ~150 LOC duplicados.
+- Nuevo alias `subtareasFaltantes` en `src/types.ts` (re-exporta
+  `subtareasPendientes`) para que el header del Peake mantenga fast-refresh.
+- El tablero de un proyecto ahora usa `<KanbanDnd>` y gana menú contextual + Peek al
+  click (antes sólo tenía `TaskRow` sin menú).
+
 ## [Unreleased]
-
-### Fase 1 — Base técnica (no visible para el usuario final, pero sienta las bases)
-
-- **Añadido**: suite de tests con Vitest + Testing Library + jsdom.
-- **Añadido**: cobertura inicial de tests para `src/lib/app-utils.ts` y `src/lib/sync-merge.ts`
-  (parsers, recurrencias, formato de fecha/hora flexible, merge y reconciliación).
-- **Añadido**: tests para acciones puras del store (`crearPendiente`, `toggleCompletar`
-  con recurrencia, `actualizarPendiente` con bloqueo por subtareas, archivar/desarchivar).
-- **Cambiado**: `tsconfig.app.json` activa `strict` y `strictNullChecks`; se corrigen los
-  errores de tipado resultantes sin alterar la lógica existente.
-- **Eliminado**: dead code — `src/hooks/use-toast.ts`, `src/components/ui/toast.tsx`,
-  `src/components/ui/toaster.tsx`, `src/components/ui/sonner.tsx`, `src/assets/react.svg`,
-  `src/assets/vite.svg` (la app usa `sonner` directamente).
-- **Refactor**: unificación de `TaskDetail` (en `ListView.tsx`) y `PendientePeek` en un
-  componente base `<PendienteCuerpo>` para evitar divergencia silenciosa.
-- **Refactor**: unificación de `KanbanView` (OtherViews) y `TableroProyecto` (ProyectosView)
-  en un componente reutilizable `<KanbanDnd>`.
 
 ### Fase 2 — Funcionalidad tipo Todoist/Things
 
