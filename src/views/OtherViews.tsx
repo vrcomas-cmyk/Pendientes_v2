@@ -2,18 +2,15 @@ import { useEffect, useMemo, useState } from 'react'
 import { useApp } from '@/store'
 import { useSync } from '@/sync'
 import type { Pendiente } from '@/types'
-import { PRIORIDAD_BORDER, PROYECTO_COLORES, PROYECTO_COLORES_KEYS } from '@/types'
-import { hoyISO, isoMasDias, progresoSub, vencido, activo } from '@/lib/app-utils'
-import { colorColumna, idColumnaCompletado } from '@/lib/columnas'
-import { useEditorColumnas } from '@/lib/useEditorColumnas'
+import { PROYECTO_COLORES, PROYECTO_COLORES_KEYS } from '@/types'
+import { hoyISO, isoMasDias, vencido, activo } from '@/lib/app-utils'
+import { idColumnaCompletado } from '@/lib/columnas'
 import { listarEventosDia, type EventoGCal } from '@/lib/googleCalendar'
 import { sinDuplicarLocal } from '@/lib/agenda'
 import TaskRow from '@/components/TaskRow'
 import ProgressRing from '@/components/ProgressRing'
-import ColumnaHeader from '@/components/ColumnaHeader'
-import MenuContextoPendiente from '@/components/MenuContextoPendiente'
-import { ContextMenu, ContextMenuTrigger } from '@/components/ui/context-menu'
-import { ChevronDown, Plus, StickyNote, User, CheckSquare, X } from 'lucide-react'
+import KanbanDnd from '@/components/KanbanDnd'
+import { ChevronDown, StickyNote, X } from 'lucide-react'
 
 /* ============ HOY ============ */
 function Seccion({ titulo, color, items, vacio }: { titulo: string; color: string; items: Pendiente[]; vacio: string }) {
@@ -277,51 +274,8 @@ export function TodayView() {
 
 /* ============ KANBAN ============ */
 export function KanbanView() {
-  const { pendientes: todosPendientes, moverEstado, abrirModal, abrirPeek, columnas } = useApp()
-  const { agregar } = useEditorColumnas()
-  const pendientes = useMemo(() => todosPendientes.filter(activo), [todosPendientes])
-  const [dragId, setDragId] = useState<string | null>(null)
-
-  return (
-    <div className="grid h-full auto-rows-fr gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))' }}>
-      {columnas.map((col, idx) => {
-        const items = pendientes.filter(p => p.estado === col.id)
-        const colores = colorColumna(col)
-        return (
-          <div key={col.id}
-            className={'group flex min-h-[120px] flex-col rounded-lg p-2 ' + colores.bg}
-            onDragOver={e => e.preventDefault()}
-            onDrop={e => { e.preventDefault(); if (dragId) moverEstado(dragId, col.id) }}>
-            <ColumnaHeader col={col} idx={idx} total={columnas.length} cantidad={items.length} onAgregarPendiente={() => abrirModal(null, { estado: col.id })} />
-            <div className="flex-1 space-y-1.5 overflow-y-auto scroll-thin">
-              {items.map(p => {
-                const sub = progresoSub(p)
-                return (
-                  <ContextMenu key={p.id}>
-                    <ContextMenuTrigger asChild>
-                      <div draggable onDragStart={() => setDragId(p.id)} onClick={() => abrirPeek(p.id)}
-                        className={'cursor-pointer rounded-lg border-l-4 bg-card p-2 shadow-sm ' + (PRIORIDAD_BORDER[p.prioridad] || '')}>
-                        <div className={'text-xs font-medium ' + (col.esCompletado ? 'linea-completada' : '')}>{p.titulo}</div>
-                        <div className="mt-1 flex flex-wrap items-center gap-x-2 text-[10px] text-muted-foreground">
-                          {p.responsable && <span className="inline-flex items-center gap-0.5"><User size={10} />{p.responsable}</span>}
-                          {sub && <span className="inline-flex items-center gap-0.5"><CheckSquare size={10} />{sub.hechas}/{sub.total}</span>}
-                          {p.origenNota && <StickyNote size={10} className="text-primary" />}
-                        </div>
-                      </div>
-                    </ContextMenuTrigger>
-                    <MenuContextoPendiente p={p} />
-                  </ContextMenu>
-                )
-              })}
-            </div>
-          </div>
-        )
-      })}
-      <button onClick={agregar} className="flex min-h-[120px] items-center justify-center rounded-lg border-2 border-dashed text-xs text-muted-foreground hover:border-primary hover:text-primary">
-        <Plus size={16} className="mr-1" /> Añadir columna
-      </button>
-    </div>
-  )
+  const { pendientes } = useApp()
+  return <KanbanDnd pendientes={pendientes} />
 }
 
 

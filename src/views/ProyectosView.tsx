@@ -3,10 +3,9 @@ import { useApp } from '@/store'
 import { PROYECTO_COLORES, PROYECTO_COLORES_KEYS } from '@/types'
 import { listarCuentasGoogle, type CuentaGoogle } from '@/lib/googleCalendar'
 import { activo } from '@/lib/app-utils'
-import { colorColumna, idColumnaCompletado } from '@/lib/columnas'
-import { useEditorColumnas } from '@/lib/useEditorColumnas'
+import { idColumnaCompletado } from '@/lib/columnas'
 import TaskRow from '@/components/TaskRow'
-import ColumnaHeader from '@/components/ColumnaHeader'
+import KanbanDnd from '@/components/KanbanDnd'
 import ImportarPlanDialog from '@/components/ImportarPlanDialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -75,34 +74,9 @@ function NuevoProyectoDialog({ open, onOpenChange }: { open: boolean; onOpenChan
 }
 
 function TableroProyecto({ proyectoId }: { proyectoId: string }) {
-  const { pendientes, moverEstado, abrirModal, columnas } = useApp()
-  const { agregar } = useEditorColumnas()
-  const [dragId, setDragId] = useState<string | null>(null)
-  const items = pendientes.filter(p => p.proyectoId === proyectoId && activo(p))
-  return (
-    <div className="grid h-full auto-rows-fr gap-3 overflow-y-auto scroll-thin" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
-      {columnas.map((col, idx) => {
-        const deEstaColumna = items.filter(p => p.estado === col.id)
-        return (
-          <div key={col.id} onDragOver={e => e.preventDefault()}
-            onDrop={e => { e.preventDefault(); if (dragId) moverEstado(dragId, col.id) }}
-            className={'group flex min-h-[120px] flex-col rounded-lg p-2 ' + colorColumna(col).bg}>
-            <ColumnaHeader col={col} idx={idx} total={columnas.length} cantidad={deEstaColumna.length} onAgregarPendiente={() => abrirModal(null, { estado: col.id, proyectoId })} />
-            <div className="flex-1 space-y-1.5 overflow-y-auto scroll-thin">
-              {deEstaColumna.map(p => (
-                <div key={p.id} draggable onDragStart={() => setDragId(p.id)}>
-                  <TaskRow p={p} />
-                </div>
-              ))}
-            </div>
-          </div>
-        )
-      })}
-      <button onClick={agregar} className="flex min-h-[120px] items-center justify-center rounded-lg border-2 border-dashed text-xs text-muted-foreground hover:border-primary hover:text-primary">
-        <Plus size={16} className="mr-1" /> Añadir columna
-      </button>
-    </div>
-  )
+  const { pendientes } = useApp()
+  const items = pendientes.filter(p => p.proyectoId === proyectoId)
+  return <KanbanDnd pendientes={items} defaultsAlAgregar={{ proyectoId }} minColW={220} />
 }
 
 function ListaProyecto({ proyectoId }: { proyectoId: string }) {
