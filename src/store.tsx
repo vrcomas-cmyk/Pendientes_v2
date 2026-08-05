@@ -1,8 +1,8 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
-import type { Nota, Pendiente, Estado, FiltroFecha, Proyecto } from '@/types'
-import { PROYECTO_COLORES_KEYS } from '@/types'
-import { hoyISO, normalizar, storage, uid, siguienteFecha, describirRepeticion } from '@/lib/app-utils'
+import type { Nota, Pendiente, Estado, FiltroFecha, Proyecto, EventoCalendario, ColumnaKanban } from '@/types'
+import { PROYECTO_COLORES_KEYS, COLUMNAS_DEFECTO } from '@/types'
+import { hoyISO, normalizar, storage, uid, siguienteFecha, describirRepeticion, defaultsHorario } from '@/lib/app-utils'
 
 interface ModalState { open: boolean; editId: string | null; defaults: Partial<Pendiente> }
 
@@ -14,6 +14,7 @@ interface AppCtx {
   crearPendiente: (datos: Partial<Pendiente>) => Pendiente
   actualizarPendiente: (id: string, datos: Partial<Pendiente>) => void
   eliminarPendiente: (id: string) => void
+  duplicarPendiente: (id: string) => void
   archivarPendiente: (id: string) => void
   desarchivarPendiente: (id: string) => void
   toggleCompletar: (id: string) => void
@@ -24,11 +25,18 @@ interface AppCtx {
   crearNota: () => Nota
   actualizarNota: (id: string, datos: Partial<Nota>) => void
   eliminarNota: (id: string) => void
+  duplicarNota: (id: string) => void
   proyectos: Proyecto[]
   crearProyecto: (nombre: string, color?: string, cuentaGoogleId?: string) => Proyecto
   actualizarProyecto: (id: string, datos: Partial<Proyecto>) => void
   eliminarProyecto: (id: string) => void
-  reemplazarTodo: (p: Pendiente[], n: Nota[], u?: string, pr?: Proyecto[]) => void
+  eventos: EventoCalendario[]
+  crearEvento: (datos: Partial<EventoCalendario>) => EventoCalendario
+  actualizarEvento: (id: string, datos: Partial<EventoCalendario>) => void
+  eliminarEvento: (id: string) => void
+  columnas: ColumnaKanban[]
+  setColumnas: (cols: ColumnaKanban[]) => void
+  reemplazarTodo: (p: Pendiente[], n: Nota[], u?: string, pr?: Proyecto[], ev?: EventoCalendario[]) => void
   personas: string[]
   modal: ModalState
   abrirModal: (editId?: string | null, defaults?: Partial<Pendiente>) => void
@@ -88,6 +96,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } catch { /* noop */ }
     return []
   })
+  const [eventos, setEventos] = useState<EventoCalendario[]>(() => {
+    try {
+      const raw = storage.get('pn_eventos')
+      if (raw) return JSON.parse(raw) as EventoCalendario[]
+    } catch { /* noop */ }
+    return []
+  })
+  const [columnas, setColumnas] = useState<ColumnaKanban[]>(() => {
+    try {
+      const raw = storage.get('pn_columnas_local')
+      if (raw) { const cols = JSON.parse(raw) as ColumnaKanban[]; if (cols.length) return cols }
+    } catch { /* noop */ }
+    return COLUMNAS_DEFECTO
+  })
   const [usuario, setUsuarioState] = useState(() => storage.get('pn_usuario') || 'Yo')
   const [modal, setModal] = useState<ModalState>({ open: false, editId: null, defaults: {} })
   const [notaActualId, setNotaActualId] = useState<string | null>(null)
@@ -100,12 +122,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => { storage.set('pn_pendientes', JSON.stringify(pendientes)) }, [pendientes])
   useEffect(() => { storage.set('pn_notas', JSON.stringify(notas)) }, [notas])
   useEffect(() => { storage.set('pn_proyectos', JSON.stringify(proyectos)) }, [proyectos])
+  useEffect(() => { storage.set('pn_eventos', JSON.stringify(eventos)) }, [eventos])
+  useEffect(() => { storage.set('pn_columnas_local', JSON.stringify(columnas)) }, [columnas])
 
   const setUsuario = (u: string) => { setUsuarioState(u); storage.set('pn_usuario', u) }
 
+  // Id de la única columna marcada "esCompletado" (dispara fechaCompletado, bloqueo por subtareas
+  // pendientes y exclusión de "vencido"); si ninguna columna la tiene marcada (raro: se borró sin
+  // reasignar), cae a la última columna como aproximación razonable.
+  const idCompletado = useMemo(() => columnas.find(c => c.esCompletado)?.id ?? columnas[columnas.length - 1]?.id ?? 'completado', [columnas])
+  const idPorDefecto = useMemo(() => columnas.find(c => !c.esCompletado)?.id ?? columnas[0]?.id ?? 'pendiente', [columnas])
+
   const crearPendiente = (datos: Partial<Pendiente>): Pendiente => {
     const nuevo = normalizar(datos)
-    if (nuevo.estado === 'completado') nuevo.fechaCompletado = new Date().toISOString()
+    if (nuevo.estado === idCompletado) nuevo.fechaCompletado = new Date().toISOString()
     setPendientes(prev => [nuevo, ...prev])
     return nuevo
   }
@@ -116,14 +146,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const subtareasFinales = datos.subtareas ?? p.subtareas
       const datosFinales = { ...datos }
       // No permitir completar si quedan subtareas pendientes
-      if (datos.estado === 'completado' && (subtareasFinales || []).some(s => !s.completada)) {
+      if (datos.estado === idCompletado && (subtareasFinales || []).some(s => !s.completada)) {
         toast.error('No puedes completarlo: faltan subtareas')
-        datosFinales.estado = p.estado === 'completado' ? 'pendiente' : p.estado
+        datosFinales.estado = p.estado === idCompletado ? idPorDefecto : p.estado
       }
       const upd = { ...p, ...datosFinales, modificado: new Date().toISOString() }
       if (datosFinales.estado) {
-        upd.fechaCompletado = datosFinales.estado === 'completado'
-          ? (p.estado === 'completado' ? p.fechaCompletado : new Date().toISOString())
+        upd.fechaCompletado = datosFinales.estado === idCompletado
+          ? (p.estado === idCompletado ? p.fechaCompletado : new Date().toISOString())
           : null
       }
       return upd
@@ -140,6 +170,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
         onClick: () => { const u = ultimoEliminado.current; if (u) setPendientes(prev => [u, ...prev]) },
       },
     })
+  }
+
+  const duplicarPendiente = (id: string) => {
+    const p = pendientes.find(x => x.id === id)
+    if (!p) return
+    crearPendiente({
+      titulo: p.titulo + ' (copia)', descripcion: p.descripcion, solicitante: p.solicitante, responsable: p.responsable,
+      prioridad: p.prioridad, estado: p.estado, fechaLimite: p.fechaLimite, hora: p.hora, duracionMin: p.duracionMin,
+      proyecto: p.proyecto, proyectoId: p.proyectoId, etiquetas: p.etiquetas, repetir: p.repetir,
+      ponderacion: p.ponderacion, modalidad: p.modalidad,
+      subtareas: (p.subtareas || []).map(s => ({ ...s, id: uid() })),
+    })
+    toast.success('Pendiente duplicado')
   }
 
   const archivarPendiente = (id: string) => {
@@ -164,7 +207,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const toggleCompletar = (id: string) => {
     const p = pendientes.find(x => x.id === id)
-    if (p && p.estado !== 'completado') {
+    if (p && p.estado !== idCompletado) {
       const faltan = (p.subtareas || []).filter(s => !s.completada).length
       if (faltan > 0) {
         toast.error(`No puedes completarlo: faltan ${faltan} subtarea(s)`)
@@ -173,16 +216,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
     setPendientes(prev => prev.map(p => {
       if (p.id !== id) return p
-      const completado = p.estado === 'completado'
+      const completado = p.estado === idCompletado
       return {
         ...p,
-        estado: completado ? 'pendiente' : 'completado',
+        estado: completado ? idPorDefecto : idCompletado,
         fechaCompletado: completado ? null : new Date().toISOString(),
         modificado: new Date().toISOString(),
       }
     }))
     // Recurrencia: al completar (no al reabrir) un pendiente con regla, se crea la siguiente instancia.
-    if (p && p.estado !== 'completado' && p.repetir) {
+    if (p && p.estado !== idCompletado && p.repetir) {
       const base = p.repetir.startsWith('!') ? hoyISO() : (p.fechaLimite || hoyISO())
       const nuevaFecha = siguienteFecha(p.repetir, base)
       crearPendiente({
@@ -234,6 +277,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const actualizarNota = (id: string, datos: Partial<Nota>) => {
     setNotas(prev => prev.map(n => n.id !== id ? n : { ...n, ...datos, modificado: new Date().toISOString() }))
   }
+  const duplicarNota = (id: string) => {
+    const n = notas.find(x => x.id === id)
+    if (!n) return
+    const copia: Nota = { id: uid(), titulo: n.titulo + ' (copia)', contenidoHTML: n.contenidoHTML, carpeta: n.carpeta, creado: new Date().toISOString(), modificado: new Date().toISOString() }
+    setNotas(prev => [copia, ...prev])
+    toast.success('Nota duplicada')
+  }
   const eliminarNota = (id: string) => {
     const n = notas.find(x => x.id === id) || null
     const desvinculados = pendientes.filter(p => p.origenNota?.notaId === id).map(p => p.id)
@@ -277,11 +327,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
     toast('Proyecto eliminado (sus pendientes se conservan)')
   }
 
-  const reemplazarTodo = (p: Pendiente[], n: Nota[], u?: string, pr?: Proyecto[]) => {
+  const crearEvento = (datos: Partial<EventoCalendario>): EventoCalendario => {
+    const base = {
+      id: uid(), titulo: '', fecha: '', hora: '', duracionMin: 15,
+      creado: new Date().toISOString(), modificado: new Date().toISOString(),
+      ...datos,
+    }
+    const { hora, duracionMin } = defaultsHorario(base.fecha, base.hora, base.duracionMin)
+    const nuevo: EventoCalendario = { ...base, hora, duracionMin: duracionMin ?? 15 }
+    setEventos(prev => [nuevo, ...prev])
+    return nuevo
+  }
+  const actualizarEvento = (id: string, datos: Partial<EventoCalendario>) => {
+    setEventos(prev => prev.map(e => e.id !== id ? e : { ...e, ...datos, modificado: new Date().toISOString() }))
+  }
+  const eliminarEvento = (id: string) => {
+    setEventos(prev => prev.filter(e => e.id !== id))
+  }
+
+  const reemplazarTodo = (p: Pendiente[], n: Nota[], u?: string, pr?: Proyecto[], ev?: EventoCalendario[]) => {
     setPendientes(p.map(normalizarConservandoId))
     setNotas(n)
     if (u) setUsuario(u)
     if (pr) setProyectos(pr)
+    if (ev) setEventos(ev.map(normalizarEventoConservandoId))
   }
 
   const personas = useMemo(() => {
@@ -300,8 +369,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const value: AppCtx = {
     pendientes, notas, usuario, setUsuario,
-    crearPendiente, actualizarPendiente, eliminarPendiente, archivarPendiente, desarchivarPendiente, toggleCompletar, toggleSubtarea, agregarSubtarea, agregarComentario, moverEstado,
-    crearNota, actualizarNota, eliminarNota, proyectos, crearProyecto, actualizarProyecto, eliminarProyecto, reemplazarTodo,
+    crearPendiente, actualizarPendiente, eliminarPendiente, duplicarPendiente, archivarPendiente, desarchivarPendiente, toggleCompletar, toggleSubtarea, agregarSubtarea, agregarComentario, moverEstado,
+    crearNota, actualizarNota, eliminarNota, duplicarNota, proyectos, crearProyecto, actualizarProyecto, eliminarProyecto,
+    eventos, crearEvento, actualizarEvento, eliminarEvento, columnas, setColumnas, reemplazarTodo,
     personas, modal, abrirModal, cerrarModal, peekId, abrirPeek, cerrarPeek, notaActualId, setNotaActualId,
     proyectoAbiertoId, setProyectoAbiertoId,
     filtroFecha, setFiltroFecha,
@@ -313,4 +383,12 @@ const semillaCache = semilla()
 
 function normalizarConservandoId(p: Partial<Pendiente>): Pendiente {
   return { ...normalizar({}), ...p, id: p.id || uid() } as Pendiente
+}
+
+function normalizarEventoConservandoId(e: Partial<EventoCalendario>): EventoCalendario {
+  return {
+    id: e.id || uid(), titulo: '', fecha: '', hora: '', duracionMin: 15,
+    creado: new Date().toISOString(), modificado: new Date().toISOString(),
+    ...e,
+  } as EventoCalendario
 }

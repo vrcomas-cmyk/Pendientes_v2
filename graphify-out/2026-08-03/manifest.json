@@ -30,8 +30,8 @@
     "semantic_hash": ""
   },
   "src/App.tsx": {
-    "mtime": 1785821038.8313477,
-    "ast_hash": "1d44e64b99d085ab3e51aac60b618155",
+    "mtime": 1785809936.503641,
+    "ast_hash": "4d734c9da0631fb31428567c73703965",
     "semantic_hash": ""
   },
   "src/components/AdjuntosUI.tsx": {
@@ -40,13 +40,13 @@
     "semantic_hash": "fd4edda2c3c64a2a505b08ae3d02829e"
   },
   "src/components/TaskModal.tsx": {
-    "mtime": 1785820229.3745918,
-    "ast_hash": "50314e3037eb5bfb085f050739e298db",
+    "mtime": 1785812311.4856498,
+    "ast_hash": "e77844d89c2d339e6c110c132d72d44b",
     "semantic_hash": ""
   },
   "src/components/TaskRow.tsx": {
-    "mtime": 1785853810.721632,
-    "ast_hash": "2c544b3978949693a8e409eec19bf5a4",
+    "mtime": 1785646862.8534188,
+    "ast_hash": "44e6679c9d045e88496558076bfd3189",
     "semantic_hash": ""
   },
   "src/components/ui/accordion.tsx": {
@@ -270,8 +270,8 @@
     "semantic_hash": ""
   },
   "src/lib/app-utils.ts": {
-    "mtime": 1785820074.1226048,
-    "ast_hash": "dc2c28cfdc822145ba3f56893bfba137",
+    "mtime": 1785811981.7953465,
+    "ast_hash": "d6c8c33ad4a1b96ea208fefe79b66c85",
     "semantic_hash": ""
   },
   "src/lib/supabase.ts": {
@@ -295,33 +295,33 @@
     "semantic_hash": ""
   },
   "src/store.tsx": {
-    "mtime": 1785826323.2676713,
-    "ast_hash": "5685bfada6e9dbc2cf23debe01e0aad6",
+    "mtime": 1785812071.2734728,
+    "ast_hash": "95d4a935e041e664c994f588b014f76f",
     "semantic_hash": ""
   },
   "src/sync.tsx": {
-    "mtime": 1785819959.6642396,
-    "ast_hash": "1cf0d4b64174ef932a418496bb00021c",
+    "mtime": 1785812212.384848,
+    "ast_hash": "b624eed225b8883724e9ae567e31a38b",
     "semantic_hash": ""
   },
   "src/types.ts": {
-    "mtime": 1785819674.9042914,
-    "ast_hash": "03ace14fbb6137101ed7056be89f55d6",
+    "mtime": 1785811941.6964452,
+    "ast_hash": "d9348278bebe8526c8cdd4dd2bcb70e9",
     "semantic_hash": ""
   },
   "src/views/ListView.tsx": {
-    "mtime": 1785854006.3406172,
-    "ast_hash": "3825e6b48e469417b003c93ca929a7f1",
+    "mtime": 1785646714.8490398,
+    "ast_hash": "97334e9406f6fc245c6fb4a4cd76ac3e",
     "semantic_hash": ""
   },
   "src/views/NotesView.tsx": {
-    "mtime": 1785826654.468724,
-    "ast_hash": "b23e75467a64c07a59ac4077d7a6f497",
+    "mtime": 1785552566.896704,
+    "ast_hash": "7d65d80a6675e94ca52ec3f9669eeb60",
     "semantic_hash": ""
   },
   "src/views/OtherViews.tsx": {
-    "mtime": 1785853852.861996,
-    "ast_hash": "c91039b781f119ec4ca3913a2880e19d",
+    "mtime": 1785812625.2668562,
+    "ast_hash": "4b4e6faaa487e16f1934b70c2b517351",
     "semantic_hash": ""
   },
   "src/views/PendientesView.tsx": {
@@ -360,8 +360,8 @@
     "semantic_hash": ""
   },
   "src/components/PendientePeek.tsx": {
-    "mtime": 1785820339.0394993,
-    "ast_hash": "a3ef006b78471421cd668e612bcae5de",
+    "mtime": 1785563352.524459,
+    "ast_hash": "386155bb380a9bb82579525fef631955",
     "semantic_hash": ""
   },
   "src/components/PosponerMenu.tsx": {
@@ -520,8 +520,8 @@
     "semantic_hash": ""
   },
   "src/views/ProyectosView.tsx": {
-    "mtime": 1785853890.8778517,
-    "ast_hash": "b2d85412a24f8195e163c62e04cf5abe",
+    "mtime": 1785646795.4308221,
+    "ast_hash": "5bbfbed5b964e3ed48534ee0932b4542",
     "semantic_hash": ""
   },
   "src/components/ProgressRing.tsx": {
@@ -540,8 +540,8 @@
     "semantic_hash": ""
   },
   "src/lib/agenda.ts": {
-    "mtime": 1785820426.1207602,
-    "ast_hash": "99382ab6ea30c4717eeba323f4e55e18",
+    "mtime": 1785812254.1359086,
+    "ast_hash": "9d26869516f68dac6378e576a3518226",
     "semantic_hash": ""
   },
   "src/lib/espacio.ts": {
@@ -550,43 +550,13 @@
     "semantic_hash": ""
   },
   "src/views/CalendarioView.tsx": {
-    "mtime": 1785826571.2475278,
-    "ast_hash": "aa3335c83fa6e884b8680859be985dce",
+    "mtime": 1785813152.3022633,
+    "ast_hash": "5fde49f0702218ef88fde6395dbbba1f",
     "semantic_hash": ""
   },
   ".claude/skills/probar-como-usuario/SKILL.md": {
     "mtime": 1785811141.8882837,
     "ast_hash": "42c2ccb56debe93b9b2dc13b12c87ea7",
-    "semantic_hash": ""
-  },
-  "src/components/AjustesDialog.tsx": {
-    "mtime": 1785820963.2468376,
-    "ast_hash": "37240e66d39be759e145135913f009dc",
-    "semantic_hash": ""
-  },
-  "src/lib/columnas.ts": {
-    "mtime": 1785820089.354374,
-    "ast_hash": "2a5e08f315ba80544768700a26a31ddc",
-    "semantic_hash": ""
-  },
-  "src/lib/tema.ts": {
-    "mtime": 1785820947.5442512,
-    "ast_hash": "498d83b9e1066a144109969ec36a5051",
-    "semantic_hash": ""
-  },
-  "src/components/ColumnaHeader.tsx": {
-    "mtime": 1785855627.192281,
-    "ast_hash": "edd18dc7aff5c90ceedd2c49ef5b36a9",
-    "semantic_hash": ""
-  },
-  "src/lib/useEditorColumnas.ts": {
-    "mtime": 1785822858.8846645,
-    "ast_hash": "757d255879c2c75391a54782f2e8847d",
-    "semantic_hash": ""
-  },
-  "src/components/MenuContextoPendiente.tsx": {
-    "mtime": 1785826343.7586188,
-    "ast_hash": "5b15a585f3f93b3eb2249393af569521",
     "semantic_hash": ""
   }
 }

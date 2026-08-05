@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Toaster, toast } from 'sonner'
 import { AppProvider, useApp } from '@/store'
-import { ESTADOS } from '@/types'
+import { columnaDe, idColumnaCompletado } from '@/lib/columnas'
 import { descargar, hoyISO, vencido, parsearLinea, fechaPorPrioridad } from '@/lib/app-utils'
 import { useIsMobile } from '@/hooks/use-is-mobile'
 import { SyncProvider, useSync, SyncBadge } from '@/sync'
@@ -13,6 +13,9 @@ import ErrorBoundary from '@/components/ErrorBoundary'
 import PaletaComandos from '@/components/PaletaComandos'
 import { manejarCallbackOAuth, listarCuentasGoogle, type CuentaGoogle } from '@/lib/googleCalendar'
 import CuentasGoogleDialog from '@/components/CuentasGoogleDialog'
+import EspacioDialog from '@/components/EspacioDialog'
+import AjustesDialog from '@/components/AjustesDialog'
+import { aplicarAcento, leerAcento } from '@/lib/tema'
 import PendientesView from '@/views/PendientesView'
 import NotesView from '@/views/NotesView'
 import ProyectosView from '@/views/ProyectosView'
@@ -22,7 +25,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import {
   Star, ListTodo, BarChart3, StickyNote, Briefcase,
-  Plus, Moon, Sun, Download, Upload, FileSpreadsheet, AlertTriangle, User, MoreVertical, LogOut, LogIn, HelpCircle, CalendarClock,
+  Plus, Moon, Sun, Download, Upload, FileSpreadsheet, AlertTriangle, User, MoreVertical, LogOut, LogIn, HelpCircle, CalendarClock, Users, Settings2,
 } from 'lucide-react'
 
 const LS_VISTA = 'pn_vista'
@@ -56,6 +59,8 @@ function Shell() {
   const [paletaAbierta, setPaletaAbierta] = useState(false)
   const [cuentasGoogle, setCuentasGoogle] = useState<CuentaGoogle[]>([])
   const [cuentasGoogleDlg, setCuentasGoogleDlg] = useState(false)
+  const [espacioDlg, setEspacioDlg] = useState(false)
+  const [ajustesDlg, setAjustesDlg] = useState(false)
   const [quickTexto, setQuickTexto] = useState('')
   const [fabAbierto, setFabAbierto] = useState(false)
   const quickRef = useRef<HTMLInputElement>(null)
@@ -116,21 +121,34 @@ function Shell() {
     try { localStorage.setItem('darkMode', String(d)) } catch { /* noop */ }
   }
 
+  // Re-aplica el color de acento elegido en Ajustes cada vez que cambia el tema: una variable CSS
+  // puesta inline (ver `aplicarAcento`) no sigue la cascada de `.dark`, así que hay que recalcularla
+  // nosotros mismos en cada cambio (incluido el montaje inicial).
+  useEffect(() => { aplicarAcento(leerAcento(), dark) }, [dark])
+
   // Conexión con Google Calendar: requiere sesión sincronizada (la Edge Function identifica
   // al usuario por su JWT de Supabase). Al volver del consentimiento de Google, la URL trae
   // `?code=...`; se intercambia una sola vez al montar. Se soportan varias cuentas conectadas
   // a la vez (espejo): por eso se recarga la lista completa tras cada cambio.
-  const recargarCuentasGoogle = () => { listarCuentasGoogle().then(r => setCuentasGoogle(r.cuentas)).catch(() => setCuentasGoogle([])) }
+  const recargarCuentasGoogle = () => {
+    listarCuentasGoogle()
+      .then(r => { setCuentasGoogle(r.cuentas); if (r.error) toast.error(r.error) })
+      .catch(() => setCuentasGoogle([]))
+  }
 
   useEffect(() => {
     let vivo = true
     if (sync.modoLocal) { Promise.resolve().then(() => { if (vivo) setCuentasGoogle([]) }); return () => { vivo = false } }
+    // Espera a que se resuelva el espacio de trabajo (se crea/lee al iniciar sesión, en sync.tsx):
+    // si se consulta Google Calendar antes, la Edge Function todavía no encuentra membresía y
+    // devuelve error de forma transitoria.
+    if (!sync.espacioId) return () => { vivo = false }
     manejarCallbackOAuth()
       .then(r => { if (r) toast.success('Google Calendar conectado: ' + r.email) })
       .catch(err => toast.error(err instanceof Error ? err.message : 'No se pudo conectar con Google Calendar'))
-      .finally(() => { listarCuentasGoogle().then(s => { if (vivo) setCuentasGoogle(s.cuentas) }) })
+      .finally(() => { listarCuentasGoogle().then(s => { if (vivo) { setCuentasGoogle(s.cuentas); if (s.error) toast.error(s.error) } }) })
     return () => { vivo = false }
-  }, [sync.modoLocal])
+  }, [sync.modoLocal, sync.espacioId])
 
   const quickAdd = () => {
     const txt0 = quickTexto.trim()
@@ -162,7 +180,7 @@ function Shell() {
   const exportarCSV = () => {
     const cab = ['Titulo', 'Solicitante', 'Responsable', 'Prioridad', 'Estado', 'FechaLimite', 'Proyecto', 'Subtareas', 'Descripcion']
     const filas = pendientes.map(p => [
-      p.titulo, p.solicitante, p.responsable, p.prioridad, ESTADOS[p.estado].label, p.fechaLimite, p.proyecto,
+      p.titulo, p.solicitante, p.responsable, p.prioridad, columnaDe(app.columnas, p.estado).nombre, p.fechaLimite, p.proyecto,
       p.subtareas.map(s => (s.completada ? '[x] ' : '[ ] ') + s.texto).join(' | '),
       (p.descripcion || '').replace(/\n/g, ' '),
     ].map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(','))
@@ -190,8 +208,9 @@ function Shell() {
     toast.success('Datos importados')
   }
 
-  const nVencidos = pendientes.filter(vencido).length
-  const nAbiertos = pendientes.filter(p => p.estado !== 'completado').length
+  const idCompletado = idColumnaCompletado(app.columnas)
+  const nVencidos = pendientes.filter(p => vencido(p, idCompletado)).length
+  const nAbiertos = pendientes.filter(p => p.estado !== idCompletado).length
 
   const vistaActual = (
     <>
@@ -259,6 +278,8 @@ function Shell() {
       </Dialog>
       <AyudaAtajos open={ayudaAbierta} onOpenChange={setAyudaAbierta} />
       <CuentasGoogleDialog open={cuentasGoogleDlg} onOpenChange={setCuentasGoogleDlg} cuentas={cuentasGoogle} onCambio={recargarCuentasGoogle} />
+      <EspacioDialog open={espacioDlg} onOpenChange={setEspacioDlg} />
+      <AjustesDialog open={ajustesDlg} onOpenChange={setAjustesDlg} dark={dark} toggleDark={toggleDark} onIrTablero={() => { setVista('pendientes') }} />
       <PaletaComandos open={paletaAbierta} onOpenChange={setPaletaAbierta}
         onIrVista={setVista} onAlternarTema={toggleDark} onExportarJSON={exportarJSON} onExportarCSV={exportarCSV} onVerVencidos={verVencidos} />
     </>
@@ -298,9 +319,13 @@ function Shell() {
                     <button onClick={() => { setMenuAbierto(false); setCuentasGoogleDlg(true) }} className="flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-accent">
                       <CalendarClock size={15} /> Google Calendar{cuentasGoogle.length ? ` (${cuentasGoogle.length})` : ''}
                     </button>
+                    <button onClick={() => { setMenuAbierto(false); setEspacioDlg(true) }} className="flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-accent">
+                      <Users size={15} /> Cuentas vinculadas{sync.miembros.length > 1 ? ` (${sync.miembros.length})` : ''}
+                    </button>
                   </>
                 )}
                 <div className="border-t" />
+                <button onClick={() => { setMenuAbierto(false); setAjustesDlg(true) }} className="flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-accent"><Settings2 size={15} /> Ajustes</button>
                 <button onClick={() => { setMenuAbierto(false); abrirNombreDlg() }} className="flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-accent"><User size={15} /> Nombre: {usuario}</button>
                 <div className="border-t" />
                 <button onClick={() => { setMenuAbierto(false); exportarJSON() }} className="flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-accent"><Download size={15} /> Exportar JSON</button>

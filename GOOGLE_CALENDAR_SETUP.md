@@ -115,6 +115,16 @@ Google sin que tengas que darle acceso manualmente cada vez, tienes dos caminos:
    tardar días o semanas (aplica porque el scope de Calendar es "sensible"). Solo vale la pena si
    la app va a tener uso público real, más allá de un grupo cerrado.
 
+## Las cuentas conectadas dependen de la sesión de sincronización, no del dispositivo
+
+Las cuentas de Google Calendar quedan ligadas al **usuario de Supabase** con el que iniciaste
+sesión (tabla `pnp_google_calendar`, filtrada por `user_id`), no al dispositivo ni al navegador.
+Si en la computadora entraste con un correo de sincronización y en el celular entras con **otro**
+correo (aunque sea tuyo), verás una lista de cuentas de Google distinta — o vacía. La app ahora
+muestra el correo de la sesión activa junto al estado de sincronización y dentro del diálogo de
+Google Calendar; verifica ahí que sea el mismo en todos tus dispositivos antes de reportar cuentas
+"perdidas".
+
 ## Notas de seguridad
 
 - El `refresh_token` y el `access_token` de Google nunca llegan al navegador: se

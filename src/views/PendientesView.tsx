@@ -1,23 +1,31 @@
 import { useState } from 'react'
 import { useApp } from '@/store'
 import ListView from '@/views/ListView'
-import { KanbanView, CalendarView } from '@/views/OtherViews'
-import AgendaView from '@/views/AgendaView'
-import { List, Columns3, CalendarDays, CalendarClock } from 'lucide-react'
+import { KanbanView } from '@/views/OtherViews'
+import CalendarioView from '@/views/CalendarioView'
+import { List, Columns3, CalendarDays } from 'lucide-react'
 
-type Modo = 'lista' | 'tablero' | 'calendario' | 'agenda'
+type Modo = 'lista' | 'tablero' | 'calendario'
 
 const MODOS: { id: Modo; label: string; icon: React.ReactNode }[] = [
   { id: 'lista', label: 'Lista', icon: <List size={14} /> },
   { id: 'tablero', label: 'Tablero', icon: <Columns3 size={14} /> },
   { id: 'calendario', label: 'Calendario', icon: <CalendarDays size={14} /> },
-  { id: 'agenda', label: 'Agenda', icon: <CalendarClock size={14} /> },
 ]
 
+/** El modo 'agenda' (Agenda solo-hoy, ya retirada) se migra a 'calendario' para no perder el modo
+    recordado de quien ya lo tenía guardado en localStorage. */
+function leerModoGuardado(): Modo {
+  try {
+    const v = localStorage.getItem('pn_modo_vista')
+    if (v === 'agenda') return 'calendario'
+    if (v === 'lista' || v === 'tablero' || v === 'calendario') return v
+  } catch { /* noop */ }
+  return 'lista'
+}
+
 export default function PendientesView() {
-  const [modo, setModo] = useState<Modo>(() => {
-    try { return (localStorage.getItem('pn_modo_vista') as Modo) || 'lista' } catch { return 'lista' }
-  })
+  const [modo, setModo] = useState<Modo>(leerModoGuardado)
   const { filtroFecha, setFiltroFecha } = useApp()
 
   const cambiar = (m: Modo) => {
@@ -39,8 +47,7 @@ export default function PendientesView() {
       <div className="min-h-0 flex-1">
         {modo === 'lista' && <ListView filtroFecha={filtroFecha} setFiltroFecha={setFiltroFecha} />}
         {modo === 'tablero' && <KanbanView />}
-        {modo === 'calendario' && <CalendarView />}
-        {modo === 'agenda' && <AgendaView />}
+        {modo === 'calendario' && <CalendarioView />}
       </div>
     </div>
   )

@@ -1165,8 +1165,8 @@
       "source_location": "L51",
       "_origin": "ast",
       "id": "package_dependencies_react",
-      "community": 4,
-      "community_name": "use-toast.ts",
+      "community": 7,
+      "community_name": "carousel.tsx",
       "norm_label": "react"
     },
     {
@@ -1176,8 +1176,8 @@
       "source_location": "L51",
       "_origin": "ast",
       "id": "react",
-      "community": 4,
-      "community_name": "use-toast.ts",
+      "community": 7,
+      "community_name": "carousel.tsx",
       "norm_label": "react"
     },
     {
@@ -1374,8 +1374,8 @@
       "source_location": "L62",
       "_origin": "ast",
       "id": "package_devdependencies_eslint_js",
-      "community": 14,
-      "community_name": "buffer",
+      "community": 11,
+      "community_name": "devDependencies",
       "norm_label": "@eslint/js"
     },
     {
@@ -1385,8 +1385,8 @@
       "source_location": "L62",
       "_origin": "ast",
       "id": "eslint_js",
-      "community": 14,
-      "community_name": "buffer",
+      "community": 11,
+      "community_name": "devDependencies",
       "norm_label": "@eslint/js"
     },
     {
@@ -1528,8 +1528,8 @@
       "source_location": "L69",
       "_origin": "ast",
       "id": "package_devdependencies_buffer",
-      "community": 11,
-      "community_name": "devDependencies",
+      "community": 14,
+      "community_name": "buffer",
       "norm_label": "buffer"
     },
     {
@@ -1539,8 +1539,8 @@
       "source_location": "L69",
       "_origin": "ast",
       "id": "buffer",
-      "community": 11,
-      "community_name": "devDependencies",
+      "community": 14,
+      "community_name": "buffer",
       "norm_label": "buffer"
     },
     {
@@ -2042,7 +2042,7 @@
       "label": "ColumnaHeader()",
       "file_type": "code",
       "source_file": "src/components/ColumnaHeader.tsx",
-      "source_location": "L13",
+      "source_location": "L12",
       "_origin": "ast",
       "id": "src_components_columnaheader_columnaheader",
       "community": 0,
@@ -2056,8 +2056,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_components_cuentasgoogledialog",
-      "community": 30,
-      "community_name": "class-variance-authority",
+      "community": 102,
+      "community_name": "googleCalendar.ts",
       "norm_label": "cuentasgoogledialog.tsx"
     },
     {
@@ -2375,8 +2375,8 @@
       "source_location": "L12",
       "_origin": "ast",
       "id": "src_components_posponermenu_condia",
-      "community": 38,
-      "community_name": "html-inline",
+      "community": 30,
+      "community_name": "class-variance-authority",
       "norm_label": "condia()"
     },
     {
@@ -2386,8 +2386,8 @@
       "source_location": "L15",
       "_origin": "ast",
       "id": "src_components_posponermenu_posponermenu",
-      "community": 38,
-      "community_name": "html-inline",
+      "community": 30,
+      "community_name": "class-variance-authority",
       "norm_label": "posponermenu()"
     },
     {
@@ -2914,8 +2914,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_components_ui_carousel",
-      "community": 4,
-      "community_name": "use-toast.ts",
+      "community": 7,
+      "community_name": "carousel.tsx",
       "norm_label": "carousel.tsx"
     },
     {
@@ -2925,8 +2925,8 @@
       "source_location": "L12",
       "_origin": "ast",
       "id": "src_components_ui_carousel_carouselapi",
-      "community": 4,
-      "community_name": "use-toast.ts",
+      "community": 7,
+      "community_name": "carousel.tsx",
       "norm_label": "carouselapi"
     },
     {
@@ -2936,8 +2936,8 @@
       "source_location": "L13",
       "_origin": "ast",
       "id": "src_components_ui_carousel_usecarouselparameters",
-      "community": 4,
-      "community_name": "use-toast.ts",
+      "community": 7,
+      "community_name": "carousel.tsx",
       "norm_label": "usecarouselparameters"
     },
     {
@@ -2947,8 +2947,8 @@
       "source_location": "L14",
       "_origin": "ast",
       "id": "src_components_ui_carousel_carouseloptions",
-      "community": 4,
-      "community_name": "use-toast.ts",
+      "community": 7,
+      "community_name": "carousel.tsx",
       "norm_label": "carouseloptions"
     },
     {
@@ -2958,8 +2958,8 @@
       "source_location": "L15",
       "_origin": "ast",
       "id": "src_components_ui_carousel_carouselplugin",
-      "community": 4,
-      "community_name": "use-toast.ts",
+      "community": 7,
+      "community_name": "carousel.tsx",
       "norm_label": "carouselplugin"
     },
     {
@@ -2969,8 +2969,8 @@
       "source_location": "L17",
       "_origin": "ast",
       "id": "src_components_ui_carousel_carouselprops",
-      "community": 4,
-      "community_name": "use-toast.ts",
+      "community": 7,
+      "community_name": "carousel.tsx",
       "norm_label": "carouselprops"
     },
     {
@@ -2980,8 +2980,8 @@
       "source_location": "L24",
       "_origin": "ast",
       "id": "src_components_ui_carousel_carouselcontextprops",
-      "community": 4,
-      "community_name": "use-toast.ts",
+      "community": 7,
+      "community_name": "carousel.tsx",
       "norm_label": "carouselcontextprops"
     },
     {
@@ -2991,8 +2991,8 @@
       "source_location": "L33",
       "_origin": "ast",
       "id": "src_components_ui_carousel_carouselcontext",
-      "community": 4,
-      "community_name": "use-toast.ts",
+      "community": 7,
+      "community_name": "carousel.tsx",
       "norm_label": "carouselcontext"
     },
     {
@@ -3002,8 +3002,8 @@
       "source_location": "L35",
       "_origin": "ast",
       "id": "src_components_ui_carousel_usecarousel",
-      "community": 4,
-      "community_name": "use-toast.ts",
+      "community": 7,
+      "community_name": "carousel.tsx",
       "norm_label": "usecarousel()"
     },
     {
@@ -3013,8 +3013,8 @@
       "source_location": "L45",
       "_origin": "ast",
       "id": "src_components_ui_carousel_carousel",
-      "community": 4,
-      "community_name": "use-toast.ts",
+      "community": 7,
+      "community_name": "carousel.tsx",
       "norm_label": "carousel"
     },
     {
@@ -3024,8 +3024,8 @@
       "source_location": "L153",
       "_origin": "ast",
       "id": "src_components_ui_carousel_carouselcontent",
-      "community": 4,
-      "community_name": "use-toast.ts",
+      "community": 7,
+      "community_name": "carousel.tsx",
       "norm_label": "carouselcontent"
     },
     {
@@ -3035,8 +3035,8 @@
       "source_location": "L175",
       "_origin": "ast",
       "id": "src_components_ui_carousel_carouselitem",
-      "community": 4,
-      "community_name": "use-toast.ts",
+      "community": 7,
+      "community_name": "carousel.tsx",
       "norm_label": "carouselitem"
     },
     {
@@ -3046,8 +3046,8 @@
       "source_location": "L197",
       "_origin": "ast",
       "id": "src_components_ui_carousel_carouselprevious",
-      "community": 4,
-      "community_name": "use-toast.ts",
+      "community": 7,
+      "community_name": "carousel.tsx",
       "norm_label": "carouselprevious"
     },
     {
@@ -3057,8 +3057,8 @@
       "source_location": "L226",
       "_origin": "ast",
       "id": "src_components_ui_carousel_carouselnext",
-      "community": 4,
-      "community_name": "use-toast.ts",
+      "community": 7,
+      "community_name": "carousel.tsx",
       "norm_label": "carouselnext"
     },
     {
@@ -3640,8 +3640,8 @@
       "source_location": "L43",
       "_origin": "ast",
       "id": "src_components_ui_form_useformfield",
-      "community": 4,
-      "community_name": "use-toast.ts",
+      "community": 7,
+      "community_name": "carousel.tsx",
       "norm_label": "useformfield()"
     },
     {
@@ -4597,8 +4597,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_components_ui_tabs",
-      "community": 5,
-      "community_name": "cn",
+      "community": 31,
+      "community_name": "clsx",
       "norm_label": "tabs.tsx"
     },
     {
@@ -4608,8 +4608,8 @@
       "source_location": "L8",
       "_origin": "ast",
       "id": "src_components_ui_tabs_tabslist",
-      "community": 5,
-      "community_name": "cn",
+      "community": 31,
+      "community_name": "clsx",
       "norm_label": "tabslist"
     },
     {
@@ -4619,8 +4619,8 @@
       "source_location": "L23",
       "_origin": "ast",
       "id": "src_components_ui_tabs_tabstrigger",
-      "community": 5,
-      "community_name": "cn",
+      "community": 31,
+      "community_name": "clsx",
       "norm_label": "tabstrigger"
     },
     {
@@ -4630,8 +4630,8 @@
       "source_location": "L38",
       "_origin": "ast",
       "id": "src_components_ui_tabs_tabscontent",
-      "community": 5,
-      "community_name": "cn",
+      "community": 31,
+      "community_name": "clsx",
       "norm_label": "tabscontent"
     },
     {
@@ -5312,8 +5312,8 @@
       "source_location": "L68",
       "_origin": "ast",
       "id": "src_lib_app_utils_isomasdias",
-      "community": 38,
-      "community_name": "html-inline",
+      "community": 0,
+      "community_name": "App.tsx",
       "norm_label": "isomasdias()"
     },
     {
@@ -5499,8 +5499,8 @@
       "source_location": "L267",
       "_origin": "ast",
       "id": "src_lib_app_utils_isodesdepartes",
-      "community": 38,
-      "community_name": "html-inline",
+      "community": 30,
+      "community_name": "class-variance-authority",
       "norm_label": "isodesdepartes()"
     },
     {
@@ -7039,8 +7039,8 @@
       "source_location": "L80",
       "_origin": "ast",
       "id": "src_views_otherviews_franjasemanal",
-      "community": 38,
-      "community_name": "html-inline",
+      "community": 0,
+      "community_name": "App.tsx",
       "norm_label": "franjasemanal()"
     },
     {
@@ -12145,54 +12145,10 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/components/ColumnaHeader.tsx",
-      "source_location": "L13",
+      "source_location": "L12",
       "weight": 1.0,
       "source": "src_components_columnaheader",
       "target": "src_components_columnaheader_columnaheader",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "imports_from",
-      "context": "import",
-      "confidence": "EXTRACTED",
-      "source_file": "src/components/ColumnaHeader.tsx",
-      "source_location": "L5",
-      "weight": 1.0,
-      "source": "src_components_columnaheader",
-      "target": "src_components_ui_dropdown_menu",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "imports",
-      "context": "import",
-      "confidence": "EXTRACTED",
-      "source_file": "src/components/ColumnaHeader.tsx",
-      "source_location": "L5",
-      "weight": 1.0,
-      "source": "src_components_columnaheader",
-      "target": "src_components_ui_dropdown_menu_dropdownmenucontent",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "imports",
-      "context": "import",
-      "confidence": "EXTRACTED",
-      "source_file": "src/components/ColumnaHeader.tsx",
-      "source_location": "L5",
-      "weight": 1.0,
-      "source": "src_components_columnaheader",
-      "target": "src_components_ui_dropdown_menu_dropdownmenuitem",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "imports",
-      "context": "import",
-      "confidence": "EXTRACTED",
-      "source_file": "src/components/ColumnaHeader.tsx",
-      "source_location": "L5",
-      "weight": 1.0,
-      "source": "src_components_columnaheader",
-      "target": "src_components_ui_dropdown_menu_dropdownmenuseparator",
       "confidence_score": 1.0
     },
     {
@@ -12289,7 +12245,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/components/ColumnaHeader.tsx",
-      "source_location": "L25",
+      "source_location": "L24",
       "weight": 1.0,
       "source": "src_components_columnaheader_columnaheader",
       "target": "src_lib_columnas_colorcolumna"
@@ -12300,7 +12256,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/components/ColumnaHeader.tsx",
-      "source_location": "L22",
+      "source_location": "L21",
       "weight": 1.0,
       "source": "src_components_columnaheader_columnaheader",
       "target": "src_lib_useeditorcolumnas_useeditorcolumnas"

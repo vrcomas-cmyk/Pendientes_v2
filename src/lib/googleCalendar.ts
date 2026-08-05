@@ -62,10 +62,10 @@ export async function manejarCallbackOAuth(): Promise<{ id: string; email: strin
 export interface CuentaGoogle { id: string; email: string; modoEspejo: 'todo' | 'propio' }
 
 /** Todas las cuentas de Google Calendar conectadas para el usuario actual (puede haber varias). */
-export async function listarCuentasGoogle(): Promise<{ configurado: boolean; cuentas: CuentaGoogle[] }> {
+export async function listarCuentasGoogle(): Promise<{ configurado: boolean; cuentas: CuentaGoogle[]; error?: string }> {
   if (!isGoogleConfigurado()) return { configurado: false, cuentas: [] }
   try { return await invocar('list-connections') }
-  catch { return { configurado: true, cuentas: [] } }
+  catch (err) { return { configurado: true, cuentas: [], error: (err as Error).message || 'No se pudo consultar Google Calendar' } }
 }
 
 export async function desconectarGoogle(cuentaId: string): Promise<void> {
@@ -81,12 +81,18 @@ export async function actualizarModoEspejo(cuentaId: string, modo: 'todo' | 'pro
 export interface EventoGCal { id: string; cuentaId: string; email: string; titulo: string; inicio?: string; fin?: string; todoElDia: boolean }
 interface RespuestaConErrores { errores?: Record<string, string> }
 
-/** Eventos del día (de TODAS las cuentas conectadas, fusionados) para pintar los bloques "ocupado".
-    El rango se calcula en hora LOCAL del usuario, no en UTC fijo, para no desalinear el día. */
+/** Eventos de un rango arbitrario (de TODAS las cuentas conectadas, fusionados) para pintar los
+    bloques "ocupado" en día/semana/mes. `desdeISO`/`hastaISO` son instantes ISO completos. */
+export async function listarEventosRango(desdeISO: string, hastaISO: string): Promise<{ eventos: EventoGCal[]; errores?: Record<string, string> }> {
+  return invocar<{ eventos: EventoGCal[]; errores?: Record<string, string> }>('list-events', { desdeISO, hastaISO })
+}
+
+/** Eventos de un solo día. El rango se calcula en hora LOCAL del usuario, no en UTC fijo, para no
+    desalinear el día. Envoltorio de `listarEventosRango` para el caso más común (vista Día). */
 export async function listarEventosDia(iso: string): Promise<{ eventos: EventoGCal[]; errores?: Record<string, string> }> {
   const desdeISO = new Date(`${iso}T00:00:00`).toISOString()
   const hastaISO = new Date(`${iso}T23:59:59`).toISOString()
-  return invocar<{ eventos: EventoGCal[]; errores?: Record<string, string> }>('list-events', { desdeISO, hastaISO })
+  return listarEventosRango(desdeISO, hastaISO)
 }
 
 function combinarFechaHora(fecha: string, hora: string): string {

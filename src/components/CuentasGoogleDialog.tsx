@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { iniciarConexionGoogle, desconectarGoogle, actualizarModoEspejo, type CuentaGoogle } from '@/lib/googleCalendar'
+import { useSync } from '@/sync'
 import { CalendarClock, Plus, X } from 'lucide-react'
 
 /** Gestiona varias cuentas de Google Calendar conectadas a la vez, con espejo asimétrico:
@@ -18,6 +19,7 @@ export default function CuentasGoogleDialog({
   cuentas: CuentaGoogle[]
   onCambio: () => void
 }) {
+  const { email: emailSync } = useSync()
   const [desconectando, setDesconectando] = useState<string | null>(null)
   const [cambiandoModo, setCambiandoModo] = useState<string | null>(null)
 
@@ -43,6 +45,7 @@ export default function CuentasGoogleDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-sm">
         <DialogHeader><DialogTitle className="flex items-center gap-2 text-base"><CalendarClock size={17} /> Google Calendar</DialogTitle></DialogHeader>
+        {emailSync && <p className="text-xs text-muted-foreground">Sesión de sincronización: <span className="font-medium text-foreground">{emailSync}</span></p>}
         <p className="text-xs text-muted-foreground">
           Cada cuenta decide qué recibe: <b>Refleja todo</b> crea ahí cualquier pendiente que agendes;
           <b> Solo lo propio</b> únicamente los de proyectos que tengan esa cuenta como dueña.

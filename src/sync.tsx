@@ -2,35 +2,46 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import type { Session } from '@supabase/supabase-js'
 import { toast } from 'sonner'
 import { useApp } from '@/store'
-import type { Nota, Pendiente, Proyecto } from '@/types'
+import type { Nota, Pendiente, Proyecto, EventoCalendario, ColumnaKanban } from '@/types'
+import { COLUMNAS_DEFECTO } from '@/types'
 import { getConfig, getSupabase, isConfigured, saveConfig } from '@/lib/supabase'
-import { mergeNota, mergePendiente, mergeProyecto, reconciliar, type MapaSync } from '@/lib/sync-merge'
+import { mergeNota, mergePendiente, mergeProyecto, mergeEvento, reconciliar, type MapaSync } from '@/lib/sync-merge'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Cloud, CloudOff, RefreshCw, LogOut, Loader2 } from 'lucide-react'
 
 type EstadoSync = 'local' | 'sincronizando' | 'sincronizado' | 'offline' | 'error'
+export type RolEspacio = 'padre' | 'hija'
+export interface MiembroEspacio { userId: string; email: string; rol: RolEspacio }
 
 interface SyncCtx {
+  userId: string | null
   email: string | null
   estado: EstadoSync
   modoLocal: boolean
   enLinea: boolean
   porSubir: number
+  espacioId: string | null
+  miRol: RolEspacio | null
+  miembros: MiembroEspacio[]
+  recargarEspacio: () => void
+  actualizarColumnas: (cols: ColumnaKanban[]) => void
   logout: () => void
   activarSync: () => void
   sincronizarAhora: () => void
 }
 const Ctx = createContext<SyncCtx>({
-  email: null, estado: 'local', modoLocal: true, enLinea: true, porSubir: 0,
+  userId: null, email: null, estado: 'local', modoLocal: true, enLinea: true, porSubir: 0,
+  espacioId: null, miRol: null, miembros: [], recargarEspacio: () => {},
+  actualizarColumnas: () => {},
   logout: () => {}, activarSync: () => {}, sincronizarAhora: () => {},
 })
 // eslint-disable-next-line react-refresh/only-export-components -- context hook shared alongside its provider
 export const useSync = () => useContext(Ctx)
 
-interface UltimoSync { pendientes: MapaSync; notas: MapaSync; proyectos: MapaSync }
-const vacio = (): UltimoSync => ({ pendientes: {}, notas: {}, proyectos: {} })
+interface UltimoSync { pendientes: MapaSync; notas: MapaSync; proyectos: MapaSync; eventos: MapaSync }
+const vacio = (): UltimoSync => ({ pendientes: {}, notas: {}, proyectos: {}, eventos: {} })
 
 /** Ventana (ms) durante la cual un ítem recién subido está protegido de un borrado remoto fantasma por lag de replicación. */
 const GRACIA_SUBIDA = 30000
@@ -60,6 +71,9 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   const [porSubir, setPorSubir] = useState(0)
   const [modoLocal, setModoLocal] = useState(() => { try { return localStorage.getItem('sb_modo_local') === '1' } catch { return false } })
   const [config, setConfig] = useState(() => isConfigured())
+  const [espacioId, setEspacioId] = useState<string | null>(null)
+  const [miRol, setMiRol] = useState<RolEspacio | null>(null)
+  const [miembros, setMiembros] = useState<MiembroEspacio[]>([])
 
   const last = useRef<UltimoSync>(vacio())
   const sincronizando = useRef(false)
@@ -75,6 +89,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   const ausenciaP = useRef<Map<string, number>>(new Map())
   const ausenciaN = useRef<Map<string, number>>(new Map())
   const ausenciaPr = useRef<Map<string, number>>(new Map())
+  const ausenciaEv = useRef<Map<string, number>>(new Map())
   const pushTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const rtTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   // Si este dispositivo/navegador tiene el almacenamiento local vacío (perfil nuevo, caché
@@ -87,17 +102,68 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 
   const userId = session?.user?.id || null
   const email = session?.user?.email || null
-  const claveLast = (uid: string) => 'pnp_lastsync_' + uid
+  const espacioRef = useRef<string | null>(null)
+  espacioRef.current = espacioId
+  // La marca de "última sincronización" se guarda por ESPACIO, no por cuenta: si cada cuenta de un
+  // mismo espacio llevara su propia marca, la reconciliación de sync-merge.ts interpretaría como
+  // "borrado remoto" lo que otra cuenta hermana simplemente aún no había subido.
+  const claveLast = (eid: string) => 'pnp_lastsync_' + eid
 
-  const cargarLast = (uid: string) => {
-    // `{ ...vacio(), ...guardado }` migra cuentas que sincronizaron antes de que existiera alguna
+  const cargarLast = (eid: string) => {
+    // `{ ...vacio(), ...guardado }` migra espacios que sincronizaron antes de que existiera alguna
     // colección nueva (ej. `proyectos`): sin este merge, esa clave queda `undefined` y el resto del
     // código revienta al hacer `Object.keys(last.current.proyectos)`, cortando la sincronización a
     // medias — un borrado se aplica local pero nunca termina de subirse a la nube.
-    try { last.current = { ...vacio(), ...JSON.parse(localStorage.getItem(claveLast(uid)) || '{}') } }
+    try { last.current = { ...vacio(), ...JSON.parse(localStorage.getItem(claveLast(eid)) || '{}') } }
     catch { last.current = vacio() }
   }
-  const guardarLast = () => { if (userId) { try { localStorage.setItem(claveLast(userId), JSON.stringify(last.current)) } catch { /* noop */ } } }
+  const guardarLast = () => { if (espacioRef.current) { try { localStorage.setItem(claveLast(espacioRef.current), JSON.stringify(last.current)) } catch { /* noop */ } } }
+
+  /** Resuelve el espacio de trabajo del usuario (creándolo como "padre" si es la primera vez) y
+      carga la lista de cuentas asociadas. Se ejecuta al iniciar sesión y cuando se invita/canjea/
+      quita una cuenta. */
+  const cargarEspacio = async (): Promise<string | null> => {
+    const sb = getSupabase()
+    if (!sb) return null
+    const { data: eid, error } = await sb.rpc('pnp_espacio_actual')
+    if (error || !eid) { setEspacioId(null); setMiRol(null); setMiembros([]); return null }
+    const [{ data: filas }, { data: espacio }] = await Promise.all([
+      sb.from('pnp_espacio_miembros').select('user_id, email, rol').eq('espacio_id', eid),
+      sb.from('pnp_espacios').select('config').eq('id', eid).single(),
+    ])
+    const lista: MiembroEspacio[] = (filas || []).map(f => ({ userId: f.user_id as string, email: f.email as string, rol: f.rol as RolEspacio }))
+    setEspacioId(eid as string)
+    setMiRol(lista.find(m => m.userId === userId)?.rol ?? null)
+    setMiembros(lista)
+    const colsGuardadas = (espacio?.config as { columnas?: ColumnaKanban[] } | null)?.columnas
+    appRef.current.setColumnas(colsGuardadas?.length ? colsGuardadas : COLUMNAS_DEFECTO)
+    return eid as string
+  }
+
+  /** Refresca solo las columnas del espacio (sin recargar espacio/miembros completos) — la usa el
+      handler de realtime cuando otra cuenta del mismo espacio las cambia. */
+  const recargarColumnas = async () => {
+    const sb = getSupabase()
+    if (!sb || !espacioRef.current) return
+    const { data } = await sb.from('pnp_espacios').select('config').eq('id', espacioRef.current).single()
+    const cols = (data?.config as { columnas?: ColumnaKanban[] } | null)?.columnas
+    appRef.current.setColumnas(cols?.length ? cols : COLUMNAS_DEFECTO)
+  }
+
+  /** Guarda las columnas del Kanban: en el espacio compartido si hay sincronización activa (así
+      todas las cuentas del espacio las ven), o en este dispositivo si se trabaja en modo local.
+      `store.tsx` (`appRef`) sigue siendo la única fuente de verdad para renderizar — aquí solo se
+      decide DÓNDE persistir, mismo puente que ya usa `reemplazarTodo`. */
+  const actualizarColumnas = (cols: ColumnaKanban[]) => {
+    // `store.tsx` persiste `columnas` en localStorage por su cuenta (mismo efecto que pendientes/
+    // notas/proyectos) — en modo local o sin espacio, con esto ya basta.
+    appRef.current.setColumnas(cols)
+    if (modoLocal || !espacioRef.current) return
+    const sb = getSupabase()
+    if (!sb) return
+    sb.from('pnp_espacios').update({ config: { columnas: cols } }).eq('id', espacioRef.current)
+      .then(({ error }) => { if (error) toast.error('No se pudieron guardar las columnas: ' + error.message) })
+  }
 
   /* ---- sesión + auth ---- */
   useEffect(() => {
@@ -108,11 +174,12 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     return () => sub.subscription.unsubscribe()
   }, [config])
 
-  /* ---- al iniciar sesión: cargar marca y sincronizar ---- */
+  /* ---- al iniciar sesión: resolver espacio, cargar marca y sincronizar ---- */
   useEffect(() => {
     if (!session || !userId) return
-    cargarLast(userId)
-    sincronizar()
+    let vivo = true
+    cargarEspacio().then(eid => { if (vivo && eid) { cargarLast(eid); sincronizar() } }) // eslint-disable-line react-hooks/set-state-in-effect -- async resolution, not a synchronous render-time setState
+    return () => { vivo = false }
   }, [session]) // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ---- subir cambios locales (debounce) ---- */
@@ -121,7 +188,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     recalcularPendientes()
     clearTimeout(pushTimer.current)
     pushTimer.current = setTimeout(() => { sincronizar() }, 1000)
-  }, [app.pendientes, app.notas, app.proyectos]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [app.pendientes, app.notas, app.proyectos, app.eventos]) // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ---- online / offline ---- */
   useEffect(() => {
@@ -146,6 +213,8 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'pnp_pendientes' }, onRemote)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'pnp_notas' }, onRemote)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'pnp_proyectos' }, onRemote)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pnp_eventos' }, onRemote)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pnp_espacios' }, () => { recargarColumnas() })
       .subscribe()
     const intervalo = setInterval(() => { if (navigator.onLine) sincronizar() }, 60000)
     const onVis = () => { if (document.visibilityState === 'visible' && session) sincronizar() }
@@ -155,7 +224,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 
   function recalcularPendientes() {
     const L = last.current
-    const { pendientes, notas, proyectos } = appRef.current
+    const { pendientes, notas, proyectos, eventos } = appRef.current
     const dP = pendientes.filter(p => L.pendientes[p.id] !== p.modificado).length
     const localPids = new Set(pendientes.map(p => p.id))
     const delP = Object.keys(L.pendientes).filter(id => !localPids.has(id)).length
@@ -165,15 +234,19 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     const dPr = proyectos.filter(p => L.proyectos[p.id] !== p.modificado).length
     const localPrids = new Set(proyectos.map(p => p.id))
     const delPr = Object.keys(L.proyectos).filter(id => !localPrids.has(id)).length
-    setPorSubir(dP + delP + dN + delN + dPr + delPr)
+    const dEv = eventos.filter(e => L.eventos[e.id] !== e.modificado).length
+    const localEvids = new Set(eventos.map(e => e.id))
+    const delEv = Object.keys(L.eventos).filter(id => !localEvids.has(id)).length
+    setPorSubir(dP + delP + dN + delN + dPr + delPr + dEv + delEv)
   }
 
   async function flush() {
-    if (!session || !userId || !navigator.onLine) { if (!navigator.onLine) setEstado('offline'); return }
+    if (!session || !userId || !espacioRef.current || !navigator.onLine) { if (!navigator.onLine) setEstado('offline'); return }
     const sb = getSupabase()
     if (!sb) return
+    const eid = espacioRef.current
     const L = last.current
-    const { pendientes, notas, proyectos } = appRef.current
+    const { pendientes, notas, proyectos, eventos } = appRef.current
     // Defensa: NUNCA borrar de la nube algo subido hace muy poco. Si un ítem
     // recién creado desaparece de la lista local por cualquier carrera de estado,
     // no debe propagarse como borrado. Un borrado real del usuario se aplica igual
@@ -188,11 +261,14 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     const dirtyPr = proyectos.filter(p => L.proyectos[p.id] !== p.modificado)
     const localPrids = new Set(proyectos.map(p => p.id))
     const delPr = Object.keys(L.proyectos).filter(id => !localPrids.has(id) && !recienSubido(id))
-    if (!dirtyP.length && !delP.length && !dirtyN.length && !delN.length && !dirtyPr.length && !delPr.length) { setEstado('sincronizado'); recalcularPendientes(); return }
+    const dirtyEv = eventos.filter(e => L.eventos[e.id] !== e.modificado)
+    const localEvids = new Set(eventos.map(e => e.id))
+    const delEv = Object.keys(L.eventos).filter(id => !localEvids.has(id) && !recienSubido(id))
+    if (!dirtyP.length && !delP.length && !dirtyN.length && !delN.length && !dirtyPr.length && !delPr.length && !dirtyEv.length && !delEv.length) { setEstado('sincronizado'); recalcularPendientes(); return }
     setEstado('sincronizando')
     const ahora = Date.now()
     try {
-      if (dirtyP.length) { const { error } = await sb.from('pnp_pendientes').upsert(dirtyP.map(p => ({ id: p.id, user_id: userId, data: p, updated_at: p.modificado }))); if (error) throw error; dirtyP.forEach(p => { L.pendientes[p.id] = p.modificado; subidoReciente.current.set(p.id, ahora) }) }
+      if (dirtyP.length) { const { error } = await sb.from('pnp_pendientes').upsert(dirtyP.map(p => ({ id: p.id, user_id: userId, espacio_id: eid, data: p, updated_at: p.modificado }))); if (error) throw error; dirtyP.forEach(p => { L.pendientes[p.id] = p.modificado; subidoReciente.current.set(p.id, ahora) }) }
       // OJO: no se hace `delete L.pendientes[id]` aquí aunque el DELETE haya sido exitoso. Supabase
       // puede tener un breve retraso de lectura-después-de-escritura: un pull() disparado segundos
       // después (por ejemplo por el propio evento realtime de este borrado) a veces todavía ve la
@@ -201,10 +277,12 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       // así que una lectura fantasma sigue tratándose como "borrado pendiente de confirmar" — el
       // propio pull() lo limpia solo de `L.pendientes` en cuanto la nube confirme que ya no existe.
       if (delP.length) { const { error } = await sb.from('pnp_pendientes').delete().in('id', delP); if (error) throw error; delP.forEach(id => { subidoReciente.current.delete(id) }) }
-      if (dirtyN.length) { const { error } = await sb.from('pnp_notas').upsert(dirtyN.map(n => ({ id: n.id, user_id: userId, data: n, updated_at: n.modificado }))); if (error) throw error; dirtyN.forEach(n => { L.notas[n.id] = n.modificado; subidoReciente.current.set(n.id, ahora) }) }
+      if (dirtyN.length) { const { error } = await sb.from('pnp_notas').upsert(dirtyN.map(n => ({ id: n.id, user_id: userId, espacio_id: eid, data: n, updated_at: n.modificado }))); if (error) throw error; dirtyN.forEach(n => { L.notas[n.id] = n.modificado; subidoReciente.current.set(n.id, ahora) }) }
       if (delN.length) { const { error } = await sb.from('pnp_notas').delete().in('id', delN); if (error) throw error; delN.forEach(id => { subidoReciente.current.delete(id) }) }
-      if (dirtyPr.length) { const { error } = await sb.from('pnp_proyectos').upsert(dirtyPr.map(p => ({ id: p.id, user_id: userId, data: p, updated_at: p.modificado }))); if (error) throw error; dirtyPr.forEach(p => { L.proyectos[p.id] = p.modificado; subidoReciente.current.set(p.id, ahora) }) }
+      if (dirtyPr.length) { const { error } = await sb.from('pnp_proyectos').upsert(dirtyPr.map(p => ({ id: p.id, user_id: userId, espacio_id: eid, data: p, updated_at: p.modificado }))); if (error) throw error; dirtyPr.forEach(p => { L.proyectos[p.id] = p.modificado; subidoReciente.current.set(p.id, ahora) }) }
       if (delPr.length) { const { error } = await sb.from('pnp_proyectos').delete().in('id', delPr); if (error) throw error; delPr.forEach(id => { subidoReciente.current.delete(id) }) }
+      if (dirtyEv.length) { const { error } = await sb.from('pnp_eventos').upsert(dirtyEv.map(e => ({ id: e.id, user_id: userId, espacio_id: eid, data: e, updated_at: e.modificado }))); if (error) throw error; dirtyEv.forEach(e => { L.eventos[e.id] = e.modificado; subidoReciente.current.set(e.id, ahora) }) }
+      if (delEv.length) { const { error } = await sb.from('pnp_eventos').delete().in('id', delEv); if (error) throw error; delEv.forEach(id => { subidoReciente.current.delete(id) }) }
       guardarLast()
       silenciar.current = Date.now() + 2500
       setEstado('sincronizado')
@@ -220,18 +298,20 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     if (!sb) return
     setEstado('sincronizando')
     try {
-      const [{ data: rp, error: ep }, { data: rn, error: en }, { data: rpr, error: epr }] = await Promise.all([
+      const [{ data: rp, error: ep }, { data: rn, error: en }, { data: rpr, error: epr }, { data: rev, error: eev }] = await Promise.all([
         sb.from('pnp_pendientes').select('data'),
         sb.from('pnp_notas').select('data'),
         sb.from('pnp_proyectos').select('data'),
+        sb.from('pnp_eventos').select('data'),
       ])
-      if (ep || en || epr) throw (ep || en || epr)
+      if (ep || en || epr || eev) throw (ep || en || epr || eev)
       // A partir de aquí ya tenemos el estado real de la nube: recién ahora es seguro dejar que
       // el efecto de "subir cambios" empiece a operar (ver comentario en `primerPullListo`).
       primerPullListo.current = true
       const remoteP = (rp || []).map(r => (r as { data: Pendiente }).data)
       const remoteN = (rn || []).map(r => (r as { data: Nota }).data)
       const remotePr = (rpr || []).map(r => (r as { data: Proyecto }).data)
+      const remoteEv = (rev || []).map(r => (r as { data: EventoCalendario }).data)
       const L = last.current
       const limite = Date.now() - GRACIA_SUBIDA
       // Purga entradas viejas para que el mapa no crezca sin límite.
@@ -239,6 +319,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       const remotePids = new Set(remoteP.map(p => p.id))
       const remoteNids = new Set(remoteN.map(n => n.id))
       const remotePrids = new Set(remotePr.map(p => p.id))
+      const remoteEvids = new Set(remoteEv.map(e => e.id))
       // Cuenta ausencias remotas consecutivas de ítems conocidos; resetea si reaparecen.
       const contarAusencias = (local: { id: string }[], remoteIds: Set<string>, lastMap: MapaSync, cont: Map<string, number>) => {
         const vivos = new Set(local.map(x => x.id))
@@ -248,27 +329,32 @@ export function SyncProvider({ children }: { children: ReactNode }) {
           else cont.delete(it.id)
         }
       }
-      const { pendientes, notas, proyectos, reemplazarTodo } = appRef.current
+      const { pendientes, notas, proyectos, eventos, reemplazarTodo } = appRef.current
       contarAusencias(pendientes, remotePids, L.pendientes, ausenciaP.current)
       contarAusencias(notas, remoteNids, L.notas, ausenciaN.current)
       contarAusencias(proyectos, remotePrids, L.proyectos, ausenciaPr.current)
+      contarAusencias(eventos, remoteEvids, L.eventos, ausenciaEv.current)
       // Protegido = recién subido (lag) O aún sin confirmar el borrado (menos de 2 ausencias seguidas).
       const protegidoP = (id: string) => (subidoReciente.current.get(id) ?? 0) >= limite || (ausenciaP.current.get(id) ?? 0) < 2
       const protegidoN = (id: string) => (subidoReciente.current.get(id) ?? 0) >= limite || (ausenciaN.current.get(id) ?? 0) < 2
       const protegidoPr = (id: string) => (subidoReciente.current.get(id) ?? 0) >= limite || (ausenciaPr.current.get(id) ?? 0) < 2
+      const protegidoEv = (id: string) => (subidoReciente.current.get(id) ?? 0) >= limite || (ausenciaEv.current.get(id) ?? 0) < 2
       const resP = reconciliar(pendientes, remoteP, L.pendientes, mergePendiente, protegidoP)
       const resN = reconciliar(notas, remoteN, L.notas, mergeNota, protegidoN)
       const resPr = reconciliar(proyectos, remotePr, L.proyectos, mergeProyecto, protegidoPr)
+      const resEv = reconciliar(eventos, remoteEv, L.eventos, mergeEvento, protegidoEv)
       L.pendientes = resP.nextLast
       L.notas = resN.nextLast
       L.proyectos = resPr.nextLast
+      L.eventos = resEv.nextLast
       guardarLast()
       // Solo reemplazar el estado si el contenido REALMENTE cambió (evita refrescos que borran lo que escribes)
       const cambioP = !mismaLista(pendientes, resP.resultado)
       const cambioN = !mismaLista(notas, resN.resultado)
       const cambioPr = !mismaLista(proyectos, resPr.resultado)
-      if (cambioP || cambioN || cambioPr) reemplazarTodo(resP.resultado, resN.resultado, undefined, resPr.resultado)
-      const conf = resP.conflictos.length + resN.conflictos.length + resPr.conflictos.length
+      const cambioEv = !mismaLista(eventos, resEv.resultado)
+      if (cambioP || cambioN || cambioPr || cambioEv) reemplazarTodo(resP.resultado, resN.resultado, undefined, resPr.resultado, resEv.resultado)
+      const conf = resP.conflictos.length + resN.conflictos.length + resPr.conflictos.length + resEv.conflictos.length
       if (conf > 0) toast.info(`Se combinaron cambios de otro dispositivo en ${conf} elemento(s)`)
       recalcularPendientes()
     } catch {
@@ -287,11 +373,16 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const logout = () => { getSupabase()?.auth.signOut(); setSession(null); setEstado('local'); last.current = vacio() }
+  const logout = () => { getSupabase()?.auth.signOut(); setSession(null); setEstado('local'); last.current = vacio(); setEspacioId(null); setMiRol(null); setMiembros([]) }
   const activarSync = () => { try { localStorage.removeItem('sb_modo_local') } catch { /* noop */ } setModoLocal(false) }
   const usarLocal = () => { try { localStorage.setItem('sb_modo_local', '1') } catch { /* noop */ } setModoLocal(true) }
+  const recargarEspacio = () => { cargarEspacio() }
 
-  const ctx: SyncCtx = { email, estado, modoLocal: modoLocal || !config, enLinea, porSubir, logout, activarSync, sincronizarAhora: sincronizar }
+  const ctx: SyncCtx = {
+    userId, email, estado, modoLocal: modoLocal || !config, enLinea, porSubir,
+    espacioId, miRol, miembros, recargarEspacio, actualizarColumnas,
+    logout, activarSync, sincronizarAhora: sincronizar,
+  }
 
   if (!listo) return <div className="flex h-screen items-center justify-center bg-background"><Loader2 className="animate-spin text-primary" /></div>
   if (!config && !modoLocal) return <ConfigScreen onSaved={() => setConfig(true)} onLocal={usarLocal} />
@@ -314,7 +405,12 @@ export function SyncBadge() {
     error: { icon: <CloudOff size={12} />, txt: 'Reintentando…', cls: 'text-red-500' },
   }
   const e = map[estado]
-  return <span className={'inline-flex items-center gap-1 text-[11px] ' + e.cls} title={email || ''}>{e.icon} {e.txt}{porSubir > 0 && estado !== 'sincronizado' ? ` · ${porSubir}` : ''}</span>
+  return (
+    <span className={'inline-flex items-center gap-1 text-[11px] ' + e.cls} title={email || ''}>
+      {e.icon} {e.txt}{porSubir > 0 && estado !== 'sincronizado' ? ` · ${porSubir}` : ''}
+      {email && <span className="max-w-[140px] truncate text-muted-foreground">· {email}</span>}
+    </span>
+  )
 }
 
 /* ===================== Configuración ===================== */
@@ -334,26 +430,51 @@ function ConfigScreen({ onSaved, onLocal }: { onSaved: () => void; onLocal: () =
 
 /* ===================== Login / registro ===================== */
 function AuthScreen({ onLocal }: { onLocal: () => void }) {
-  const [modo, setModo] = useState<'login' | 'registro'>('login')
+  const [modo, setModo] = useState<'login' | 'registro' | 'magic'>('login')
   const [email, setEmail] = useState('')
   const [pass, setPass] = useState('')
   const [cargando, setCargando] = useState(false)
+  const [enviado, setEnviado] = useState(false)
   const enviar = async () => {
     const sb = getSupabase()
     if (!sb) return
-    if (!email.trim() || pass.length < 6) { toast.error('Correo válido y contraseña de 6+ caracteres'); return }
+    const correo = email.trim().toLowerCase()
+    if (modo === 'magic') {
+      if (!correo) { toast.error('Escribe tu correo'); return }
+      setCargando(true)
+      try {
+        const { error } = await sb.auth.signInWithOtp({ email: correo, options: { emailRedirectTo: window.location.origin + '/' } })
+        if (error) throw error
+        setEnviado(true)
+      } catch (err) { toast.error((err as Error).message || 'No se pudo enviar el enlace') } finally { setCargando(false) }
+      return
+    }
+    if (!correo || pass.length < 6) { toast.error('Correo válido y contraseña de 6+ caracteres'); return }
     setCargando(true)
     try {
-      if (modo === 'registro') { const { error } = await sb.auth.signUp({ email: email.trim(), password: pass }); if (error) throw error; toast.success('Cuenta creada. Si pide confirmación, revisa tu correo.') }
-      else { const { error } = await sb.auth.signInWithPassword({ email: email.trim(), password: pass }); if (error) throw error }
+      if (modo === 'registro') { const { error } = await sb.auth.signUp({ email: correo, password: pass }); if (error) throw error; toast.success('Cuenta creada. Si pide confirmación, revisa tu correo.') }
+      else { const { error } = await sb.auth.signInWithPassword({ email: correo, password: pass }); if (error) throw error }
     } catch (err) { toast.error((err as Error).message || 'No se pudo continuar') } finally { setCargando(false) }
   }
+  if (modo === 'magic' && enviado) {
+    return (
+      <Pantalla titulo="Revisa tu correo" subtitulo={`Te enviamos un enlace a ${email.trim()} para entrar sin contraseña.`}>
+        <button onClick={() => { setEnviado(false); setModo('login') }} className="w-full text-center text-xs text-primary hover:underline">Volver</button>
+        <button onClick={onLocal} className="w-full text-center text-xs text-muted-foreground hover:underline">Usar solo en este dispositivo</button>
+      </Pantalla>
+    )
+  }
   return (
-    <Pantalla titulo={modo === 'login' ? 'Iniciar sesión' : 'Crear cuenta'} subtitulo="Tus pendientes y notas se sincronizan en todos tus dispositivos.">
+    <Pantalla titulo={modo === 'login' ? 'Iniciar sesión' : modo === 'registro' ? 'Crear cuenta' : 'Entrar con enlace'} subtitulo="Tus pendientes y notas se sincronizan en todos tus dispositivos.">
       <div className="space-y-1.5"><Label className="text-xs">Correo</Label><Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="tu@correo.com" onKeyDown={e => { if (e.key === 'Enter') enviar() }} /></div>
-      <div className="space-y-1.5"><Label className="text-xs">Contraseña</Label><Input type="password" value={pass} onChange={e => setPass(e.target.value)} placeholder="••••••••" onKeyDown={e => { if (e.key === 'Enter') enviar() }} /></div>
-      <Button className="w-full" onClick={enviar} disabled={cargando}>{cargando && <Loader2 size={15} className="mr-2 animate-spin" />}{modo === 'login' ? 'Entrar' : 'Registrarme'}</Button>
-      <button onClick={() => setModo(modo === 'login' ? 'registro' : 'login')} className="w-full text-center text-xs text-primary hover:underline">{modo === 'login' ? '¿No tienes cuenta? Crear una' : '¿Ya tienes cuenta? Inicia sesión'}</button>
+      {modo !== 'magic' && (
+        <div className="space-y-1.5"><Label className="text-xs">Contraseña</Label><Input type="password" value={pass} onChange={e => setPass(e.target.value)} placeholder="••••••••" onKeyDown={e => { if (e.key === 'Enter') enviar() }} /></div>
+      )}
+      <Button className="w-full" onClick={enviar} disabled={cargando}>{cargando && <Loader2 size={15} className="mr-2 animate-spin" />}{modo === 'login' ? 'Entrar' : modo === 'registro' ? 'Registrarme' : 'Enviarme un enlace'}</Button>
+      {modo !== 'magic' && (
+        <button onClick={() => setModo(modo === 'login' ? 'registro' : 'login')} className="w-full text-center text-xs text-primary hover:underline">{modo === 'login' ? '¿No tienes cuenta? Crear una' : '¿Ya tienes cuenta? Inicia sesión'}</button>
+      )}
+      <button onClick={() => setModo(modo === 'magic' ? 'login' : 'magic')} className="w-full text-center text-xs text-primary hover:underline">{modo === 'magic' ? 'Entrar con contraseña' : 'Entrar con enlace por correo (sin contraseña)'}</button>
       <button onClick={onLocal} className="w-full text-center text-xs text-muted-foreground hover:underline">Usar solo en este dispositivo</button>
     </Pantalla>
   )

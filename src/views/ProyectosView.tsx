@@ -1,19 +1,20 @@
 import { useEffect, useState } from 'react'
 import { useApp } from '@/store'
-import type { Estado } from '@/types'
-import { ESTADOS, PROYECTO_COLORES, PROYECTO_COLORES_KEYS } from '@/types'
+import { PROYECTO_COLORES, PROYECTO_COLORES_KEYS } from '@/types'
 import { listarCuentasGoogle, type CuentaGoogle } from '@/lib/googleCalendar'
 import { activo } from '@/lib/app-utils'
+import { colorColumna, idColumnaCompletado } from '@/lib/columnas'
+import { useEditorColumnas } from '@/lib/useEditorColumnas'
 import TaskRow from '@/components/TaskRow'
+import ColumnaHeader from '@/components/ColumnaHeader'
 import ImportarPlanDialog from '@/components/ImportarPlanDialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem, ContextMenuSeparator } from '@/components/ui/context-menu'
 import { useIsMobile } from '@/hooks/use-is-mobile'
 import { Plus, Briefcase, ChevronLeft, List, Columns3, Trash2, Upload } from 'lucide-react'
-
-const COLS: Estado[] = ['pendiente', 'en_progreso', 'bloqueado', 'completado']
 
 function NuevoProyectoDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const { crearProyecto } = useApp()
@@ -74,48 +75,50 @@ function NuevoProyectoDialog({ open, onOpenChange }: { open: boolean; onOpenChan
 }
 
 function TableroProyecto({ proyectoId }: { proyectoId: string }) {
-  const { pendientes, moverEstado, abrirModal } = useApp()
+  const { pendientes, moverEstado, abrirModal, columnas } = useApp()
+  const { agregar } = useEditorColumnas()
   const [dragId, setDragId] = useState<string | null>(null)
   const items = pendientes.filter(p => p.proyectoId === proyectoId && activo(p))
   return (
-    <div className="grid h-full grid-cols-1 gap-3 overflow-y-auto scroll-thin md:grid-cols-4">
-      {COLS.map(estado => {
-        const deEstaColumna = items.filter(p => p.estado === estado)
+    <div className="grid h-full auto-rows-fr gap-3 overflow-y-auto scroll-thin" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+      {columnas.map((col, idx) => {
+        const deEstaColumna = items.filter(p => p.estado === col.id)
         return (
-          <div key={estado} onDragOver={e => e.preventDefault()}
-            onDrop={e => { e.preventDefault(); if (dragId) moverEstado(dragId, estado) }}
-            className="flex min-h-[120px] flex-col rounded-lg bg-muted/40 p-2">
-            <div className="mb-1.5 flex items-center justify-between">
-              <h3 className="text-xs font-bold">{ESTADOS[estado].label} <span className="font-normal text-muted-foreground">{deEstaColumna.length}</span></h3>
-              <button onClick={() => abrirModal(null, { estado, proyectoId })} className="text-muted-foreground hover:text-primary"><Plus size={14} /></button>
-            </div>
+          <div key={col.id} onDragOver={e => e.preventDefault()}
+            onDrop={e => { e.preventDefault(); if (dragId) moverEstado(dragId, col.id) }}
+            className={'group flex min-h-[120px] flex-col rounded-lg p-2 ' + colorColumna(col).bg}>
+            <ColumnaHeader col={col} idx={idx} total={columnas.length} cantidad={deEstaColumna.length} onAgregarPendiente={() => abrirModal(null, { estado: col.id, proyectoId })} />
             <div className="flex-1 space-y-1.5 overflow-y-auto scroll-thin">
               {deEstaColumna.map(p => (
                 <div key={p.id} draggable onDragStart={() => setDragId(p.id)}>
-                  <TaskRow p={p} onClick={() => abrirModal(p.id)} />
+                  <TaskRow p={p} />
                 </div>
               ))}
             </div>
           </div>
         )
       })}
+      <button onClick={agregar} className="flex min-h-[120px] items-center justify-center rounded-lg border-2 border-dashed text-xs text-muted-foreground hover:border-primary hover:text-primary">
+        <Plus size={16} className="mr-1" /> Añadir columna
+      </button>
     </div>
   )
 }
 
 function ListaProyecto({ proyectoId }: { proyectoId: string }) {
-  const { pendientes, abrirModal } = useApp()
+  const { pendientes } = useApp()
   const items = pendientes.filter(p => p.proyectoId === proyectoId && activo(p))
   return (
     <div className="h-full space-y-1.5 overflow-y-auto p-1 scroll-thin">
-      {items.map(p => <TaskRow key={p.id} p={p} onClick={() => abrirModal(p.id)} />)}
+      {items.map(p => <TaskRow key={p.id} p={p} />)}
       {!items.length && <p className="p-6 text-center text-xs text-muted-foreground">Este proyecto no tiene pendientes todavía.</p>}
     </div>
   )
 }
 
 export default function ProyectosView() {
-  const { proyectos, pendientes, eliminarProyecto, proyectoAbiertoId: proyectoSelId, setProyectoAbiertoId: setProyectoSelId } = useApp()
+  const { proyectos, pendientes, eliminarProyecto, actualizarProyecto, proyectoAbiertoId: proyectoSelId, setProyectoAbiertoId: setProyectoSelId, columnas } = useApp()
+  const idCompletado = idColumnaCompletado(columnas)
   const isMobile = useIsMobile()
   const [modo, setModo] = useState<'tablero' | 'lista'>('tablero')
   const [nuevoDlg, setNuevoDlg] = useState(false)
@@ -132,15 +135,26 @@ export default function ProyectosView() {
       <div className="flex-1 space-y-1 overflow-y-auto p-1 scroll-thin">
         {proyectos.map(p => {
           const items = pendientes.filter(x => x.proyectoId === p.id && activo(x))
-          const abiertos = items.filter(x => x.estado !== 'completado').length
+          const abiertos = items.filter(x => x.estado !== idCompletado).length
           const colores = PROYECTO_COLORES[p.color] || PROYECTO_COLORES[PROYECTO_COLORES_KEYS[0]]
           return (
-            <div key={p.id} onClick={() => setProyectoSelId(p.id)}
-              className={'flex cursor-pointer items-center gap-2 rounded-lg p-2.5 ' + (proyectoSelId === p.id ? 'bg-primary/10 ring-1 ring-primary/40' : 'hover:bg-accent')}>
-              <span className={'h-2.5 w-2.5 shrink-0 rounded-full ' + colores.dot} />
-              <span className="min-w-0 flex-1 truncate text-sm font-semibold">{p.nombre}</span>
-              <span className="shrink-0 text-[10px] text-muted-foreground">{abiertos} abiertos</span>
-            </div>
+            <ContextMenu key={p.id}>
+              <ContextMenuTrigger asChild>
+                <div onClick={() => setProyectoSelId(p.id)}
+                  className={'flex cursor-pointer items-center gap-2 rounded-lg p-2.5 ' + (proyectoSelId === p.id ? 'bg-primary/10 ring-1 ring-primary/40' : 'hover:bg-accent')}>
+                  <span className={'h-2.5 w-2.5 shrink-0 rounded-full ' + colores.dot} />
+                  <span className="min-w-0 flex-1 truncate text-sm font-semibold">{p.nombre}</span>
+                  <span className="shrink-0 text-[10px] text-muted-foreground">{abiertos} abiertos</span>
+                </div>
+              </ContextMenuTrigger>
+              <ContextMenuContent className="w-44">
+                <ContextMenuItem onClick={() => actualizarProyecto(p.id, { color: PROYECTO_COLORES_KEYS[(PROYECTO_COLORES_KEYS.indexOf(p.color) + 1) % PROYECTO_COLORES_KEYS.length] })}>
+                  Cambiar color
+                </ContextMenuItem>
+                <ContextMenuSeparator />
+                <ContextMenuItem className="text-destructive" onClick={() => eliminarProyecto(p.id)}>Eliminar</ContextMenuItem>
+              </ContextMenuContent>
+            </ContextMenu>
           )
         })}
         {!proyectos.length && <p className="p-4 text-center text-xs text-muted-foreground">Crea tu primer proyecto para organizar trabajo o estudio en un tablero propio.</p>}

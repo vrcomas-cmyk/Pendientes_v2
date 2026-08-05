@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import type { Adjunto } from '@/types'
 import { useApp } from '@/store'
-import { ESTADOS, PROYECTO_COLORES } from '@/types'
+import { PROYECTO_COLORES } from '@/types'
 import { googleCalendarUrl, progresoSub, vencido, describirRepeticion } from '@/lib/app-utils'
+import { columnaDe, colorColumna, idColumnaCompletado } from '@/lib/columnas'
 import { subirAdjunto } from '@/lib/adjuntos'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -19,7 +20,8 @@ import { Pencil, Plus, User, Calendar, CalendarPlus, StickyNote, CheckCircle2, S
  * Para modificar cualquier otro campo hay un botón "Editar" que abre el modal completo.
  */
 export default function PendientePeek() {
-  const { peekId, cerrarPeek, pendientes, proyectos, abrirModal, toggleSubtarea, agregarSubtarea, toggleCompletar, agregarComentario, actualizarPendiente } = useApp()
+  const { peekId, cerrarPeek, pendientes, proyectos, abrirModal, toggleSubtarea, agregarSubtarea, toggleCompletar, agregarComentario, actualizarPendiente, columnas } = useApp()
+  const idCompletado = idColumnaCompletado(columnas)
   const [subNueva, setSubNueva] = useState('')
   const [com, setCom] = useState('')
   const [comImgs, setComImgs] = useState<Adjunto[]>([])
@@ -53,16 +55,17 @@ export default function PendientePeek() {
           const sub = progresoSub(p)
           const gcal = googleCalendarUrl(p.titulo, p.fechaLimite, p.hora, p.descripcion)
           const faltan = p.subtareas.filter(s => !s.completada).length
+          const col = columnaDe(columnas, p.estado)
           return (
             <>
               <DialogHeader>
-                <DialogTitle className={p.estado === 'completado' ? 'linea-completada' : ''}>{p.titulo}</DialogTitle>
+                <DialogTitle className={p.estado === idCompletado ? 'linea-completada' : ''}>{p.titulo}</DialogTitle>
               </DialogHeader>
 
               <div className="space-y-4">
                 {/* Metadatos */}
                 <div className="flex flex-wrap gap-1.5 text-[11px]">
-                  <span className={'rounded-full px-2 py-0.5 ' + ESTADOS[p.estado].badge}>{ESTADOS[p.estado].label}</span>
+                  <span className={'rounded-full px-2 py-0.5 ' + colorColumna(col).badge}>{col.nombre}</span>
                   <Badge variant="secondary">Prioridad: {p.prioridad}</Badge>
                   {(() => {
                     const proyecto = p.proyectoId ? proyectos.find(x => x.id === p.proyectoId) : null
@@ -75,7 +78,7 @@ export default function PendientePeek() {
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   {p.responsable && <div><span className="text-muted-foreground">Responsable:</span> {p.responsable}</div>}
                   {p.solicitante && <div><span className="text-muted-foreground">Solicita:</span> {p.solicitante}</div>}
-                  {p.fechaLimite && <div className="col-span-2"><span className="text-muted-foreground">Fecha límite:</span> {p.fechaLimite}{p.hora ? ' ' + p.hora : ''} {vencido(p) && <span className="font-medium text-red-500">(vencido)</span>}</div>}
+                  {p.fechaLimite && <div className="col-span-2"><span className="text-muted-foreground">Fecha límite:</span> {p.fechaLimite}{p.hora ? ' ' + p.hora : ''} {vencido(p, idCompletado) && <span className="font-medium text-red-500">(vencido)</span>}</div>}
                 </div>
 
                 {p.descripcion && <div className="whitespace-pre-wrap rounded-lg bg-muted p-3 text-sm">{p.descripcion}</div>}
@@ -151,9 +154,9 @@ export default function PendientePeek() {
 
               {/* Acciones */}
               <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t pt-3">
-                <Button variant="ghost" size="sm" disabled={p.estado !== 'completado' && faltan > 0}
+                <Button variant="ghost" size="sm" disabled={p.estado !== idCompletado && faltan > 0}
                   onClick={() => toggleCompletar(p.id)} title={faltan > 0 ? `Faltan ${faltan} subtarea(s)` : ''}>
-                  <CheckCircle2 size={14} className="mr-1" /> {p.estado === 'completado' ? 'Reabrir' : 'Completar'}
+                  <CheckCircle2 size={14} className="mr-1" /> {p.estado === idCompletado ? 'Reabrir' : 'Completar'}
                 </Button>
                 <div className="flex gap-2">
                   <PosponerMenu id={p.id} variant="secondary" />

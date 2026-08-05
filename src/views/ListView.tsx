@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useApp } from '@/store'
 import type { Pendiente, Adjunto } from '@/types'
-import { ESTADOS, PROYECTO_COLORES } from '@/types'
+import { PROYECTO_COLORES } from '@/types'
 import type { FiltroFecha } from '@/types'
 export type { FiltroFecha } from '@/types'
 import { googleCalendarUrl, hoyISO, progresoSub, vencido, describirRepeticion, activo } from '@/lib/app-utils'
+import { columnaDe, colorColumna, idColumnaCompletado } from '@/lib/columnas'
 import { useIsMobile } from '@/hooks/use-is-mobile'
 import TaskRow from '@/components/TaskRow'
 import PosponerMenu from '@/components/PosponerMenu'
@@ -15,11 +16,13 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
-import { Pencil, Trash2, StickyNote, Search, SlidersHorizontal, ChevronLeft, CalendarPlus, Send, User, Calendar, ImagePlus, X } from 'lucide-react'
+import { Pencil, Trash2, StickyNote, Search, SlidersHorizontal, ChevronLeft, ChevronDown, CalendarPlus, Send, User, Calendar, ImagePlus, X } from 'lucide-react'
 
 function TaskDetail({ detalle, onBack, mobile }: { detalle: Pendiente; onBack: () => void; mobile: boolean }) {
-  const { abrirModal, eliminarPendiente, toggleSubtarea, setNotaActualId, agregarComentario, actualizarPendiente, proyectos } = useApp()
+  const { abrirModal, eliminarPendiente, toggleSubtarea, setNotaActualId, agregarComentario, actualizarPendiente, proyectos, columnas } = useApp()
   const proyectoDetalle = detalle.proyectoId ? proyectos.find(x => x.id === detalle.proyectoId) : null
+  const idCompletado = idColumnaCompletado(columnas)
+  const col = columnaDe(columnas, detalle.estado)
   const [com, setCom] = useState('')
   const [comImgs, setComImgs] = useState<Adjunto[]>([])
   const sub = progresoSub(detalle)
@@ -54,7 +57,7 @@ function TaskDetail({ detalle, onBack, mobile }: { detalle: Pendiente; onBack: (
       )}
       <div className="flex-1 overflow-y-auto p-5 scroll-thin">
         <div className="flex items-start justify-between gap-2">
-          <h2 className={'text-lg font-bold ' + (detalle.estado === 'completado' ? 'linea-completada' : '')}>{detalle.titulo}</h2>
+          <h2 className={'text-lg font-bold ' + (detalle.estado === idCompletado ? 'linea-completada' : '')}>{detalle.titulo}</h2>
           <div className="flex shrink-0 gap-1">
             <PosponerMenu id={detalle.id} variant="secondary" />
             <Button size="sm" variant="secondary" onClick={() => abrirModal(detalle.id)}><Pencil size={13} className="mr-1" />Editar</Button>
@@ -62,7 +65,7 @@ function TaskDetail({ detalle, onBack, mobile }: { detalle: Pendiente; onBack: (
           </div>
         </div>
         <div className="mt-2 flex flex-wrap gap-1.5 text-[11px]">
-          <span className={'rounded-full px-2 py-0.5 ' + ESTADOS[detalle.estado].badge}>{ESTADOS[detalle.estado].label}</span>
+          <span className={'rounded-full px-2 py-0.5 ' + colorColumna(col).badge}>{col.nombre}</span>
           <Badge variant="secondary">Prioridad: {detalle.prioridad}</Badge>
           {proyectoDetalle
             ? <Badge variant="secondary"><span className={'mr-1 inline-block h-2 w-2 rounded-full ' + (PROYECTO_COLORES[proyectoDetalle.color]?.dot || '')} />{proyectoDetalle.nombre}</Badge>
@@ -72,7 +75,7 @@ function TaskDetail({ detalle, onBack, mobile }: { detalle: Pendiente; onBack: (
         <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
           <div><span className="text-muted-foreground">Solicita:</span> {detalle.solicitante || '—'}</div>
           <div><span className="text-muted-foreground">Responsable:</span> {detalle.responsable || '—'}</div>
-          <div><span className="text-muted-foreground">Fecha límite:</span> {detalle.fechaLimite || '—'}{detalle.hora ? ' ' + detalle.hora : ''} {vencido(detalle) && <span className="text-red-500">(vencido)</span>}</div>
+          <div><span className="text-muted-foreground">Fecha límite:</span> {detalle.fechaLimite || '—'}{detalle.hora ? ' ' + detalle.hora : ''} {vencido(detalle, idCompletado) && <span className="text-red-500">(vencido)</span>}</div>
           <div><span className="text-muted-foreground">Creado:</span> {new Date(detalle.creado).toLocaleDateString()}</div>
         </div>
 
@@ -167,7 +170,10 @@ function cargarFiltros(): FiltrosGuardados {
 }
 
 export default function ListView({ filtroFecha, setFiltroFecha }: { filtroFecha: FiltroFecha; setFiltroFecha: (f: FiltroFecha) => void }) {
-  const { pendientes, personas, toggleSubtarea, abrirModal } = useApp()
+  const { pendientes, personas, proyectos, toggleSubtarea, abrirModal, columnas } = useApp()
+  const idCompletado = idColumnaCompletado(columnas)
+  const [gruposColapsados, setGruposColapsados] = useState<Set<string>>(new Set())
+  const toggleGrupo = (k: string) => setGruposColapsados(prev => { const s = new Set(prev); if (s.has(k)) s.delete(k); else s.add(k); return s })
   const isMobile = useIsMobile()
   const [q, setQ] = useState('')
   const [fEstado, setFEstado] = useState(() => cargarFiltros().fEstado)
@@ -189,8 +195,8 @@ export default function ListView({ filtroFecha, setFiltroFecha }: { filtroFecha:
 
   const pasaFecha = (p: Pendiente) => {
     const h = hoyISO()
-    if (filtroFecha === 'abiertos') return p.estado !== 'completado'
-    if (filtroFecha === 'vencidos') return vencido(p)
+    if (filtroFecha === 'abiertos') return p.estado !== idCompletado
+    if (filtroFecha === 'vencidos') return vencido(p, idCompletado)
     if (filtroFecha === 'hoy') return p.fechaLimite === h
     if (filtroFecha === 'semana') {
       if (!p.fechaLimite) return false
@@ -225,11 +231,20 @@ export default function ListView({ filtroFecha, setFiltroFecha }: { filtroFecha:
     if (grupo === 'ninguno') return null
     const g: Record<string, Pendiente[]> = {}
     filtrados.forEach(p => {
-      const k = grupo === 'estado' ? ESTADOS[p.estado].label : grupo === 'prioridad' ? p.prioridad : (p.responsable || 'Sin responsable')
+      const k = grupo === 'estado' ? columnaDe(columnas, p.estado).nombre
+        : grupo === 'prioridad' ? p.prioridad
+        : grupo === 'proyecto' ? (proyectos.find(pr => pr.id === p.proyectoId)?.nombre || 'Sin proyecto')
+        : (p.responsable || 'Sin responsable')
       ;(g[k] = g[k] || []).push(p)
     })
     return g
-  }, [filtrados, grupo])
+  }, [filtrados, grupo, columnas, proyectos])
+  // Punto de color del proyecto para el encabezado de cada grupo (solo cuando se agrupa por proyecto).
+  const colorDeGrupo = (k: string): string | null => {
+    if (grupo !== 'proyecto') return null
+    const pr = proyectos.find(x => x.nombre === k)
+    return pr ? (PROYECTO_COLORES[pr.color]?.dot || null) : null
+  }
 
   // Si el pendiente seleccionado quedó fuera de los filtros actuales, se deja de mostrar
   // su detalle (derivado, no vía efecto, para no encadenar renders).
@@ -270,11 +285,11 @@ export default function ListView({ filtroFecha, setFiltroFecha }: { filtroFecha:
 
   const filtrosAvanzados = (
     <div className="flex flex-wrap gap-2">
-      <Select value={fEstado} onValueChange={setFEstado}><SelectTrigger className="h-8 flex-1 text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="todos">Estado: todos</SelectItem><SelectItem value="pendiente">Pendiente</SelectItem><SelectItem value="en_progreso">En progreso</SelectItem><SelectItem value="bloqueado">Bloqueado</SelectItem><SelectItem value="completado">Completado</SelectItem></SelectContent></Select>
+      <Select value={fEstado} onValueChange={setFEstado}><SelectTrigger className="h-8 flex-1 text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="todos">Estado: todos</SelectItem>{columnas.map(c => <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>)}</SelectContent></Select>
       <Select value={fPrioridad} onValueChange={setFPrioridad}><SelectTrigger className="h-8 flex-1 text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="todos">Prioridad: todas</SelectItem><SelectItem value="Alta">Alta</SelectItem><SelectItem value="Media">Media</SelectItem><SelectItem value="Baja">Baja</SelectItem></SelectContent></Select>
       <Select value={fResp} onValueChange={setFResp}><SelectTrigger className="h-8 flex-1 text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="todos">Responsable: todos</SelectItem>{personas.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent></Select>
       <Select value={orden} onValueChange={setOrden}><SelectTrigger className="h-8 flex-1 text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="creacion_desc">Recientes</SelectItem><SelectItem value="fecha_asc">Por fecha límite</SelectItem><SelectItem value="prioridad">Por prioridad</SelectItem><SelectItem value="titulo">A–Z</SelectItem></SelectContent></Select>
-      <Select value={grupo} onValueChange={setGrupo}><SelectTrigger className="h-8 flex-1 text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="ninguno">Agrupar: no</SelectItem><SelectItem value="estado">Por estado</SelectItem><SelectItem value="prioridad">Por prioridad</SelectItem><SelectItem value="responsable">Por responsable</SelectItem></SelectContent></Select>
+      <Select value={grupo} onValueChange={setGrupo}><SelectTrigger className="h-8 flex-1 text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="ninguno">Agrupar: no</SelectItem><SelectItem value="estado">Por estado</SelectItem><SelectItem value="prioridad">Por prioridad</SelectItem><SelectItem value="responsable">Por responsable</SelectItem><SelectItem value="proyecto">Por proyecto</SelectItem></SelectContent></Select>
       <button onClick={() => setVerSub(v => !v)} className={'rounded-md border px-2 text-xs ' + (verSub ? 'border-primary bg-primary/10 text-primary' : '')}>Subtareas</button>
     </div>
   )
@@ -291,12 +306,22 @@ export default function ListView({ filtroFecha, setFiltroFecha }: { filtroFecha:
         </div>
       )}
       {grupos
-        ? Object.entries(grupos).map(([k, items]) => (
-            <div key={k}>
-              <div className="mb-1 mt-2 text-[11px] font-bold uppercase text-muted-foreground">{k} ({items.length})</div>
-              <div className="space-y-1">{items.map(itemConSub)}</div>
-            </div>
-          ))
+        ? Object.entries(grupos).map(([k, items]) => {
+            const colapsado = gruposColapsados.has(k)
+            const dot = colorDeGrupo(k)
+            return (
+              <div key={k}>
+                <button onClick={() => toggleGrupo(k)} className="mb-1 mt-2 flex w-full items-center gap-1.5 text-[11px] font-bold uppercase text-muted-foreground hover:text-foreground">
+                  <ChevronDown size={12} className={'shrink-0 transition-transform ' + (colapsado ? '-rotate-90' : '')} />
+                  {dot && <span className={'h-1.5 w-1.5 shrink-0 rounded-full ' + dot} />}
+                  <span className="truncate">{k}</span> <span className="font-normal normal-case">({items.length})</span>
+                </button>
+                {!colapsado && (
+                  <div className="ml-4 space-y-1 border-l-2 border-dashed border-muted pl-2">{items.map(itemConSub)}</div>
+                )}
+              </div>
+            )
+          })
         : filtrados.map(itemConSub)}
     </div>
   )

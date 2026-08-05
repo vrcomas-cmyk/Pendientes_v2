@@ -4,7 +4,10 @@ import { useApp } from '@/store'
 import type { Comentario, Estado, Prioridad, Subtarea, Adjunto } from '@/types'
 type Modalidad = 'individual' | 'equipo'
 import { PROYECTO_COLORES, PROYECTO_COLORES_KEYS } from '@/types'
-import { uid, fechaPorPrioridad, describirRepeticion } from '@/lib/app-utils'
+import { uid, fechaPorPrioridad, describirRepeticion, defaultsHorario } from '@/lib/app-utils'
+import { isGoogleConfigurado } from '@/lib/googleCalendar'
+import { sincronizarEspejoGoogle } from '@/lib/agenda'
+import { idColumnaCompletado } from '@/lib/columnas'
 import AdjuntosUI, { Miniatura } from '@/components/AdjuntosUI'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -16,7 +19,8 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { ChevronDown, ChevronRight, Plus, Trash2, X, StickyNote } from 'lucide-react'
 
 export default function TaskModal() {
-  const { modal, cerrarModal, pendientes, crearPendiente, actualizarPendiente, eliminarPendiente, usuario, personas, proyectos, crearProyecto } = useApp()
+  const { modal, cerrarModal, pendientes, crearPendiente, actualizarPendiente, eliminarPendiente, usuario, personas, proyectos, crearProyecto, columnas } = useApp()
+  const idCompletado = idColumnaCompletado(columnas)
   const editando = modal.editId ? pendientes.find(p => p.id === modal.editId) : null
   const [draftId, setDraftId] = useState<string>(() => uid())
 
@@ -89,24 +93,48 @@ export default function TaskModal() {
   const guardar = () => {
     const t = titulo.trim()
     if (!t) { toast.error('El título es obligatorio'); return }
-    if (estado === 'completado' && subtareas.some(s => !s.completada)) {
+    if (estado === idCompletado && subtareas.some(s => !s.completada)) {
       toast.error('No puedes marcarlo como completado: faltan subtareas')
       return
     }
     const nombreProyecto = proyectos.find(p => p.id === proyectoId)?.nombre || ''
+    // El default de horario (8:00-8:05 solo fecha, +15min solo hora) se aplica al agendar por
+    // primera vez, no en cada guardado suelto — así no se reagenda algo que el usuario ya quitó
+    // deliberadamente de la Agenda.
+    const seAgendaPorPrimeraVez = !editando || (!editando.fechaLimite && fechaLimite) || (!editando.hora && hora)
+    const { hora: horaFinal, duracionMin: duracionFinal } = seAgendaPorPrimeraVez
+      ? defaultsHorario(fechaLimite, hora, editando?.duracionMin)
+      : { hora, duracionMin: editando?.duracionMin }
+    const descripcionFinal = descripcion.trim()
     const datos = {
       titulo: t, solicitante: solicitante.trim(), responsable: responsable.trim(),
-      descripcion: descripcion.trim(), prioridad, estado, fechaLimite, hora,
+      descripcion: descripcionFinal, prioridad, estado, fechaLimite, hora: horaFinal, duracionMin: duracionFinal,
       proyecto: nombreProyecto, proyectoId: proyectoId || undefined,
       etiquetas: etiquetas.split(',').map(s => s.trim()).filter(Boolean),
       subtareas, comentarios, adjuntos, repetir: repetir || undefined,
       ponderacion: ponderacion.trim() ? Math.max(0, Math.min(100, Number(ponderacion))) : undefined,
       modalidad: modalidad || undefined,
     }
+    const id = editando?.id || draftId
     if (editando) actualizarPendiente(editando.id, datos)
     else crearPendiente({ ...datos, id: draftId })
     cerrarModal()
     toast.success('Guardado')
+
+    // Mantiene el espejo en Google Calendar al día: si cambió título/fecha/hora/duración de un
+    // pendiente ya agendado (o se acaba de agendar/desagendar), refleja el cambio allá también —
+    // antes solo la Agenda lo hacía, y editar desde aquí dejaba el evento de Google desincronizado.
+    const origenCuentaId = proyectos.find(p => p.id === proyectoId)?.cuentaGoogleId
+    const teniaHorario = !!editando?.hora || !!editando?.googleEventos
+    if (isGoogleConfigurado() && (horaFinal || teniaHorario)) {
+      sincronizarEspejoGoogle(
+        { hora: editando?.hora, googleEventos: editando?.googleEventos },
+        { titulo: t, fecha: fechaLimite, hora: horaFinal, duracionMin: duracionFinal || 15, descripcion: descripcionFinal },
+        origenCuentaId,
+      )
+        .then(r => { actualizarPendiente(id, { googleEventos: r.googleEventos }); if (r.errores && Object.keys(r.errores).length) toast.error('Algunas cuentas de Google no se pudieron actualizar') })
+        .catch(err => toast.error(err instanceof Error ? err.message : 'No se pudo actualizar Google Calendar'))
+    }
   }
 
   const faltanSub = subtareas.filter(s => !s.completada).length
@@ -150,7 +178,13 @@ export default function TaskModal() {
               <Label className="text-[11px] uppercase text-muted-foreground">Estado</Label>
               <Select value={estado} onValueChange={v => setEstado(v as Estado)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent><SelectItem value="pendiente">Pendiente</SelectItem><SelectItem value="en_progreso">En progreso</SelectItem><SelectItem value="bloqueado">Bloqueado</SelectItem><SelectItem value="completado" disabled={faltanSub > 0}>Completado{faltanSub > 0 ? ` (faltan ${faltanSub})` : ''}</SelectItem></SelectContent>
+                <SelectContent>
+                  {columnas.map(c => (
+                    <SelectItem key={c.id} value={c.id} disabled={c.esCompletado && faltanSub > 0}>
+                      {c.nombre}{c.esCompletado && faltanSub > 0 ? ` (faltan ${faltanSub})` : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
               </Select>
             </div>
           </div>
@@ -165,6 +199,7 @@ export default function TaskModal() {
             <div className="space-y-1.5">
               <Label className="text-[11px] uppercase text-muted-foreground">Hora (opcional)</Label>
               <Input type="time" value={hora} onChange={e => setHora(e.target.value)} />
+              {!hora && <p className="text-[10px] text-muted-foreground">Sin hora se agenda a las 8:00 (5 min)</p>}
             </div>
           </div>
 

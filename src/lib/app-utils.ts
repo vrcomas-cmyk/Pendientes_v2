@@ -12,8 +12,11 @@ export function hoyISO(): string {
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0')
 }
 
-export function vencido(p: Pendiente): boolean {
-  return !!p.fechaLimite && p.estado !== 'completado' && p.fechaLimite < hoyISO()
+/** `idCompletado`: id de la columna del Kanban marcada `esCompletado` (`useApp().columnas`) — con
+    columnas moldeables ya no es el literal fijo `'completado'`. Se mantiene ese valor por defecto
+    para no romper llamadas que todavía no lo pasan explícitamente. */
+export function vencido(p: Pendiente, idCompletado: string = 'completado'): boolean {
+  return !!p.fechaLimite && p.estado !== idCompletado && p.fechaLimite < hoyISO()
 }
 
 export function progresoSub(p: Pendiente): { hechas: number; total: number; pct: number } | null {
@@ -190,14 +193,25 @@ export const storage = {
   },
 }
 
+/** Horario por defecto al agendar: solo fecha (sin hora) → 08:00, bloque de 5 min; hora sin
+    duración → 15 min. Sin fecha no se toca nada (no se agenda solo). */
+export function defaultsHorario(fecha: string, hora: string, duracionMin?: number): { hora: string; duracionMin?: number } {
+  if (!fecha) return { hora, duracionMin }
+  if (!hora) return { hora: '08:00', duracionMin: 5 }
+  if (!duracionMin) return { hora, duracionMin: 15 }
+  return { hora, duracionMin }
+}
+
 export function normalizar(p: Partial<Pendiente>): Pendiente {
-  return {
+  const base: Pendiente = {
     id: uid(), titulo: '', solicitante: '', responsable: '', descripcion: '',
     prioridad: 'Media', estado: 'pendiente', fechaLimite: '', hora: '', proyecto: '',
     etiquetas: [], subtareas: [], comentarios: [], adjuntos: [], origenNota: null,
     creado: new Date().toISOString(), modificado: new Date().toISOString(), fechaCompletado: null,
     ...p,
   }
+  const { hora, duracionMin } = defaultsHorario(base.fechaLimite, base.hora || '', base.duracionMin)
+  return { ...base, hora, duracionMin }
 }
 
 /** Construye un enlace de Google Calendar con el evento prellenado */

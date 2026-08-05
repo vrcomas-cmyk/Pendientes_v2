@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuLabel } from '@/components/ui/dropdown-menu'
+import { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem, ContextMenuSeparator } from '@/components/ui/context-menu'
 import { Plus, Image as ImageIcon, ListChecks, Trash2, Search, StickyNote, ChevronLeft, Lock, Pencil, Check, Folder, FolderPlus, Bold, Italic, Heading2, MoreVertical } from 'lucide-react'
 import { useIsMobile } from '@/hooks/use-is-mobile'
 import { subirAdjunto, urlAdjunto } from '@/lib/adjuntos'
@@ -29,7 +30,7 @@ function cursorEn(el: Node) {
 
 export default function NotesView() {
   const app = useApp()
-  const { notas, pendientes, notaActualId, setNotaActualId, crearNota, actualizarNota, eliminarNota, crearPendiente, actualizarPendiente, toggleCompletar, abrirPeek } = app
+  const { notas, pendientes, notaActualId, setNotaActualId, crearNota, actualizarNota, eliminarNota, duplicarNota, crearPendiente, actualizarPendiente, toggleCompletar, abrirPeek } = app
   const isMobile = useIsMobile()
   const [filtro, setFiltro] = useState('')
   const [carpetaSel, setCarpetaSel] = useState<string>('todas')
@@ -351,23 +352,33 @@ export default function NotesView() {
           const hechas = rel.filter(p => p.estado === 'completado').length
           const resumen = n.contenidoHTML.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
           return (
-            <div key={n.id} onClick={() => setNotaActualId(n.id)}
-              className={'cursor-pointer rounded-lg p-2.5 ' + (notaActualId === n.id ? 'bg-primary/10 ring-1 ring-primary/40' : 'hover:bg-accent')}>
-              <div className="flex items-center gap-1.5">
-                <div className="truncate text-sm font-semibold">{n.titulo}</div>
-                {n.carpeta && <span className="ml-auto inline-flex shrink-0 items-center gap-0.5 rounded bg-muted px-1.5 py-0.5 text-[9px] text-muted-foreground"><Folder size={9} />{n.carpeta}</span>}
-              </div>
-              {isMobile && resumen && <div className="mt-0.5 truncate text-xs text-muted-foreground">{resumen}</div>}
-              <div className="mt-0.5 text-[10px] text-muted-foreground">
-                {new Date(n.modificado).toLocaleDateString()}
-                {rel.length > 0 && <span className={hechas === rel.length ? 'text-green-600' : 'text-primary'}> · ✔ {hechas}/{rel.length}</span>}
-              </div>
-              {rel.length > 0 && (
-                <div className="mt-1 h-1 w-full rounded-full bg-muted">
-                  <div className="h-1 rounded-full bg-primary transition-all" style={{ width: (hechas / rel.length) * 100 + '%' }} />
+            <ContextMenu key={n.id}>
+              <ContextMenuTrigger asChild>
+                <div onClick={() => setNotaActualId(n.id)}
+                  className={'cursor-pointer rounded-lg p-2.5 ' + (notaActualId === n.id ? 'bg-primary/10 ring-1 ring-primary/40' : 'hover:bg-accent')}>
+                  <div className="flex items-center gap-1.5">
+                    <div className="truncate text-sm font-semibold">{n.titulo}</div>
+                    {n.carpeta && <span className="ml-auto inline-flex shrink-0 items-center gap-0.5 rounded bg-muted px-1.5 py-0.5 text-[9px] text-muted-foreground"><Folder size={9} />{n.carpeta}</span>}
+                  </div>
+                  {isMobile && resumen && <div className="mt-0.5 truncate text-xs text-muted-foreground">{resumen}</div>}
+                  <div className="mt-0.5 text-[10px] text-muted-foreground">
+                    {new Date(n.modificado).toLocaleDateString()}
+                    {rel.length > 0 && <span className={hechas === rel.length ? 'text-green-600' : 'text-primary'}> · ✔ {hechas}/{rel.length}</span>}
+                  </div>
+                  {rel.length > 0 && (
+                    <div className="mt-1 h-1 w-full rounded-full bg-muted">
+                      <div className="h-1 rounded-full bg-primary transition-all" style={{ width: (hechas / rel.length) * 100 + '%' }} />
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+              </ContextMenuTrigger>
+              <ContextMenuContent className="w-44">
+                <ContextMenuItem onClick={() => setNotaActualId(n.id)}>Abrir</ContextMenuItem>
+                <ContextMenuItem onClick={() => duplicarNota(n.id)}>Duplicar</ContextMenuItem>
+                <ContextMenuSeparator />
+                <ContextMenuItem className="text-destructive" onClick={() => eliminarNota(n.id)}>Eliminar</ContextMenuItem>
+              </ContextMenuContent>
+            </ContextMenu>
           )
         })}
         {!notasFiltradas.length && <p className="p-4 text-center text-xs text-muted-foreground">No hay notas.</p>}

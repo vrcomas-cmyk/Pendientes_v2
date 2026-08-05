@@ -1,8 +1,11 @@
 // Edge Function: intermediario entre la app y Google Calendar — soporta VARIAS cuentas de
-// Google por usuario (una fila en `pnp_google_calendar` por cuenta conectada). El fan-out de
-// escritura es asimétrico por `modo_espejo`: las cuentas en 'todo' reciben cualquier pendiente
-// agendado; las cuentas en 'propio' solo reciben los pendientes cuyo proyecto las tiene como
-// dueña (`origenCuentaId`). La lectura de "ocupado" (list-events) no se filtra por modo.
+// Google por ESPACIO compartido (una fila en `pnp_google_calendar` por cuenta conectada; todas
+// las cuentas de Supabase que pertenecen al mismo espacio ven y usan las mismas conexiones). El
+// fan-out de escritura es asimétrico por `modo_espejo`: las cuentas en 'todo' reciben cualquier
+// pendiente agendado; las cuentas en 'propio' solo reciben los pendientes cuyo proyecto las tiene
+// como dueña (`origenCuentaId`). Al conectar una cuenta nueva, su `modo_espejo` se asigna según el
+// rol de quien la conecta: la cuenta "padre" del espacio siempre entra en 'todo'; cualquier "hija"
+// entra en 'propio'. La lectura de "ocupado" (list-events) no se filtra por modo.
 // Nunca expone refresh_token/client_secret al navegador: el cliente solo habla con esta función
 // (autenticado con su JWT de Supabase); los tokens de Google viven en una tabla con RLS deny-all,
 // solo accesible aquí vía service_role.
@@ -27,6 +30,7 @@ function json(data: unknown, status = 200): Response {
 interface Cuenta {
   id: string
   user_id: string
+  espacio_id: string
   refresh_token: string
   access_token: string | null
   expires_at: string | null
@@ -35,8 +39,15 @@ interface Cuenta {
   modo_espejo: 'todo' | 'propio'
 }
 
-async function cuentasDelUsuario(admin: SupabaseClient, userId: string): Promise<Cuenta[]> {
-  const { data } = await admin.from('pnp_google_calendar').select('*').eq('user_id', userId)
+/** Espacio y rol del usuario que hace la llamada. Cada usuario pertenece a un solo espacio. */
+async function espacioDelUsuario(admin: SupabaseClient, userId: string): Promise<{ espacioId: string; rol: 'padre' | 'hija' } | null> {
+  const { data } = await admin.from('pnp_espacio_miembros').select('espacio_id, rol').eq('user_id', userId).maybeSingle()
+  if (!data) return null
+  return { espacioId: data.espacio_id as string, rol: data.rol as 'padre' | 'hija' }
+}
+
+async function cuentasDelEspacio(admin: SupabaseClient, espacioId: string): Promise<Cuenta[]> {
+  const { data } = await admin.from('pnp_google_calendar').select('*').eq('espacio_id', espacioId)
   return (data || []) as Cuenta[]
 }
 
@@ -61,7 +72,7 @@ function urlEventos(cuenta: Cuenta, eventId?: string): string {
   return eventId ? `${base}/${encodeURIComponent(eventId)}` : base
 }
 
-async function accionExchange(admin: SupabaseClient, userId: string, body: Record<string, unknown>) {
+async function accionExchange(admin: SupabaseClient, userId: string, espacioId: string, rol: 'padre' | 'hija', body: Record<string, unknown>) {
   if (!CLIENT_ID || !CLIENT_SECRET) return json({ error: 'Google Calendar no está configurado en el servidor (faltan credenciales).' }, 400)
   const { code, redirect_uri } = body as { code?: string; redirect_uri?: string }
   if (!code || !redirect_uri) return json({ error: 'Falta code o redirect_uri' }, 400)
@@ -78,15 +89,18 @@ async function accionExchange(admin: SupabaseClient, userId: string, body: Recor
   if (!email) return json({ error: 'No se pudo obtener el correo de la cuenta de Google' }, 400)
   let refreshToken: string | undefined = j.refresh_token
   if (!refreshToken) {
-    const { data: existente } = await admin.from('pnp_google_calendar').select('refresh_token').eq('user_id', userId).eq('google_email', email).maybeSingle()
+    const { data: existente } = await admin.from('pnp_google_calendar').select('refresh_token').eq('espacio_id', espacioId).eq('google_email', email).maybeSingle()
     refreshToken = existente?.refresh_token as string | undefined
   }
   if (!refreshToken) return json({ error: 'Google no otorgó acceso permanente. Vuelve a intentar y acepta todos los permisos solicitados.' }, 400)
   const expires_at = new Date(Date.now() + (j.expires_in ?? 3600) * 1000).toISOString()
+  // El modo de espejo se decide por el ROL de quien conecta, no se deja a elección manual al
+  // crear la conexión: la cuenta padre siempre recibe todo; cualquier hija solo lo suyo.
+  const modoInicial = rol === 'padre' ? 'todo' : 'propio'
   const { data: fila, error } = await admin.from('pnp_google_calendar')
     .upsert(
-      { user_id: userId, google_email: email, refresh_token: refreshToken, access_token: j.access_token, expires_at, updated_at: new Date().toISOString() },
-      { onConflict: 'user_id,google_email' },
+      { user_id: userId, espacio_id: espacioId, google_email: email, refresh_token: refreshToken, access_token: j.access_token, expires_at, modo_espejo: modoInicial, updated_at: new Date().toISOString() },
+      { onConflict: 'espacio_id,google_email' },
     )
     .select('id, google_email')
     .single()
@@ -94,40 +108,40 @@ async function accionExchange(admin: SupabaseClient, userId: string, body: Recor
   return json({ id: fila.id, email: fila.google_email })
 }
 
-async function accionListConnections(admin: SupabaseClient, userId: string) {
+async function accionListConnections(admin: SupabaseClient, espacioId: string) {
   if (!CLIENT_ID || !CLIENT_SECRET) return json({ configurado: false, cuentas: [] })
-  const { data } = await admin.from('pnp_google_calendar').select('id, google_email, modo_espejo').eq('user_id', userId).order('updated_at')
+  const { data } = await admin.from('pnp_google_calendar').select('id, google_email, modo_espejo').eq('espacio_id', espacioId).order('updated_at')
   return json({ configurado: true, cuentas: (data || []).map(d => ({ id: d.id, email: d.google_email, modoEspejo: d.modo_espejo })) })
 }
 
-async function accionSetModo(admin: SupabaseClient, userId: string, body: Record<string, unknown>) {
+async function accionSetModo(admin: SupabaseClient, espacioId: string, body: Record<string, unknown>) {
   const { connectionId, modo } = body as { connectionId?: string; modo?: string }
   if (!connectionId || (modo !== 'todo' && modo !== 'propio')) return json({ error: 'Falta connectionId o modo inválido' }, 400)
-  const { error } = await admin.from('pnp_google_calendar').update({ modo_espejo: modo }).eq('id', connectionId).eq('user_id', userId)
+  const { error } = await admin.from('pnp_google_calendar').update({ modo_espejo: modo }).eq('id', connectionId).eq('espacio_id', espacioId)
   if (error) return json({ error: error.message }, 400)
   return json({ ok: true })
 }
 
-async function accionDisconnect(admin: SupabaseClient, userId: string, body: Record<string, unknown>) {
+async function accionDisconnect(admin: SupabaseClient, espacioId: string, body: Record<string, unknown>) {
   const { connectionId } = body as { connectionId?: string }
   if (!connectionId) return json({ error: 'Falta connectionId' }, 400)
-  const { data } = await admin.from('pnp_google_calendar').select('access_token').eq('id', connectionId).eq('user_id', userId).maybeSingle()
+  const { data } = await admin.from('pnp_google_calendar').select('access_token').eq('id', connectionId).eq('espacio_id', espacioId).maybeSingle()
   if (data?.access_token) {
     try { await fetch(`https://oauth2.googleapis.com/revoke?token=${data.access_token}`, { method: 'POST' }) } catch { /* noop */ }
   }
-  await admin.from('pnp_google_calendar').delete().eq('id', connectionId).eq('user_id', userId)
+  await admin.from('pnp_google_calendar').delete().eq('id', connectionId).eq('espacio_id', espacioId)
   return json({ ok: true })
 }
 
 interface GEvento { id: string; summary?: string; start?: { dateTime?: string; date?: string }; end?: { dateTime?: string; date?: string } }
 
-async function accionListEvents(admin: SupabaseClient, userId: string, body: Record<string, unknown>) {
+async function accionListEvents(admin: SupabaseClient, espacioId: string, body: Record<string, unknown>) {
   // desdeISO/hastaISO son instantes ISO completos (con offset), calculados por el cliente a
   // partir de la medianoche LOCAL del usuario — no se arman aquí con un "Z" fijo, porque eso
   // desalinea el rango en cualquier huso horario distinto de UTC+0.
   const { desdeISO, hastaISO } = body as { desdeISO?: string; hastaISO?: string }
   if (!desdeISO || !hastaISO) return json({ error: 'Falta desdeISO/hastaISO' }, 400)
-  const cuentas = await cuentasDelUsuario(admin, userId)
+  const cuentas = await cuentasDelEspacio(admin, espacioId)
   const eventos: { id: string; cuentaId: string; email: string; titulo: string; inicio?: string; fin?: string; todoElDia: boolean }[] = []
   const errores: Record<string, string> = {}
   await Promise.all(cuentas.map(async cuenta => {
@@ -154,10 +168,10 @@ function cuentasDestino(cuentas: Cuenta[], origenCuentaId?: string): Cuenta[] {
   return cuentas.filter(c => c.modo_espejo === 'todo' || (c.modo_espejo === 'propio' && c.id === origenCuentaId))
 }
 
-async function accionCreateEvent(admin: SupabaseClient, userId: string, body: Record<string, unknown>) {
+async function accionCreateEvent(admin: SupabaseClient, espacioId: string, body: Record<string, unknown>) {
   const { titulo, descripcion, inicioISO, finISO, origenCuentaId, soloEstaCuenta } = body as { titulo?: string; descripcion?: string; inicioISO?: string; finISO?: string; origenCuentaId?: string; soloEstaCuenta?: boolean }
   if (!titulo || !inicioISO || !finISO) return json({ error: 'Falta titulo/inicioISO/finISO' }, 400)
-  const todasLasCuentas = await cuentasDelUsuario(admin, userId)
+  const todasLasCuentas = await cuentasDelEspacio(admin, espacioId)
   if (!todasLasCuentas.length) return json({ error: 'No hay ninguna cuenta de Google Calendar conectada' }, 400)
   // `soloEstaCuenta` es para eventos sueltos creados desde una cuenta "propio" (perfil laboral):
   // en vez del fan-out normal de espejo, el evento vive SOLO en esa cuenta, sin reflejarse en las
@@ -182,10 +196,10 @@ async function accionCreateEvent(admin: SupabaseClient, userId: string, body: Re
   return json({ eventos, errores })
 }
 
-async function accionUpdateEvent(admin: SupabaseClient, userId: string, body: Record<string, unknown>) {
+async function accionUpdateEvent(admin: SupabaseClient, espacioId: string, body: Record<string, unknown>) {
   const { eventos: existentes, titulo, descripcion, inicioISO, finISO, origenCuentaId } = body as { eventos?: Record<string, string>; titulo?: string; descripcion?: string; inicioISO?: string; finISO?: string; origenCuentaId?: string }
   if (!inicioISO || !finISO) return json({ error: 'Falta inicioISO/finISO' }, 400)
-  const todasLasCuentas = await cuentasDelUsuario(admin, userId)
+  const todasLasCuentas = await cuentasDelEspacio(admin, espacioId)
   const cuentas = cuentasDestino(todasLasCuentas, origenCuentaId)
   const eventos: Record<string, string> = { ...(existentes || {}) }
   const errores: Record<string, string> = {}
@@ -205,10 +219,10 @@ async function accionUpdateEvent(admin: SupabaseClient, userId: string, body: Re
   return json({ eventos, errores })
 }
 
-async function accionDeleteEvent(admin: SupabaseClient, userId: string, body: Record<string, unknown>) {
+async function accionDeleteEvent(admin: SupabaseClient, espacioId: string, body: Record<string, unknown>) {
   const { eventos } = body as { eventos?: Record<string, string> }
   if (!eventos || !Object.keys(eventos).length) return json({ ok: true })
-  const cuentas = await cuentasDelUsuario(admin, userId)
+  const cuentas = await cuentasDelEspacio(admin, espacioId)
   const mapa = new Map(cuentas.map(c => [c.id, c]))
   const errores: Record<string, string> = {}
   await Promise.all(Object.entries(eventos).map(async ([cuentaId, eventId]) => {
@@ -234,18 +248,22 @@ Deno.serve(async (req: Request) => {
     if (userErr || !user) return json({ error: 'No autenticado' }, 401)
 
     const admin = createClient(SUPABASE_URL, SERVICE_KEY)
+    const espacio = await espacioDelUsuario(admin, user.id)
+    if (!espacio) return json({ error: 'Esta cuenta no pertenece a ningún espacio de trabajo todavía' }, 400)
+    const { espacioId, rol } = espacio
+
     const body = await req.json().catch(() => ({}))
     const action = body.action as string
 
     switch (action) {
-      case 'exchange': return await accionExchange(admin, user.id, body)
-      case 'list-connections': return await accionListConnections(admin, user.id)
-      case 'set-modo': return await accionSetModo(admin, user.id, body)
-      case 'disconnect': return await accionDisconnect(admin, user.id, body)
-      case 'list-events': return await accionListEvents(admin, user.id, body)
-      case 'create-event': return await accionCreateEvent(admin, user.id, body)
-      case 'update-event': return await accionUpdateEvent(admin, user.id, body)
-      case 'delete-event': return await accionDeleteEvent(admin, user.id, body)
+      case 'exchange': return await accionExchange(admin, user.id, espacioId, rol, body)
+      case 'list-connections': return await accionListConnections(admin, espacioId)
+      case 'set-modo': return await accionSetModo(admin, espacioId, body)
+      case 'disconnect': return await accionDisconnect(admin, espacioId, body)
+      case 'list-events': return await accionListEvents(admin, espacioId, body)
+      case 'create-event': return await accionCreateEvent(admin, espacioId, body)
+      case 'update-event': return await accionUpdateEvent(admin, espacioId, body)
+      case 'delete-event': return await accionDeleteEvent(admin, espacioId, body)
       default: return json({ error: 'Acción desconocida: ' + action }, 400)
     }
   } catch (err) {

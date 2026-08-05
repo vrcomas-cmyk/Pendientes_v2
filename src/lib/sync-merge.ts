@@ -1,4 +1,4 @@
-import type { Nota, Pendiente, Proyecto } from '@/types'
+import type { Nota, Pendiente, Proyecto, EventoCalendario } from '@/types'
 
 export interface ItemBase { id: string; modificado: string }
 export type MapaSync = Record<string, string>
@@ -46,6 +46,12 @@ export function mergeNota(local: Nota, remote: Nota): { merged: Nota; conflicto:
 export function mergeProyecto(local: Proyecto, remote: Proyecto): { merged: Proyecto; conflicto: boolean } {
   const localNewer = (local.modificado || '') >= (remote.modificado || '')
   const conflicto = local.nombre !== remote.nombre || local.color !== remote.color || local.cuentaGoogleId !== remote.cuentaGoogleId
+  return { merged: localNewer ? local : remote, conflicto }
+}
+
+export function mergeEvento(local: EventoCalendario, remote: EventoCalendario): { merged: EventoCalendario; conflicto: boolean } {
+  const localNewer = (local.modificado || '') >= (remote.modificado || '')
+  const conflicto = local.titulo !== remote.titulo || local.fecha !== remote.fecha || local.hora !== remote.hora || local.duracionMin !== remote.duracionMin
   return { merged: localNewer ? local : remote, conflicto }
 }
 

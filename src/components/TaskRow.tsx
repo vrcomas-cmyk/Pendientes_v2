@@ -1,18 +1,23 @@
 import { useRef, useState } from 'react'
 import { useApp } from '@/store'
 import type { Pendiente } from '@/types'
-import { ESTADOS, PRIORIDAD_BORDER, PROYECTO_COLORES } from '@/types'
+import { PRIORIDAD_BORDER, PROYECTO_COLORES } from '@/types'
 import { progresoSub, vencido, describirRepeticion } from '@/lib/app-utils'
+import { columnaDe, colorColumna, idColumnaCompletado } from '@/lib/columnas'
 import { useIsMobile } from '@/hooks/use-is-mobile'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
 import PosponerMenu from '@/components/PosponerMenu'
+import MenuContextoPendiente from '@/components/MenuContextoPendiente'
+import { ContextMenu, ContextMenuTrigger } from '@/components/ui/context-menu'
 import { StickyNote, User, Calendar, CheckSquare, Repeat, Users, Archive, ArchiveRestore } from 'lucide-react'
 
 const UMBRAL_SWIPE = 0.35 // fracción del ancho para "soltar y archivar"
 
 export default function TaskRow({ p, seleccionado, onClick, modoArchivados }: { p: Pendiente; seleccionado?: boolean; onClick?: () => void; modoArchivados?: boolean }) {
-  const { toggleCompletar, abrirModal, proyectos, archivarPendiente, desarchivarPendiente } = useApp()
+  const { toggleCompletar, abrirPeek, proyectos, archivarPendiente, desarchivarPendiente, columnas } = useApp()
+  const idCompletado = idColumnaCompletado(columnas)
+  const col = columnaDe(columnas, p.estado)
   const sub = progresoSub(p)
   const proyecto = p.proyectoId ? proyectos.find(x => x.id === p.proyectoId) : null
   const esMobile = useIsMobile()
@@ -64,11 +69,15 @@ export default function TaskRow({ p, seleccionado, onClick, modoArchivados }: { 
   const onClickFila = (e: React.MouseEvent) => {
     // Si hubo un arrastre real, no lo tratamos como click (evita abrir el modal por accidente)
     if (Math.abs(dx) > 4) return
-    ;(onClick ?? (() => abrirModal(p.id)))()
+    // Por defecto abre la vista de solo lectura (peek) — igual que en Lista y Calendario. Editar
+    // campos requiere el botón "Editar" explícito dentro del peek, no un click directo a la fila.
+    ;(onClick ?? (() => abrirPeek(p.id)))()
     void e
   }
 
   const contenido = (
+    <ContextMenu>
+    <ContextMenuTrigger asChild>
     <div
       onClick={onClickFila}
       className={
@@ -83,19 +92,19 @@ export default function TaskRow({ p, seleccionado, onClick, modoArchivados }: { 
       onPointerCancel={onPointerUp}
     >
       <Checkbox
-        checked={p.estado === 'completado'}
+        checked={p.estado === idCompletado}
         onCheckedChange={() => toggleCompletar(p.id)}
         onClick={e => e.stopPropagation()}
         className="mt-0.5"
       />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
-          <span className={'truncate text-xs font-semibold ' + (p.estado === 'completado' ? 'linea-completada' : '')}>{p.titulo}</span>
+          <span className={'truncate text-xs font-semibold ' + (p.estado === idCompletado ? 'linea-completada' : '')}>{p.titulo}</span>
           {p.origenNota && <StickyNote size={12} className="shrink-0 text-primary" />}
-          {vencido(p) && <span className="rounded bg-red-100 px-1 text-[10px] text-red-700 dark:bg-red-900/40 dark:text-red-300">vencido</span>}
+          {vencido(p, idCompletado) && <span className="rounded bg-red-100 px-1 text-[10px] text-red-700 dark:bg-red-900/40 dark:text-red-300">vencido</span>}
         </div>
         <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-muted-foreground">
-          <span className={'rounded-full px-1.5 ' + ESTADOS[p.estado].badge}>{ESTADOS[p.estado].label}</span>
+          <span className={'rounded-full px-1.5 ' + colorColumna(col).badge}>{col.nombre}</span>
           {proyecto ? (
             <span className={'inline-flex items-center gap-1 rounded-full px-1.5 ' + (PROYECTO_COLORES[proyecto.color]?.badge || '')}>
               <span className={'h-1.5 w-1.5 rounded-full ' + (PROYECTO_COLORES[proyecto.color]?.dot || '')} />{proyecto.nombre}
@@ -124,6 +133,9 @@ export default function TaskRow({ p, seleccionado, onClick, modoArchivados }: { 
         )}
       </div>
     </div>
+    </ContextMenuTrigger>
+    <MenuContextoPendiente p={p} />
+    </ContextMenu>
   )
 
   if (!esMobile) return contenido
