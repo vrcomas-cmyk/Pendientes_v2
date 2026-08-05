@@ -130,3 +130,8 @@ export type FiltroFecha = 'todos' | 'abiertos' | 'vencidos' | 'hoy' | 'semana'
 export function subtareasPendientes(p: Pendiente): number {
   return (p.subtareas || []).filter(s => !s.completada).length
 }
+
+/** Igual que `subtareasPendientes` pero con el nombre más declarativo usado por la
+    UI (Peek) para habilitar/deshabilitar el botón "Completar" — alias explícito para
+    no romper el import existente que usa el nombre corto. */
+export const subtareasFaltantes = subtareasPendientes

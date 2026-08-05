@@ -1,52 +1,24 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useApp } from '@/store'
-import type { Pendiente, Adjunto } from '@/types'
+import type { Pendiente } from '@/types'
 import { PROYECTO_COLORES } from '@/types'
 import type { FiltroFecha } from '@/types'
 export type { FiltroFecha } from '@/types'
-import { googleCalendarUrl, hoyISO, progresoSub, vencido, describirRepeticion, activo } from '@/lib/app-utils'
-import { columnaDe, colorColumna, idColumnaCompletado } from '@/lib/columnas'
+import { hoyISO, vencido, activo } from '@/lib/app-utils'
+import { columnaDe, idColumnaCompletado } from '@/lib/columnas'
 import { useIsMobile } from '@/hooks/use-is-mobile'
 import TaskRow from '@/components/TaskRow'
 import PosponerMenu from '@/components/PosponerMenu'
-import AdjuntosUI, { Miniatura } from '@/components/AdjuntosUI'
-import { subirAdjunto } from '@/lib/adjuntos'
+import PendienteCuerpo from '@/components/PendienteCuerpo'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Badge } from '@/components/ui/badge'
-import { Pencil, Trash2, StickyNote, Search, SlidersHorizontal, ChevronLeft, ChevronDown, CalendarPlus, Send, User, Calendar, ImagePlus, X } from 'lucide-react'
+import { Pencil, Trash2, Search, SlidersHorizontal, ChevronLeft, ChevronDown } from 'lucide-react'
 
 function TaskDetail({ detalle, onBack, mobile }: { detalle: Pendiente; onBack: () => void; mobile: boolean }) {
-  const { abrirModal, eliminarPendiente, toggleSubtarea, setNotaActualId, agregarComentario, actualizarPendiente, proyectos, columnas } = useApp()
-  const proyectoDetalle = detalle.proyectoId ? proyectos.find(x => x.id === detalle.proyectoId) : null
+  const { abrirModal, eliminarPendiente, columnas } = useApp()
   const idCompletado = idColumnaCompletado(columnas)
-  const col = columnaDe(columnas, detalle.estado)
-  const [com, setCom] = useState('')
-  const [comImgs, setComImgs] = useState<Adjunto[]>([])
-  const sub = progresoSub(detalle)
-  const gcal = googleCalendarUrl(detalle.titulo, detalle.fechaLimite, detalle.hora, detalle.descripcion)
-  const enviarCom = () => {
-    if (!com.trim() && !comImgs.length) return
-    agregarComentario(detalle.id, com, comImgs)
-    setCom(''); setComImgs([])
-  }
-  const adjuntarImagenCom = async (file: File) => {
-    try { const a = await subirAdjunto(file, detalle.id); setComImgs(prev => [...prev, a]) }
-    catch { /* noop */ }
-  }
-  const onPasteCom = (e: React.ClipboardEvent) => {
-    const items = e.clipboardData?.items || []
-    for (const it of items) {
-      if (it.type.startsWith('image/')) { const f = it.getAsFile(); if (f) adjuntarImagenCom(f) }
-    }
-  }
-  const elegirImagenCom = () => {
-    const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*'
-    inp.onchange = () => { const f = inp.files?.[0]; if (f) adjuntarImagenCom(f) }
-    inp.click()
-  }
 
   return (
     <div className="flex h-full flex-col">
@@ -64,97 +36,13 @@ function TaskDetail({ detalle, onBack, mobile }: { detalle: Pendiente; onBack: (
             <Button size="sm" variant="ghost" className="text-destructive" onClick={() => { eliminarPendiente(detalle.id); onBack() }}><Trash2 size={13} /></Button>
           </div>
         </div>
-        <div className="mt-2 flex flex-wrap gap-1.5 text-[11px]">
-          <span className={'rounded-full px-2 py-0.5 ' + colorColumna(col).badge}>{col.nombre}</span>
-          <Badge variant="secondary">Prioridad: {detalle.prioridad}</Badge>
-          {proyectoDetalle
-            ? <Badge variant="secondary"><span className={'mr-1 inline-block h-2 w-2 rounded-full ' + (PROYECTO_COLORES[proyectoDetalle.color]?.dot || '')} />{proyectoDetalle.nombre}</Badge>
-            : detalle.proyecto && <Badge variant="secondary">📁 {detalle.proyecto}</Badge>}
-          {detalle.repetir && <Badge variant="secondary">🔁 {describirRepeticion(detalle.repetir)}</Badge>}
-        </div>
-        <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-          <div><span className="text-muted-foreground">Solicita:</span> {detalle.solicitante || '—'}</div>
-          <div><span className="text-muted-foreground">Responsable:</span> {detalle.responsable || '—'}</div>
-          <div><span className="text-muted-foreground">Fecha límite:</span> {detalle.fechaLimite || '—'}{detalle.hora ? ' ' + detalle.hora : ''} {vencido(detalle, idCompletado) && <span className="text-red-500">(vencido)</span>}</div>
-          <div><span className="text-muted-foreground">Creado:</span> {new Date(detalle.creado).toLocaleDateString()}</div>
-        </div>
 
-        {gcal && (
-          <a href={gcal} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/5 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/10">
-            <CalendarPlus size={14} /> Agregar a Google Calendar
-          </a>
-        )}
-
-        {detalle.descripcion && <div className="mt-3 whitespace-pre-wrap rounded-lg bg-muted p-3 text-sm">{detalle.descripcion}</div>}
-        {detalle.origenNota && (
-          <button onClick={() => setNotaActualId(detalle.origenNota!.notaId)} className="mt-3 flex items-center gap-1 text-xs text-primary hover:underline">
-            <StickyNote size={13} /> Esta tarea vive también en una nota
-          </button>
-        )}
-
-        {/* Subtareas */}
-        <div className="mt-4">
-          <div className="mb-1 text-xs font-bold">Subtareas {sub && `(${sub.hechas}/${sub.total})`}</div>
-          {sub && <div className="mb-2 h-1.5 w-full rounded-full bg-muted"><div className="h-1.5 rounded-full bg-primary transition-all" style={{ width: sub.pct + '%' }} /></div>}
-          <div className="space-y-1">
-            {detalle.subtareas.map(s => (
-              <div key={s.id} className="flex items-start gap-2 rounded-md border px-2 py-1.5 text-sm">
-                <Checkbox checked={s.completada} onCheckedChange={() => toggleSubtarea(detalle.id, s.id)} className="mt-0.5" />
-                <div className="min-w-0 flex-1">
-                  <span className={s.completada ? 'linea-completada' : ''}>{s.texto}</span>
-                  {(s.responsable || s.fechaLimite) && (
-                    <div className="mt-0.5 flex flex-wrap gap-2 text-[10px] text-muted-foreground">
-                      {s.responsable && <span className="inline-flex items-center gap-0.5"><User size={9} />{s.responsable}</span>}
-                      {s.fechaLimite && <span className="inline-flex items-center gap-0.5"><Calendar size={9} />{s.fechaLimite}</span>}
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-            {!detalle.subtareas.length && <p className="text-xs text-muted-foreground">Sin subtareas.</p>}
-          </div>
-          {sub && sub.hechas < sub.total && <p className="mt-1 text-[10px] text-amber-600">⚠ No se puede completar hasta terminar las subtareas.</p>}
-        </div>
-
-        {/* Adjuntos */}
-        <div className="mt-4">
-          <div className="mb-1 text-xs font-bold">Adjuntos</div>
-          <AdjuntosUI adjuntos={detalle.adjuntos || []} taskId={detalle.id} onChange={a => actualizarPendiente(detalle.id, { adjuntos: a })} />
-        </div>
-
-        {detalle.etiquetas.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-1">{detalle.etiquetas.map(e => <span key={e} className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary">#{e}</span>)}</div>
-        )}
-
-        {/* Comentarios + historial */}
-        <div className="mt-4">
-          <div className="mb-1 text-xs font-bold">Comentarios e historial</div>
-          <div className="space-y-1">
-            {(detalle.comentarios || []).map((c, i) => (
-              <div key={i} className="rounded bg-muted p-1.5 text-xs">
-                <div><b>{c.autor}:</b> {c.texto} <span className="text-muted-foreground">· {new Date(c.fecha).toLocaleString()}</span></div>
-                {c.adjuntos && c.adjuntos.length > 0 && (
-                  <div className="mt-1 flex flex-wrap gap-1.5">{c.adjuntos.map(a => <Miniatura key={a.id} a={a} />)}</div>
-                )}
-              </div>
-            ))}
-            {!(detalle.comentarios || []).length && <p className="text-xs text-muted-foreground">Aún no hay comentarios.</p>}
-          </div>
-          {comImgs.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {comImgs.map(a => (
-                <div key={a.id} className="relative">
-                  <Miniatura a={a} />
-                  <button onClick={() => setComImgs(prev => prev.filter(x => x.id !== a.id))} className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-white shadow"><X size={12} /></button>
-                </div>
-              ))}
-            </div>
-          )}
-          <div className="mt-2 flex gap-2">
-            <Input value={com} onChange={e => setCom(e.target.value)} onPaste={onPasteCom} onKeyDown={e => { if (e.key === 'Enter') enviarCom() }} placeholder="Comenta… (pega una captura con Ctrl+V)" className="h-8 text-xs" />
-            <Button size="sm" variant="secondary" onClick={elegirImagenCom} title="Adjuntar captura"><ImagePlus size={13} /></Button>
-            <Button size="sm" onClick={enviarCom}><Send size={13} /></Button>
-          </div>
+        <div className="mt-2">
+          <PendienteCuerpo
+            pendiente={detalle}
+            destacarOrigenNota
+            mostrarCreado
+          />
         </div>
       </div>
     </div>
