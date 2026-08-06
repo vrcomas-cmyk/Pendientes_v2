@@ -22,6 +22,8 @@ interface AppCtx {
   toggleSubtarea: (pid: string, sid: string) => void
   agregarSubtarea: (pid: string, texto: string) => void
   agregarSubSubtarea: (pid: string, padreId: string, texto: string) => void
+  iniciarTimer: (pid: string) => void
+  pausarTimer: (pid: string) => void
   agregarComentario: (pid: string, texto: string, adjuntos?: import('@/types').Adjunto[]) => void
   moverEstado: (id: string, estado: Estado) => void
   crearNota: () => Nota
@@ -289,11 +291,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setPendientes(prev => prev.map(p => {
       if (p.id !== id) return p
       const completado = p.estado === idCompletado
+      // Si el timer seguía corriendo al completar, se pausa y acumula — no tiene sentido que
+      // siga contando tiempo sobre algo ya terminado.
+      const corriendo = !completado && p.tiempoInicio
+      const min = corriendo ? Math.round((Date.now() - new Date(p.tiempoInicio!).getTime()) / 60000) : 0
       return {
         ...p,
         estado: completado ? idPorDefecto : idCompletado,
         fechaCompletado: completado ? null : new Date().toISOString(),
         modificado: new Date().toISOString(),
+        ...(corriendo ? { tiempoInicio: undefined, tiempoTotalMin: (p.tiempoTotalMin || 0) + min } : {}),
       }
     }))
     // Recurrencia: al completar (no al reabrir) un pendiente con regla, se crea la siguiente
@@ -347,6 +354,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
       ...p,
       subtareas: [...p.subtareas, { id: uid(), texto: t, completada: false, responsable: '', fechaLimite: '' }],
       modificado: new Date().toISOString(),
+    }))
+  }
+
+  // Fase 9.2 — time tracking opcional: solo un timer corre a la vez en toda la app (empezar uno
+  // pausa cualquier otro que estuviera corriendo), consistente con que solo se está trabajando en
+  // una cosa a la vez en la realidad.
+  const iniciarTimer = (pid: string) => {
+    const ahora = new Date().toISOString()
+    setPendientes(prev => prev.map(p => {
+      if (p.id === pid) return { ...p, tiempoInicio: ahora }
+      if (p.tiempoInicio) {
+        const min = Math.round((Date.now() - new Date(p.tiempoInicio).getTime()) / 60000)
+        return { ...p, tiempoInicio: undefined, tiempoTotalMin: (p.tiempoTotalMin || 0) + min, modificado: new Date().toISOString() }
+      }
+      return p
+    }))
+  }
+  const pausarTimer = (pid: string) => {
+    setPendientes(prev => prev.map(p => {
+      if (p.id !== pid || !p.tiempoInicio) return p
+      const min = Math.round((Date.now() - new Date(p.tiempoInicio).getTime()) / 60000)
+      return { ...p, tiempoInicio: undefined, tiempoTotalMin: (p.tiempoTotalMin || 0) + min, modificado: new Date().toISOString() }
     }))
   }
 
@@ -558,7 +587,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const value: AppCtx = {
     pendientes, notas, usuario, setUsuario,
-    crearPendiente, actualizarPendiente, eliminarPendiente, restaurarPendiente, duplicarPendiente, archivarPendiente, desarchivarPendiente, toggleCompletar, toggleSubtarea, agregarSubtarea, agregarSubSubtarea, agregarComentario, moverEstado,
+    crearPendiente, actualizarPendiente, eliminarPendiente, restaurarPendiente, duplicarPendiente, archivarPendiente, desarchivarPendiente, toggleCompletar, toggleSubtarea, agregarSubtarea, agregarSubSubtarea, iniciarTimer, pausarTimer, agregarComentario, moverEstado,
     crearNota, actualizarNota, agregarComentarioNota, eliminarNota, restaurarNota, duplicarNota, proyectos, crearProyecto, actualizarProyecto, eliminarProyecto,
     espacios, crearEspacio, actualizarEspacio, eliminarEspacio, espacioActualId, setEspacioActualId,
     etiquetas, crearEtiqueta, actualizarEtiqueta, eliminarEtiqueta, colorDeEtiqueta,

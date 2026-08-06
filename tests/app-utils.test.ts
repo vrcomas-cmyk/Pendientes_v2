@@ -12,6 +12,11 @@ import {
   siguienteFecha,
   extraerSufijos,
   proximaInstanciaRepeticion,
+  actividadPorDia,
+  rachaDiaria,
+  medianaTiempoVida,
+  throughputSemanal,
+  isoSumarDias,
   parsearLinea,
   esBullet,
   defaultsHorario,
@@ -180,6 +185,80 @@ describe("siguienteFecha", () => {
   it("base vacía usa hoyISO", () => {
     const r = siguienteFecha("1d", "");
     expect(r).toBe(isoMasDias(1));
+  });
+});
+
+function pendienteCompletado(fechaCompletado: string, creado = "2026-01-01T00:00:00.000Z"): Pendiente {
+  return {
+    id: uid(), titulo: "X", solicitante: "", responsable: "", descripcion: "",
+    prioridad: "Media", estado: "completado", fechaLimite: "", proyecto: "", etiquetas: [], subtareas: [],
+    comentarios: [], adjuntos: [], origenNota: null, creado, modificado: fechaCompletado,
+    fechaCompletado,
+  };
+}
+
+describe("Fase 9.1 — métricas de productividad", () => {
+  describe("actividadPorDia", () => {
+    it("cuenta completados por día, ignora los sin fechaCompletado", () => {
+      const r = actividadPorDia([
+        pendienteCompletado("2026-08-05T10:00:00.000Z"),
+        pendienteCompletado("2026-08-05T18:00:00.000Z"),
+        pendienteCompletado("2026-08-06T09:00:00.000Z"),
+        { ...pendienteCompletado("2026-08-06T09:00:00.000Z"), fechaCompletado: null },
+      ]);
+      expect(r).toEqual({ "2026-08-05": 2, "2026-08-06": 1 });
+    });
+  });
+
+  describe("rachaDiaria", () => {
+    beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(new Date("2026-08-06T12:00:00")); });
+    it("cuenta días consecutivos hasta hoy", () => {
+      const actividad = { "2026-08-06": 1, "2026-08-05": 2, "2026-08-04": 1, "2026-08-02": 1 };
+      expect(rachaDiaria(actividad)).toBe(3); // 06,05,04 — se corta en 03 (falta)
+    });
+    it("si hoy no tiene actividad, cuenta desde ayer (no rompe la racha antes de tiempo)", () => {
+      const actividad = { "2026-08-05": 1, "2026-08-04": 1 };
+      expect(rachaDiaria(actividad)).toBe(2);
+    });
+    it("0 si ni hoy ni ayer tienen actividad", () => {
+      expect(rachaDiaria({ "2026-08-01": 1 })).toBe(0);
+    });
+  });
+
+  describe("medianaTiempoVida", () => {
+    it("null sin pendientes completados", () => {
+      expect(medianaTiempoVida([])).toBeNull();
+    });
+    it("mediana con cantidad impar", () => {
+      const r = medianaTiempoVida([
+        pendienteCompletado("2026-01-02T00:00:00.000Z", "2026-01-01T00:00:00.000Z"), // 1 día
+        pendienteCompletado("2026-01-06T00:00:00.000Z", "2026-01-01T00:00:00.000Z"), // 5 días
+        pendienteCompletado("2026-01-04T00:00:00.000Z", "2026-01-01T00:00:00.000Z"), // 3 días
+      ]);
+      expect(r).toBe(3);
+    });
+    it("mediana con cantidad par: promedia los dos centrales", () => {
+      const r = medianaTiempoVida([
+        pendienteCompletado("2026-01-02T00:00:00.000Z", "2026-01-01T00:00:00.000Z"), // 1
+        pendienteCompletado("2026-01-04T00:00:00.000Z", "2026-01-01T00:00:00.000Z"), // 3
+      ]);
+      expect(r).toBe(2);
+    });
+  });
+
+  describe("throughputSemanal", () => {
+    beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(new Date("2026-08-06T12:00:00")); });
+    it("suma los últimos 7 días incluyendo hoy", () => {
+      const actividad = { "2026-08-06": 1, "2026-08-05": 2, "2026-07-30": 5 }; // 07-30 queda fuera (8vo día)
+      expect(throughputSemanal(actividad)).toBe(3);
+    });
+  });
+
+  describe("isoSumarDias", () => {
+    it("suma y resta días respetando el cambio de mes", () => {
+      expect(isoSumarDias("2026-08-01", -1)).toBe("2026-07-31");
+      expect(isoSumarDias("2026-07-31", 1)).toBe("2026-08-01");
+    });
   });
 });
 

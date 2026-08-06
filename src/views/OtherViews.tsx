@@ -3,7 +3,7 @@ import { useApp } from '@/store'
 import { useSync } from '@/sync'
 import type { EventoCalendario, Pendiente } from '@/types'
 import { PROYECTO_COLORES, PROYECTO_COLORES_KEYS } from '@/types'
-import { hoyISO, isoMasDias, vencido, activo } from '@/lib/app-utils'
+import { hoyISO, isoMasDias, isoSumarDias, vencido, activo, actividadPorDia, rachaDiaria, medianaTiempoVida, throughputSemanal } from '@/lib/app-utils'
 import { idColumnaCompletado } from '@/lib/columnas'
 import { listarEventosDia, type EventoGCal } from '@/lib/googleCalendar'
 import { sinDuplicarLocal } from '@/lib/agenda'
@@ -318,8 +318,55 @@ export function KanbanView() {
 }
 
 
+/* ============ HEATMAP DE ACTIVIDAD (Fase 9.1) ============ */
+const NIVELES_OPACIDAD = [0.16, 0.4, 0.62, 0.82, 1] // índice 0 = "algo" (bg-muted cubre el "nada")
+function nivelActividad(c: number, max: number): number {
+  if (c === 0) return -1
+  const frac = c / max
+  return frac <= 0.25 ? 0 : frac <= 0.5 ? 1 : frac <= 0.75 ? 2 : frac <= 0.99 ? 3 : 4
+}
+/** Heatmap estilo GitHub: 16 semanas completas (domingo a sábado), terminando en la semana
+    actual. Un solo hue (primary) en 5 pasos de opacidad — escala secuencial de magnitud, el
+    "nada" se pinta con `bg-muted` (no opacidad 0) para que sea un track visible, no un hueco. */
+function HeatmapActividad({ actividad }: { actividad: Record<string, number> }) {
+  const semanas = 16
+  const dias = useMemo(() => {
+    const hoyDow = new Date().getDay() // 0=domingo
+    const finSemana = isoSumarDias(hoyISO(), 6 - hoyDow)
+    const inicio = isoSumarDias(finSemana, -(semanas * 7 - 1))
+    return Array.from({ length: semanas * 7 }, (_, i) => isoSumarDias(inicio, i))
+  }, [])
+  const max = Math.max(1, ...Object.values(actividad))
+  const h = hoyISO()
+  return (
+    <div className="rounded-xl border bg-card p-4">
+      <h3 className="mb-3 text-xs font-bold">Actividad (últimas {semanas} semanas)</h3>
+      <div className="overflow-x-auto scroll-thin">
+        <div className="grid gap-[3px]" style={{ gridTemplateRows: 'repeat(7, 11px)', gridAutoFlow: 'column' }}>
+          {dias.map(d => {
+            const c = actividad[d] || 0
+            const nivel = nivelActividad(c, max)
+            const esFuturo = d > h
+            return (
+              <div key={d} title={esFuturo ? undefined : `${d}: ${c} completado${c === 1 ? '' : 's'}`}
+                className={'h-[11px] w-[11px] rounded-sm ' + (esFuturo ? 'bg-transparent' : nivel < 0 ? 'bg-muted' : 'bg-primary')}
+                style={nivel >= 0 ? { opacity: NIVELES_OPACIDAD[nivel] } : undefined} />
+            )
+          })}
+        </div>
+      </div>
+      <div className="mt-2 flex items-center justify-end gap-1 text-[10px] text-muted-foreground">
+        Menos
+        <span className="h-[10px] w-[10px] rounded-sm bg-muted" />
+        {NIVELES_OPACIDAD.map(o => <span key={o} className="h-[10px] w-[10px] rounded-sm bg-primary" style={{ opacity: o }} />)}
+        Más
+      </div>
+    </div>
+  )
+}
+
 /* ============ DASHBOARD ============ */
-function KPI({ label, value, color, destacado }: { label: string; value: number; color?: string; destacado?: boolean }) {
+function KPI({ label, value, color, destacado }: { label: string; value: number | string; color?: string; destacado?: boolean }) {
   return (
     <div className={'rounded-xl border bg-card p-3 ' + (destacado ? 'border-2 border-primary/40' : '')}>
       <div className="text-[11px] text-muted-foreground">{label}</div>
@@ -351,7 +398,12 @@ export function DashboardView() {
     const porColumna: Record<string, number> = {}
     columnas.forEach(c => { porColumna[c.nombre] = pendientes.filter(p => p.estado === c.id).length })
     const desdeNotas = pendientes.filter(p => p.origenNota).length
-    return { abiertos: abiertos.length, vencidos: pendientes.filter(p => vencido(p, idCompletado)).length, completados: pendientes.filter(p => p.estado === idCompletado).length, subPend, porP, porR, porColumna, desdeNotas, notas: notas.length }
+    const actividad = actividadPorDia(pendientes)
+    return {
+      abiertos: abiertos.length, vencidos: pendientes.filter(p => vencido(p, idCompletado)).length, completados: pendientes.filter(p => p.estado === idCompletado).length,
+      subPend, porP, porR, porColumna, desdeNotas, notas: notas.length,
+      actividad, racha: rachaDiaria(actividad), mediana: medianaTiempoVida(pendientes), throughput: throughputSemanal(actividad),
+    }
   }, [pendientes, notas, columnas, idCompletado])
   const maxP = Math.max(1, ...Object.values(stats.porP))
   const maxR = Math.max(1, ...Object.values(stats.porR))
@@ -365,7 +417,13 @@ export function DashboardView() {
         <KPI label="Completados" value={stats.completados} color="text-green-500" />
         <KPI label="Subtareas por completar" value={stats.subPend} color="text-primary" destacado />
         <KPI label="Creados desde notas" value={stats.desdeNotas} color="text-primary" />
+        <KPI label="Racha 🔥" value={stats.racha} color="text-amber-500" />
       </div>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
+        <KPI label="Esta semana" value={stats.throughput} color="text-primary" />
+        <KPI label="Mediana días/tarea" value={stats.mediana === null ? '—' : Math.round(stats.mediana * 10) / 10} color="text-primary" />
+      </div>
+      <HeatmapActividad actividad={stats.actividad} />
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div className="rounded-xl border bg-card p-4">
           <h3 className="mb-3 text-xs font-bold">Por columna del tablero</h3>

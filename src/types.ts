@@ -44,6 +44,8 @@ export interface Pendiente {
   googleEventos?: Record<string, string>  // cuentaId de Google Calendar -> id del evento creado ahí
   proyectoId?: string     // referencia a Proyecto.id; `proyecto` (string) se mantiene como espejo del nombre para compatibilidad (export CSV, badges antiguos)
   bloqueadoPor?: string[] // ids de otros Pendiente que deben completarse antes (Fase 8.5, dependencias)
+  tiempoTotalMin?: number // minutos acumulados de trabajo real (Fase 9.2, time tracking opcional)
+  tiempoInicio?: string   // ISO: si está seteado, el timer está corriendo desde esa marca; ausente = pausado
   ponderacion?: number    // porcentaje (0-100) que vale la entrega, ej. para planes de estudio importados
   modalidad?: 'individual' | 'equipo'
   archivado?: boolean     // "archivar" (estilo Gmail): se saca de las vistas activas sin borrarlo

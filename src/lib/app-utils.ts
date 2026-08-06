@@ -19,6 +19,53 @@ export function vencido(p: Pendiente, idCompletado: string = 'completado'): bool
   return !!p.fechaLimite && p.estado !== idCompletado && p.fechaLimite < hoyISO()
 }
 
+/** Fase 9.1 (estadísticas): cuenta de pendientes completados por día ISO, para el heatmap y las
+    métricas derivadas de abajo. Un pendiente reabierto pierde su `fechaCompletado` (lo pone en
+    `null` `toggleCompletar`), así que filtrar por ese campo ya excluye reaperturas sin depender
+    de `idCompletado`. */
+export function actividadPorDia(pendientes: Pendiente[]): Record<string, number> {
+  const mapa: Record<string, number> = {}
+  pendientes.forEach(p => {
+    if (!p.fechaCompletado) return
+    const dia = p.fechaCompletado.slice(0, 10)
+    mapa[dia] = (mapa[dia] || 0) + 1
+  })
+  return mapa
+}
+
+/** Racha de días consecutivos con al menos una actividad, terminando hoy — o ayer si hoy todavía
+    no tiene nada (no queremos que la racha se vea "rota" a las 9am si aún no completaste algo). */
+export function rachaDiaria(actividad: Record<string, number>): number {
+  let cursor = hoyISO()
+  if (!actividad[cursor]) cursor = isoSumarDias(cursor, -1)
+  let racha = 0
+  while (actividad[cursor]) {
+    racha++
+    cursor = isoSumarDias(cursor, -1)
+  }
+  return racha
+}
+
+/** Mediana de días entre `creado` y `fechaCompletado` — más robusta que el promedio ante
+    outliers (un pendiente olvidado 200 días no debería inflar "cuánto tarda normalmente"). */
+export function medianaTiempoVida(pendientes: Pendiente[]): number | null {
+  const dias = pendientes
+    .filter(p => p.fechaCompletado)
+    .map(p => (new Date(p.fechaCompletado!).getTime() - new Date(p.creado).getTime()) / 86400000)
+    .filter(d => d >= 0)
+    .sort((a, b) => a - b)
+  if (!dias.length) return null
+  const mid = Math.floor(dias.length / 2)
+  return dias.length % 2 ? dias[mid] : (dias[mid - 1] + dias[mid]) / 2
+}
+
+/** Completados en los últimos 7 días (incluyendo hoy). */
+export function throughputSemanal(actividad: Record<string, number>): number {
+  let total = 0
+  for (let i = 0; i < 7; i++) total += actividad[isoSumarDias(hoyISO(), -i)] || 0
+  return total
+}
+
 /** ¿Sigue bloqueado? (Fase 8.5, dependencias): `true` si alguno de sus `bloqueadoPor` referencia
     un pendiente que todavía no está completado. Un id que ya no existe (se borró) no cuenta como
     bloqueador — no tiene sentido dejar algo bloqueado para siempre por un dato huérfano. */
@@ -85,6 +132,11 @@ function isoLocal(d: Date): string {
 /** Fecha (ISO local) sumando `dias` a hoy. */
 export function isoMasDias(dias: number): string {
   const d = new Date(); d.setDate(d.getDate() + dias); return isoLocal(d)
+}
+/** Fecha (ISO local) sumando `dias` a una fecha ISO arbitraria (no solo a hoy) — usada por las
+    métricas de racha (Fase 9.1), que necesitan caminar fecha a fecha hacia atrás. */
+export function isoSumarDias(iso: string, dias: number): string {
+  const d = new Date(iso + 'T00:00'); d.setDate(d.getDate() + dias); return isoLocal(d)
 }
 /** Próximo sábado (fin de semana) en ISO local. */
 export function isoProximoFinDeSemana(): string {

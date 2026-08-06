@@ -418,13 +418,66 @@ Con 8.1-8.9 completas, el bloque de funcionalidad tipo Todoist/Things queda
 cerrado. Verificación acumulada: 117/117 tests, `tsc --noEmit` y
 `npm run build` limpios en cada hito.
 
-### Fase 9 — Estadísticas y productividad (antes Fase 3, planificado)
+### Fase 9.1 — Heatmap de actividad y métricas de productividad (2026-08-06)
 
-- **Añadido**: heatmap de actividad estilo GitHub en el Dashboard.
-- **Añadido**: racha diaria, mediana de tiempo de vida, throughput semanal.
-- **Añadido**: time tracking opcional (timer play/pause).
-- **Añadido**: vista Agenda (timeline de hoy con horas) — superada parcialmente por la
-  Fase 3 (timeline en HOY), a revisar si sigue siendo necesaria como vista separada.
+- **Añadido**: `actividadPorDia`, `rachaDiaria`, `medianaTiempoVida`,
+  `throughputSemanal`, `isoSumarDias` en `src/lib/app-utils.ts` — todas puras y
+  testeadas (14 tests nuevos, con `vi.setSystemTime` para fechas
+  deterministas). `actividadPorDia` cuenta por `fechaCompletado` (que ya se
+  limpia a `null` al reabrir un pendiente, así que no hace falta filtrar por
+  columna); la racha cuenta desde hoy o, si hoy todavía no tiene actividad,
+  desde ayer (no se ve "rota" a las 9am).
+- **Añadido**: `HeatmapActividad` en `src/views/OtherViews.tsx` — 16 semanas
+  completas (domingo-sábado) en un solo hue (`bg-primary`, 5 pasos de
+  opacidad), con `bg-muted` para "sin actividad" (nunca opacidad 0, que sería
+  un hueco invisible en vez de un track). Tooltip nativo (`title`) por celda.
+  Guiado por el skill `dataviz`: escala secuencial de una sola tonalidad, sin
+  inventar una paleta nueva — reutiliza el primary ya validado del tema.
+- **Añadido**: 3 KPI nuevos en el Dashboard (Racha 🔥, Esta semana, Mediana
+  días/tarea) junto a los que ya existían.
+- Verificado con `npm run test` (126/126, +9 nuevos), `tsc --noEmit`,
+  `npm run build`, y una pasada visual en Chrome: completar un pendiente hizo
+  aparecer la celda de hoy en el heatmap y actualizó Racha/Esta
+  semana/Mediana en tiempo real.
+- Service Worker: sin bump todavía.
+
+### Fase 9.2 — Time tracking opcional (2026-08-06)
+
+- **Añadido**: `Pendiente.tiempoTotalMin?`/`tiempoInicio?` en `src/types.ts` —
+  aditivos, sin migración. `iniciarTimer`/`pausarTimer` en `src/store.tsx`:
+  solo un timer corre a la vez en toda la app (empezar uno pausa cualquier otro
+  que estuviera corriendo, como en la vida real). `toggleCompletar` pausa y
+  acumula automáticamente si el timer seguía corriendo al completar — no tiene
+  sentido que seguiera contando sobre algo ya terminado.
+  `Comentario` se conserva sin cambios.
+- **Añadido**: `TimerPendiente` en `PendienteCuerpo.tsx` — play/pause + tiempo
+  acumulado formateado (`Xh Ym`), re-renderiza cada minuto mientras corre (no
+  cada segundo, no hay razón para gastar renders en algo que se muestra
+  redondeado a minutos).
+- Verificado con `npm run test` (126/126), `tsc --noEmit`, `npm run build`, y
+  una pasada visual en Chrome: iniciar → "corriendo" → pausar antes de un
+  minuto → vuelve a "Sin tiempo registrado" (redondeo esperado, no un bug).
+- Service Worker: sin bump todavía.
+
+### Fase 9.3 — Vista Agenda: decisión de no construirla (2026-08-06)
+
+- **Decisión**: no se construye una vista Agenda nueva. Ya existía un modo
+  `'agenda'` en `PendientesView.tsx` (retirado en la Fase 1, migrado a
+  `'calendario'` — ver el comentario en el propio código), y la Fase 3 de este
+  mismo roadmap construyó `TimelineHoy` dentro de `TodayView` con el mismo
+  propósito (timeline de hoy con horas, mezclando pendientes y eventos).
+  Construir una tercera versión sería duplicar una funcionalidad que ya existe
+  dos veces en el historial del proyecto — exactamente lo que `Cambios.md`
+  pide evitar ("reutilizar componentes siempre que sea posible").
+- No hay cambio de código en este punto — es una decisión de alcance, no una
+  implementación.
+
+### Cierre del bloque Fase 9
+
+Con 9.1-9.3 completas (dos implementadas, una deliberadamente no construida
+por redundancia), el bloque de estadísticas y productividad queda cerrado.
+Verificación acumulada: 126/126 tests, `tsc --noEmit` y `npm run build`
+limpios en cada hito.
 
 ### Fase 10 — UX/UI y accesibilidad (antes Fase 4, planificado)
 

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { Adjunto, Pendiente, Subtarea } from '@/types'
 import { PROYECTO_COLORES } from '@/types'
 import { useApp } from '@/store'
@@ -10,7 +10,39 @@ import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
 import AdjuntosUI, { Miniatura } from '@/components/AdjuntosUI'
-import { StickyNote, Calendar, CalendarPlus, Send, User, ImagePlus, X, Plus, CornerDownRight } from 'lucide-react'
+import { StickyNote, Calendar, CalendarPlus, Send, User, ImagePlus, X, Plus, CornerDownRight, Play, Pause, Timer } from 'lucide-react'
+
+function formatearMin(min: number): string {
+  const h = Math.floor(min / 60), m = min % 60
+  return h > 0 ? `${h}h ${m}m` : `${m}m`
+}
+
+/** Timer opcional (Fase 9.2): play/pause + tiempo acumulado. Solo se re-renderiza cada minuto
+    mientras corre (no cada segundo) — no tiene sentido gastar renders en algo que se muestra en
+    minutos redondeados. */
+function TimerPendiente({ p }: { p: Pendiente }) {
+  const { iniciarTimer, pausarTimer } = useApp()
+  const [, forzarRender] = useState(0)
+  const corriendo = !!p.tiempoInicio
+  useEffect(() => {
+    if (!corriendo) return
+    const id = setInterval(() => forzarRender(v => v + 1), 60000)
+    return () => clearInterval(id)
+  }, [corriendo])
+  const enCurso = corriendo ? Math.round((Date.now() - new Date(p.tiempoInicio!).getTime()) / 60000) : 0
+  const total = (p.tiempoTotalMin || 0) + enCurso
+  return (
+    <div className="flex items-center gap-2 rounded-lg border bg-muted/40 px-2.5 py-1.5 text-xs">
+      <Timer size={13} className="text-muted-foreground" />
+      <span className="flex-1">{total > 0 ? formatearMin(total) : 'Sin tiempo registrado'}{corriendo && <span className="ml-1 text-primary">● corriendo</span>}</span>
+      <Button size="sm" variant={corriendo ? 'secondary' : 'default'} className="h-6 px-2 text-[11px]"
+        onClick={() => corriendo ? pausarTimer(p.id) : iniciarTimer(p.id)}>
+        {corriendo ? <Pause size={11} className="mr-1" /> : <Play size={11} className="mr-1" />}
+        {corriendo ? 'Pausar' : 'Iniciar'}
+      </Button>
+    </div>
+  )
+}
 
 /**
  * Cuerpo compartido entre el panel deDetalle de la ListView y el diálogo `PendientePeek`.
@@ -140,6 +172,8 @@ export default function PendienteCuerpo({
       </div>
 
       {p.descripcion && <div className="whitespace-pre-wrap rounded-lg bg-muted p-3 text-sm">{p.descripcion}</div>}
+
+      <TimerPendiente p={p} />
 
       {gcal && (
         <a href={gcal} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/5 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/10">
