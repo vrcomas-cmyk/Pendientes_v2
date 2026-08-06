@@ -10,7 +10,7 @@ export function unionBy<T>(arr: T[], key: (t: T) => string): T[] {
   return out
 }
 
-const CAMPOS_ESCALARES: (keyof Pendiente)[] = ['titulo', 'descripcion', 'estado', 'prioridad', 'responsable', 'solicitante', 'fechaLimite', 'hora', 'proyecto', 'repetir', 'duracionMin', 'ponderacion', 'modalidad']
+const CAMPOS_ESCALARES: (keyof Pendiente)[] = ['titulo', 'descripcion', 'estado', 'prioridad', 'responsable', 'solicitante', 'fechaLimite', 'hora', 'proyecto', 'repetir', 'duracionMin', 'ponderacion', 'modalidad', 'archivado', 'borrado']
 // `googleEventos` (mapa cuentaId -> eventId) no es un campo escalar comparable: no se incluye
 // aquí ni se une a mano — al no ser información que el usuario edite a propósito, basta con que
 // "gane" el lado más reciente, que es justo lo que hace `merged = {...newer}` más abajo.

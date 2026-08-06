@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
 import type { Nota, Pendiente, Estado, FiltroFecha, Proyecto, EventoCalendario, ColumnaKanban } from '@/types'
 import { PROYECTO_COLORES_KEYS, COLUMNAS_DEFECTO } from '@/types'
@@ -14,6 +14,7 @@ interface AppCtx {
   crearPendiente: (datos: Partial<Pendiente>) => Pendiente
   actualizarPendiente: (id: string, datos: Partial<Pendiente>) => void
   eliminarPendiente: (id: string) => void
+  restaurarPendiente: (id: string) => void
   duplicarPendiente: (id: string) => void
   archivarPendiente: (id: string) => void
   desarchivarPendiente: (id: string) => void
@@ -25,6 +26,7 @@ interface AppCtx {
   crearNota: () => Nota
   actualizarNota: (id: string, datos: Partial<Nota>) => void
   eliminarNota: (id: string) => void
+  restaurarNota: (id: string) => void
   duplicarNota: (id: string) => void
   proyectos: Proyecto[]
   crearProyecto: (nombre: string, color?: string, cuentaGoogleId?: string) => Proyecto
@@ -34,9 +36,11 @@ interface AppCtx {
   crearEvento: (datos: Partial<EventoCalendario>) => EventoCalendario
   actualizarEvento: (id: string, datos: Partial<EventoCalendario>) => void
   eliminarEvento: (id: string) => void
+  restaurarEvento: (id: string) => void
   columnas: ColumnaKanban[]
   setColumnas: (cols: ColumnaKanban[]) => void
   reemplazarTodo: (p: Pendiente[], n: Nota[], u?: string, pr?: Proyecto[], ev?: EventoCalendario[]) => void
+  vaciarPapelera: () => void
   personas: string[]
   modal: ModalState
   abrirModal: (editId?: string | null, defaults?: Partial<Pendiente>) => void
@@ -116,8 +120,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [proyectoAbiertoId, setProyectoAbiertoId] = useState<string | null>(null)
   const [peekId, setPeekId] = useState<string | null>(null)
   const [filtroFecha, setFiltroFecha] = useState<FiltroFecha>('todos')
-  const ultimoEliminado = useRef<Pendiente | null>(null)
-  const ultimaNotaEliminada = useRef<{ nota: Nota; desvinculados: string[] } | null>(null)
 
   useEffect(() => { storage.set('pn_pendientes', JSON.stringify(pendientes)) }, [pendientes])
   useEffect(() => { storage.set('pn_notas', JSON.stringify(notas)) }, [notas])
@@ -160,14 +162,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }))
   }
 
+  const restaurarPendiente = (id: string) => {
+    setPendientes(prev => prev.map(p => p.id !== id ? p : { ...p, borrado: false, modificado: new Date().toISOString() }))
+  }
   const eliminarPendiente = (id: string) => {
-    const p = pendientes.find(x => x.id === id) || null
-    ultimoEliminado.current = p
-    setPendientes(prev => prev.filter(x => x.id !== id))
-    toast('Pendiente eliminado', {
+    setPendientes(prev => prev.map(p => p.id !== id ? p : { ...p, borrado: true, modificado: new Date().toISOString() }))
+    toast('Pendiente enviado a la papelera', {
       action: {
         label: 'Deshacer',
-        onClick: () => { const u = ultimoEliminado.current; if (u) setPendientes(prev => [u, ...prev]) },
+        onClick: () => restaurarPendiente(id),
       },
     })
   }
@@ -284,23 +287,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setNotas(prev => [copia, ...prev])
     toast.success('Nota duplicada')
   }
+  const restaurarNota = (id: string) => {
+    setNotas(prev => prev.map(n => n.id !== id ? n : { ...n, borrado: false, modificado: new Date().toISOString() }))
+  }
   const eliminarNota = (id: string) => {
-    const n = notas.find(x => x.id === id) || null
-    const desvinculados = pendientes.filter(p => p.origenNota?.notaId === id).map(p => p.id)
-    ultimaNotaEliminada.current = n ? { nota: n, desvinculados } : null
-    setNotas(prev => prev.filter(n => n.id !== id))
+    setNotas(prev => prev.map(n => n.id !== id ? n : { ...n, borrado: true, modificado: new Date().toISOString() }))
     // Desvincular pendientes (no se borran)
     setPendientes(prev => prev.map(p => p.origenNota?.notaId === id ? { ...p, origenNota: null, modificado: new Date().toISOString() } : p))
     if (notaActualId === id) setNotaActualId(null)
-    toast('Nota eliminada (sus pendientes se conservan)', {
+    toast('Nota enviada a la papelera (sus pendientes se conservan)', {
       action: {
         label: 'Deshacer',
-        onClick: () => {
-          const u = ultimaNotaEliminada.current
-          if (!u) return
-          setNotas(prev => [u.nota, ...prev])
-          setPendientes(prev => prev.map(p => u.desvinculados.includes(p.id) ? { ...p, origenNota: { notaId: u.nota.id }, modificado: new Date().toISOString() } : p))
-        },
+        onClick: () => restaurarNota(id),
       },
     })
   }
@@ -327,6 +325,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
     toast('Proyecto eliminado (sus pendientes se conservan)')
   }
 
+  const eliminarEvento = (id: string) => {
+    setEventos(prev => prev.map(e => e.id !== id ? e : { ...e, borrado: true, modificado: new Date().toISOString() }))
+  }
+  const restaurarEvento = (id: string) => {
+    setEventos(prev => prev.map(e => e.id !== id ? e : { ...e, borrado: false, modificado: new Date().toISOString() }))
+  }
+
+  /** Elimina definitivamente (del store local) todos los ítems con `borrado=true`.
+      Llamado desde la vista Papelera con "Vaciar papelera". Los ítems borrados quedan
+      fuera del localStorage; el próximo flush los borrará también de la nube. */
+  const vaciarPapelera = () => {
+    setPendientes(prev => prev.filter(p => !p.borrado))
+    setNotas(prev => prev.filter(n => !n.borrado))
+    setEventos(prev => prev.filter(e => !e.borrado))
+  }
+
   const crearEvento = (datos: Partial<EventoCalendario>): EventoCalendario => {
     const base = {
       id: uid(), titulo: '', fecha: '', hora: '', duracionMin: 15,
@@ -340,9 +354,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
   const actualizarEvento = (id: string, datos: Partial<EventoCalendario>) => {
     setEventos(prev => prev.map(e => e.id !== id ? e : { ...e, ...datos, modificado: new Date().toISOString() }))
-  }
-  const eliminarEvento = (id: string) => {
-    setEventos(prev => prev.filter(e => e.id !== id))
   }
 
   const reemplazarTodo = (p: Pendiente[], n: Nota[], u?: string, pr?: Proyecto[], ev?: EventoCalendario[]) => {
@@ -369,9 +380,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const value: AppCtx = {
     pendientes, notas, usuario, setUsuario,
-    crearPendiente, actualizarPendiente, eliminarPendiente, duplicarPendiente, archivarPendiente, desarchivarPendiente, toggleCompletar, toggleSubtarea, agregarSubtarea, agregarComentario, moverEstado,
-    crearNota, actualizarNota, eliminarNota, duplicarNota, proyectos, crearProyecto, actualizarProyecto, eliminarProyecto,
-    eventos, crearEvento, actualizarEvento, eliminarEvento, columnas, setColumnas, reemplazarTodo,
+    crearPendiente, actualizarPendiente, eliminarPendiente, restaurarPendiente, duplicarPendiente, archivarPendiente, desarchivarPendiente, toggleCompletar, toggleSubtarea, agregarSubtarea, agregarComentario, moverEstado,
+    crearNota, actualizarNota, eliminarNota, restaurarNota, duplicarNota, proyectos, crearProyecto, actualizarProyecto, eliminarProyecto,
+    eventos, crearEvento, actualizarEvento, eliminarEvento, restaurarEvento, columnas, setColumnas, reemplazarTodo, vaciarPapelera,
     personas, modal, abrirModal, cerrarModal, peekId, abrirPeek, cerrarPeek, notaActualId, setNotaActualId,
     proyectoAbiertoId, setProyectoAbiertoId,
     filtroFecha, setFiltroFecha,

@@ -19,19 +19,20 @@ import { aplicarAcento, leerAcento } from '@/lib/tema'
 import PendientesView from '@/views/PendientesView'
 import NotesView from '@/views/NotesView'
 import ProyectosView from '@/views/ProyectosView'
+import PapeleraView from '@/views/PapeleraView'
 import { TodayView, DashboardView } from '@/views/OtherViews'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import {
   Star, ListTodo, BarChart3, StickyNote, Briefcase,
-  Plus, Moon, Sun, Download, Upload, FileSpreadsheet, AlertTriangle, User, MoreVertical, LogOut, LogIn, HelpCircle, CalendarClock, Users, Settings2,
+  Plus, Moon, Sun, Download, Upload, FileSpreadsheet, AlertTriangle, User, MoreVertical, LogOut, LogIn, HelpCircle, CalendarClock, Users, Settings2, Trash2,
 } from 'lucide-react'
 
 const LS_VISTA = 'pn_vista'
-const VISTAS_VALIDAS = ['hoy', 'pendientes', 'notas', 'proyectos', 'dashboard'] as const
+const VISTAS_VALIDAS = ['hoy', 'pendientes', 'notas', 'proyectos', 'dashboard', 'papelera'] as const
 
-type Vista = 'hoy' | 'pendientes' | 'notas' | 'proyectos' | 'dashboard'
+type Vista = 'hoy' | 'pendientes' | 'notas' | 'proyectos' | 'dashboard' | 'papelera'
 
 const VISTAS: { id: Vista; label: string; corto: string; icon: React.ReactNode }[] = [
   { id: 'hoy', label: 'Hoy', corto: 'Hoy', icon: <Star size={18} /> },
@@ -39,6 +40,7 @@ const VISTAS: { id: Vista; label: string; corto: string; icon: React.ReactNode }
   { id: 'notas', label: 'Notas', corto: 'Notas', icon: <StickyNote size={18} /> },
   { id: 'proyectos', label: 'Proyectos', corto: 'Proyectos', icon: <Briefcase size={18} /> },
   { id: 'dashboard', label: 'Panel', corto: 'Panel', icon: <BarChart3 size={18} /> },
+  { id: 'papelera', label: 'Papelera', corto: 'Papelera', icon: <Trash2 size={18} /> },
 ]
 
 function Shell() {
@@ -219,6 +221,7 @@ function Shell() {
       {vistaMostrada === 'notas' && <NotesView />}
       {vistaMostrada === 'proyectos' && <ProyectosView />}
       {vistaMostrada === 'dashboard' && <DashboardView />}
+      {vistaMostrada === 'papelera' && <PapeleraView />}
     </>
   )
 

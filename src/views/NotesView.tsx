@@ -308,6 +308,7 @@ export default function NotesView() {
   }
 
   const notasFiltradas = notas
+    .filter(n => !n.borrado)
     .filter(n => (n.titulo + ' ' + n.contenidoHTML.replace(/<[^>]+>/g, '')).toLowerCase().includes(filtro.toLowerCase()))
     .filter(n => carpetaSel === 'todas' || (carpetaSel === SIN_CARPETA ? !n.carpeta : n.carpeta === carpetaSel))
     .sort((a, b) => new Date(b.modificado).getTime() - new Date(a.modificado).getTime())

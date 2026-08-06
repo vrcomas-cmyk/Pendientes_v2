@@ -235,9 +235,10 @@ export function googleCalendarUrl(titulo: string, fecha: string, hora?: string, 
   return `https://calendar.google.com/calendar/render?${params.toString()}`
 }
 
-/** Pendiente "activo": no archivado. Usado para excluir archivados de las vistas normales. */
+/** Pendiente "activo": no archivado ni borrado. Usado para excluir de las vistas normales
+    los archivados (estilo Gmail) y los borrados suaves que viven en la Papelera. */
 export function activo(p: Pendiente): boolean {
-  return !p.archivado
+  return !p.archivado && !p.borrado
 }
 
 /** Fecha flexible desde texto pegado de Excel: `dd/mm/aaaa`, `dd-mm-aaaa`, `aaaa-mm-dd`,

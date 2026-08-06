@@ -74,26 +74,37 @@ describe("progresoSub", () => {
 });
 
 describe("fechaPorPrioridad", () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 7, 5, 12, 0, 0))
+  })
+  afterEach(() => vi.useRealTimers())
+
   it("Alta → +1 día, Media → +3 días, Baja → +7 días", () => {
-    const hoy = hoyISO();
-    expect(fechaPorPrioridad("Alta")).toBe(isoMasDias(1));
-    expect(fechaPorPrioridad("Media")).toBe(isoMasDias(3));
-    expect(fechaPorPrioridad("Baja")).toBe(isoMasDias(7));
-    // Sanity: cada una cae en el futuro de `hoy`.
-    expect(fechaPorPrioridad("Alta") > hoy).toBe(true);
+    expect(fechaPorPrioridad("Alta")).toBe("2026-08-06");
+    expect(fechaPorPrioridad("Media")).toBe("2026-08-08");
+    expect(fechaPorPrioridad("Baja")).toBe("2026-08-12");
   });
 });
 
 describe("isoMasDias / isoProximoFinDeSemana", () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 7, 5, 12, 0, 0)) // miercoles 5 ago 2026
+  })
+  afterEach(() => vi.useRealTimers())
+
   it("isoMasDias(0) == hoyISO", () => {
-    expect(isoMasDias(0)).toBe(hoyISO());
-  });
+    expect(isoMasDias(0)).toBe("2026-08-05")
+  })
   it("isoProximoFinDeSemana devuelve un sábado (getDay() === 6)", () => {
-    const f = isoProximoFinDeSemana();
-    const d = new Date(f + "T00:00");
-    expect(d.getDay()).toBe(6);
-  });
-});
+    const f = isoProximoFinDeSemana()
+    const d = new Date(f + "T00:00")
+    expect(d.getDay()).toBe(6)
+    // Miercoles 5 → proximo sábado 8
+    expect(f).toBe("2026-08-08")
+  })
+})
 
 describe("parsearRepeticion", () => {
   it("parsea '*cada 3d'", () => {
@@ -171,6 +182,12 @@ describe("siguienteFecha", () => {
 });
 
 describe("parsearLinea", () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 7, 5, 12, 0, 0))
+  })
+  afterEach(() => vi.useRealTimers())
+
   it("sólo título", () => {
     const r = parsearLinea("- Hacer la comida");
     expect(r).toEqual({
@@ -190,11 +207,10 @@ describe("parsearLinea", () => {
   it("responsable @ y prioridad !", () => {
     const r = parsearLinea("- @Liz: preparar reporte !alta");
     expect(r?.responsable).toBe("Liz");
-    // El título quedó sin `: ` porque el parser respeta el primer `:`.
   });
   it("fecha relativa `>mañana`", () => {
     const r = parsearLinea("- Llamar cliente >mañana");
-    expect(r?.fechaLimite).toBe(isoMasDias(1));
+    expect(r?.fechaLimite).toBe("2026-08-06");
   });
   it("fecha ISO absoluta `>2026-12-31`", () => {
     const r = parsearLinea("- Cierre >2026-12-31");
@@ -204,11 +220,11 @@ describe("parsearLinea", () => {
     const r = parsearLinea("- Reporte semanal *cada 7d");
     expect(r?.repetir).toBe("7d");
   });
-  it("combinación completa: `@a !alta >mañana *cada! 1d: detalle`", () => {
+  it("combinación completa: `@a !alta >mañana *cada! 1d`", () => {
     const r = parsearLinea("- @Ana: enviar mail !alta >mañana *cada! 1d");
     expect(r?.responsable).toBe("Ana");
     expect(r?.prioridad).toBe("Alta");
-    expect(r?.fechaLimite).toBe(isoMasDias(1));
+    expect(r?.fechaLimite).toBe("2026-08-06");
     expect(r?.repetir).toBe("!1d");
   });
   it("respeta `-`, `*`, `+`, `•` como viñeta inicial", () => {
