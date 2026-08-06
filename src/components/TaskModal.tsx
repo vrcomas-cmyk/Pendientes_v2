@@ -16,10 +16,10 @@ import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
-import { ChevronDown, ChevronRight, Plus, Trash2, X, StickyNote } from 'lucide-react'
+import { ChevronDown, ChevronRight, Plus, Trash2, X, StickyNote, BookmarkPlus } from 'lucide-react'
 
 export default function TaskModal() {
-  const { modal, cerrarModal, pendientes, crearPendiente, actualizarPendiente, eliminarPendiente, usuario, personas, proyectos, crearProyecto, columnas } = useApp()
+  const { modal, cerrarModal, pendientes, crearPendiente, actualizarPendiente, eliminarPendiente, usuario, personas, proyectos, crearProyecto, columnas, crearPlantilla } = useApp()
   const idCompletado = idColumnaCompletado(columnas)
   const editando = modal.editId ? pendientes.find(p => p.id === modal.editId) : null
   const [draftId, setDraftId] = useState<string>(() => uid())
@@ -40,6 +40,7 @@ export default function TaskModal() {
   const [etiquetas, setEtiquetas] = useState('')
   const [ponderacion, setPonderacion] = useState('')
   const [modalidad, setModalidad] = useState<Modalidad | ''>('')
+  const [bloqueadoPor, setBloqueadoPor] = useState<string[]>([])
   const [subtareas, setSubtareas] = useState<Subtarea[]>([])
   const [comentarios, setComentarios] = useState<Comentario[]>([])
   const [adjuntos, setAdjuntos] = useState<Adjunto[]>([])
@@ -69,6 +70,7 @@ export default function TaskModal() {
     const ponderacionInicial = editando?.ponderacion ?? d.ponderacion
     setPonderacion(ponderacionInicial != null ? String(ponderacionInicial) : '')
     setModalidad(editando?.modalidad ?? d.modalidad ?? '')
+    setBloqueadoPor(editando?.bloqueadoPor ?? [])
     setSubtareas(JSON.parse(JSON.stringify(editando?.subtareas ?? d.subtareas ?? [])))
     setComentarios(JSON.parse(JSON.stringify(editando?.comentarios ?? d.comentarios ?? [])))
     setAdjuntos(JSON.parse(JSON.stringify(editando?.adjuntos ?? d.adjuntos ?? [])))
@@ -114,6 +116,7 @@ export default function TaskModal() {
       subtareas, comentarios, adjuntos, repetir: repetir || undefined,
       ponderacion: ponderacion.trim() ? Math.max(0, Math.min(100, Number(ponderacion))) : undefined,
       modalidad: modalidad || undefined,
+      bloqueadoPor: bloqueadoPor.length ? bloqueadoPor : undefined,
     }
     const id = editando?.id || draftId
     if (editando) actualizarPendiente(editando.id, datos)
@@ -138,6 +141,18 @@ export default function TaskModal() {
   }
 
   const faltanSub = subtareas.filter(s => !s.completada).length
+
+  const guardarComoPlantilla = () => {
+    const t = titulo.trim()
+    if (!t) { toast.error('Escribe un título antes de guardar la plantilla'); return }
+    crearPlantilla(t, {
+      titulo: t, descripcion: descripcion.trim() || undefined, prioridad,
+      etiquetas: etiquetas.split(',').map(s => s.trim()).filter(Boolean),
+      subtareas: subtareas.map(s => ({ texto: s.texto })),
+      duracionMin: undefined, proyectoId: proyectoId || undefined,
+    })
+    toast.success('Plantilla guardada: ' + t)
+  }
 
   return (
     <Dialog open={modal.open} onOpenChange={o => { if (!o) cerrarModal() }}>
@@ -333,6 +348,21 @@ export default function TaskModal() {
                   </Select>
                 </div>
               </div>
+              <div className="space-y-1.5">
+                <Label className="text-[11px] uppercase text-muted-foreground">Bloqueado por (Fase 8.5)</Label>
+                <div className="max-h-32 space-y-1 overflow-y-auto rounded-lg border p-1.5 scroll-thin">
+                  {pendientes.filter(p => p.id !== (editando?.id || draftId) && !p.borrado).map(p => (
+                    <label key={p.id} className="flex items-center gap-2 rounded px-1 py-1 text-xs hover:bg-accent">
+                      <Checkbox checked={bloqueadoPor.includes(p.id)}
+                        onCheckedChange={v => setBloqueadoPor(arr => v ? [...arr, p.id] : arr.filter(id => id !== p.id))} />
+                      <span className={'truncate ' + (p.estado === idCompletado ? 'text-muted-foreground line-through' : '')}>{p.titulo}</span>
+                    </label>
+                  ))}
+                  {!pendientes.length && <p className="p-1 text-[11px] text-muted-foreground">No hay otros pendientes todavía.</p>}
+                </div>
+                <p className="text-[10px] text-muted-foreground">Este pendiente se marcará bloqueado mientras los seleccionados sigan sin completarse.</p>
+              </div>
+              <Button variant="secondary" size="sm" onClick={guardarComoPlantilla}><BookmarkPlus size={13} className="mr-1" /> Guardar como plantilla</Button>
               {editando?.origenNota && <p className="flex items-center gap-1 text-xs text-muted-foreground"><StickyNote size={13} /> Vinculado a una nota.</p>}
             </div>
           )}

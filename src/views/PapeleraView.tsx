@@ -1,7 +1,8 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useApp } from '@/store'
 import { PROYECTO_COLORES } from '@/types'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { RotateCcw, Inbox, AlertTriangle } from 'lucide-react'
 
 function fmtFecha(iso: string): string {
@@ -10,29 +11,37 @@ function fmtFecha(iso: string): string {
 
 export default function PapeleraView() {
   const { pendientes, notas, eventos, proyectos, restaurarPendiente, restaurarNota, restaurarEvento, vaciarPapelera, abrirModal } = useApp()
+  const [confirmarDlg, setConfirmarDlg] = useState(false)
 
   const borradosPend = useMemo(() => pendientes.filter(p => p.borrado).sort((a, b) => b.modificado.localeCompare(a.modificado)), [pendientes])
   const borradasNotas = useMemo(() => notas.filter(n => n.borrado).sort((a, b) => b.modificado.localeCompare(a.modificado)), [notas])
   const borradosEventos = useMemo(() => eventos.filter(e => e.borrado).sort((a, b) => b.modificado.localeCompare(a.modificado)), [eventos])
   const vacia = !borradosPend.length && !borradasNotas.length && !borradosEventos.length
+  const total = borradosPend.length + borradasNotas.length + borradosEventos.length
 
   return (
     <div className="mx-auto max-w-4xl space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="flex items-center gap-2 text-sm font-bold"><Inbox size={18} /> Papelera</h2>
         {!vacia && (
-          <Button
-            size="sm"
-            variant="ghost"
-            className="text-destructive"
-            onClick={() => {
-              if (confirm('¿Vaciar la papelera definitivamente? Esta acción no se puede deshacer.')) vaciarPapelera()
-            }}
-          >
+          <Button size="sm" variant="ghost" className="text-destructive" onClick={() => setConfirmarDlg(true)}>
             <AlertTriangle size={14} className="mr-1" /> Vaciar papelera
           </Button>
         )}
       </div>
+
+      <Dialog open={confirmarDlg} onOpenChange={setConfirmarDlg}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle className="text-base">Vaciar papelera</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Se eliminarán definitivamente {total} elemento{total === 1 ? '' : 's'}. Esta acción no se puede deshacer.
+          </p>
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setConfirmarDlg(false)}>Cancelar</Button>
+            <Button variant="destructive" onClick={() => { vaciarPapelera(); setConfirmarDlg(false) }}>Vaciar definitivamente</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {vacia && (
         <div className="flex flex-col items-center gap-2 p-8 text-center text-xs text-muted-foreground">

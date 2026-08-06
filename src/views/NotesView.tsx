@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '@/store'
+import { PROYECTO_COLORES } from '@/types'
 import { parsearLinea, fechaPorPrioridad } from '@/lib/app-utils'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuLabel } from '@/components/ui/dropdown-menu'
 import { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem, ContextMenuSeparator } from '@/components/ui/context-menu'
-import { Plus, Image as ImageIcon, ListChecks, Trash2, Search, StickyNote, ChevronLeft, Lock, Pencil, Check, Folder, FolderPlus, Bold, Italic, Heading2, MoreVertical } from 'lucide-react'
+import { Plus, Image as ImageIcon, ListChecks, Trash2, Search, StickyNote, ChevronLeft, Lock, Pencil, Check, Folder, FolderPlus, Bold, Italic, Heading2, MoreVertical, Send, X } from 'lucide-react'
 import { useIsMobile } from '@/hooks/use-is-mobile'
 import { subirAdjunto, urlAdjunto } from '@/lib/adjuntos'
 import PreviaParseo from '@/components/PreviaParseo'
@@ -30,9 +31,11 @@ function cursorEn(el: Node) {
 
 export default function NotesView() {
   const app = useApp()
-  const { notas, pendientes, notaActualId, setNotaActualId, crearNota, actualizarNota, eliminarNota, duplicarNota, crearPendiente, actualizarPendiente, toggleCompletar, abrirPeek } = app
+  const { notas, pendientes, notaActualId, setNotaActualId, crearNota, actualizarNota, agregarComentarioNota, eliminarNota, duplicarNota, crearPendiente, actualizarPendiente, toggleCompletar, abrirPeek, colorDeEtiqueta } = app
   const isMobile = useIsMobile()
   const [filtro, setFiltro] = useState('')
+  const [etiquetaVal, setEtiquetaVal] = useState('')
+  const [comVal, setComVal] = useState('')
   const [carpetaSel, setCarpetaSel] = useState<string>('todas')
   const [estadoGuardado, setEstadoGuardado] = useState('')
   const [editando, setEditando] = useState(false)
@@ -288,6 +291,21 @@ export default function NotesView() {
     } else ed.insertAdjacentHTML('beforeend', html)
   }
 
+  /* ---- Etiquetas y comentarios (Fase 7) ---- */
+  const agregarEtiqueta = () => {
+    if (!nota) return
+    const e = etiquetaVal.trim().replace(/^#/, '')
+    if (!e || (nota.etiquetas || []).includes(e)) { setEtiquetaVal(''); return }
+    actualizarNota(nota.id, { etiquetas: [...(nota.etiquetas || []), e] })
+    setEtiquetaVal('')
+  }
+  const quitarEtiqueta = (e: string) => { if (nota) actualizarNota(nota.id, { etiquetas: (nota.etiquetas || []).filter(x => x !== e) }) }
+  const enviarComentario = () => {
+    if (!nota || !comVal.trim()) return
+    agregarComentarioNota(nota.id, comVal)
+    setComVal('')
+  }
+
   /* ---- Carpetas ---- */
   const asignarCarpeta = (c: string | undefined) => { if (nota) actualizarNota(nota.id, { carpeta: c }) }
   const abrirCarpetaDlg = () => { if (nota) { setCarpetaVal(''); setCarpetaDlg(true) } }
@@ -362,6 +380,14 @@ export default function NotesView() {
                     {n.carpeta && <span className="ml-auto inline-flex shrink-0 items-center gap-0.5 rounded bg-muted px-1.5 py-0.5 text-[9px] text-muted-foreground"><Folder size={9} />{n.carpeta}</span>}
                   </div>
                   {isMobile && resumen && <div className="mt-0.5 truncate text-xs text-muted-foreground">{resumen}</div>}
+                  {!!n.etiquetas?.length && (
+                    <div className="mt-0.5 flex flex-wrap gap-1">
+                      {n.etiquetas.map(e => {
+                        const color = colorDeEtiqueta(e)
+                        return <span key={e} className={'rounded-full px-1.5 text-[9px] ' + (color ? PROYECTO_COLORES[color].badge : 'bg-primary/10 text-primary')}>#{e}</span>
+                      })}
+                    </div>
+                  )}
                   <div className="mt-0.5 text-[10px] text-muted-foreground">
                     {new Date(n.modificado).toLocaleDateString()}
                     {rel.length > 0 && <span className={hechas === rel.length ? 'text-green-600' : 'text-primary'}> · ✔ {hechas}/{rel.length}</span>}
@@ -466,6 +492,42 @@ export default function NotesView() {
                 : <>💡 <b>- </b>inicia un pendiente · <b>:</b> contexto · <b>@</b>responsable · <b>!</b>alta/media/baja · <b>&gt;</b>fecha · <b>*</b>repetición — se guardan solos y se quedan escritos en la nota.</>}
             </div>
           )}
+
+          {/* Etiquetas y comentarios (Fase 7: mismo concepto de Entidad que ya tiene Pendiente) */}
+          <div className="max-h-56 shrink-0 space-y-3 overflow-y-auto border-t p-3 scroll-thin">
+            <div>
+              <div className="mb-1 text-[11px] font-bold text-muted-foreground">Etiquetas</div>
+              <div className="flex flex-wrap items-center gap-1">
+                {(nota.etiquetas || []).map(e => {
+                  const color = colorDeEtiqueta(e)
+                  return (
+                    <span key={e} className={'inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] ' + (color ? PROYECTO_COLORES[color].badge : 'bg-primary/10 text-primary')}>
+                      #{e}
+                      <button onClick={() => quitarEtiqueta(e)} aria-label={'Quitar etiqueta ' + e} className="hover:text-destructive"><X size={9} /></button>
+                    </span>
+                  )
+                })}
+                <input value={etiquetaVal} onChange={e => setEtiquetaVal(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); agregarEtiqueta() } }}
+                  placeholder="+ etiqueta" className="w-24 bg-transparent text-[10px] outline-none placeholder:text-muted-foreground" />
+              </div>
+            </div>
+            <div>
+              <div className="mb-1 text-[11px] font-bold text-muted-foreground">Comentarios</div>
+              <div className="space-y-1">
+                {(nota.comentarios || []).map(c => (
+                  <div key={c.id} className="rounded bg-muted p-1.5 text-xs">
+                    <b>{c.autor}:</b> {c.texto} <span className="text-muted-foreground">· {new Date(c.fecha).toLocaleString()}</span>
+                  </div>
+                ))}
+                {!(nota.comentarios || []).length && <p className="text-xs text-muted-foreground">Aún no hay comentarios.</p>}
+              </div>
+              <div className="mt-2 flex gap-2">
+                <Input value={comVal} onChange={e => setComVal(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') enviarComentario() }} placeholder="Comenta…" className="h-8 text-xs" />
+                <Button size="sm" onClick={enviarComentario}><Send size={13} /></Button>
+              </div>
+            </div>
+          </div>
         </>
       )}
     </div>

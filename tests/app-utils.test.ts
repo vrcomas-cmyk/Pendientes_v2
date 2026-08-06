@@ -10,6 +10,8 @@ import {
   parsearRepeticion,
   describirRepeticion,
   siguienteFecha,
+  extraerSufijos,
+  proximaInstanciaRepeticion,
   parsearLinea,
   esBullet,
   defaultsHorario,
@@ -178,6 +180,69 @@ describe("siguienteFecha", () => {
   it("base vacía usa hoyISO", () => {
     const r = siguienteFecha("1d", "");
     expect(r).toBe(isoMasDias(1));
+  });
+});
+
+describe("Fase 8.7 — RRULE avanzado", () => {
+  describe("extraerSufijos", () => {
+    it("regla sin sufijos: base intacta, sufijos vacíos", () => {
+      const r = extraerSufijos("7d");
+      expect(r.base).toBe("7d");
+      expect(r.sufijos).toEqual({});
+    });
+    it("extrae ;until: y conserva el prefijo `!` en base", () => {
+      const r = extraerSufijos("!7d;until:2026-12-31");
+      expect(r.base).toBe("!7d");
+      expect(r.sufijos.until).toBe("2026-12-31");
+    });
+    it("extrae ;count: como número", () => {
+      const r = extraerSufijos("1d;count:3");
+      expect(r.base).toBe("1d");
+      expect(r.sufijos.count).toBe(3);
+    });
+    it("extrae ambos sufijos combinados", () => {
+      const r = extraerSufijos("w:1,4;until:2026-09-01;count:5");
+      expect(r.base).toBe("w:1,4");
+      expect(r.sufijos).toEqual({ until: "2026-09-01", count: 5 });
+    });
+  });
+
+  describe("nth: (enésimo día de la semana del mes)", () => {
+    it("describirRepeticion: 2º martes de cada mes", () => {
+      expect(describirRepeticion("nth:2:2")).toBe("el segundo martes de cada mes");
+    });
+    it("siguienteFecha: 2026-08-04 (martes) → siguiente 2º martes cae en septiembre", () => {
+      // agosto 2026: martes son 4,11,18,25 → el "2º martes" (11) ya pasó respecto al 4... pero
+      // 11 > 4 así que debe ser agosto 11.
+      expect(siguienteFecha("nth:2:2", "2026-08-04")).toBe("2026-08-11");
+    });
+    it("siguienteFecha: si ya pasó el 2º martes del mes, salta al siguiente mes", () => {
+      expect(siguienteFecha("nth:2:2", "2026-08-15")).toBe("2026-09-08");
+    });
+  });
+
+  describe("proximaInstanciaRepeticion", () => {
+    it("sin sufijos: se comporta igual que siguienteFecha, repite la misma regla", () => {
+      const r = proximaInstanciaRepeticion("3d", "2026-08-04");
+      expect(r).toEqual({ fechaLimite: "2026-08-07", repetir: "3d" });
+    });
+    it(";count: decrece en cada instancia y se detiene en 0", () => {
+      const r1 = proximaInstanciaRepeticion("1d;count:2", "2026-08-04");
+      expect(r1).toEqual({ fechaLimite: "2026-08-05", repetir: "1d;count:1" });
+      const r2 = proximaInstanciaRepeticion(r1!.repetir, r1!.fechaLimite);
+      expect(r2).toEqual({ fechaLimite: "2026-08-06", repetir: "1d;count:0" });
+      const r3 = proximaInstanciaRepeticion(r2!.repetir, r2!.fechaLimite);
+      expect(r3).toBeNull();
+    });
+    it(";until: detiene la serie cuando la próxima fecha la supera", () => {
+      // Siguiente fecha natural sería 2026-08-11, que ya pasa el límite (2026-08-10) → null.
+      const r = proximaInstanciaRepeticion("7d;until:2026-08-10", "2026-08-04");
+      expect(r).toBeNull();
+    });
+    it(";until: permite la última instancia justo en el límite", () => {
+      const r = proximaInstanciaRepeticion("7d;until:2026-08-11", "2026-08-04");
+      expect(r).toEqual({ fechaLimite: "2026-08-11", repetir: "7d;until:2026-08-11" });
+    });
   });
 });
 

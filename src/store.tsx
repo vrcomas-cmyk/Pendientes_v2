@@ -1,8 +1,8 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
-import type { Nota, Pendiente, Estado, FiltroFecha, Proyecto, EventoCalendario, ColumnaKanban } from '@/types'
-import { PROYECTO_COLORES_KEYS, COLUMNAS_DEFECTO } from '@/types'
-import { hoyISO, normalizar, storage, uid, siguienteFecha, describirRepeticion, defaultsHorario } from '@/lib/app-utils'
+import type { Nota, Pendiente, Estado, FiltroFecha, Proyecto, EventoCalendario, ColumnaKanban, Espacio, Etiqueta, FiltroGuardado, Subtarea, PlantillaPendiente } from '@/types'
+import { PROYECTO_COLORES_KEYS, COLUMNAS_DEFECTO, ESPACIO_ICONOS } from '@/types'
+import { hoyISO, normalizar, storage, uid, describirRepeticion, defaultsHorario, fechaPorPrioridad, proximaInstanciaRepeticion } from '@/lib/app-utils'
 
 interface ModalState { open: boolean; editId: string | null; defaults: Partial<Pendiente> }
 
@@ -21,10 +21,12 @@ interface AppCtx {
   toggleCompletar: (id: string) => void
   toggleSubtarea: (pid: string, sid: string) => void
   agregarSubtarea: (pid: string, texto: string) => void
+  agregarSubSubtarea: (pid: string, padreId: string, texto: string) => void
   agregarComentario: (pid: string, texto: string, adjuntos?: import('@/types').Adjunto[]) => void
   moverEstado: (id: string, estado: Estado) => void
   crearNota: () => Nota
   actualizarNota: (id: string, datos: Partial<Nota>) => void
+  agregarComentarioNota: (id: string, texto: string) => void
   eliminarNota: (id: string) => void
   restaurarNota: (id: string) => void
   duplicarNota: (id: string) => void
@@ -32,6 +34,27 @@ interface AppCtx {
   crearProyecto: (nombre: string, color?: string, cuentaGoogleId?: string) => Proyecto
   actualizarProyecto: (id: string, datos: Partial<Proyecto>) => void
   eliminarProyecto: (id: string) => void
+  espacios: Espacio[]
+  crearEspacio: (nombre: string, icono?: string, color?: string) => Espacio
+  actualizarEspacio: (id: string, datos: Partial<Espacio>) => void
+  eliminarEspacio: (id: string) => void
+  espacioActualId: string | null
+  setEspacioActualId: (id: string | null) => void
+  etiquetas: Etiqueta[]
+  crearEtiqueta: (nombre: string, color?: string) => Etiqueta
+  actualizarEtiqueta: (id: string, datos: Partial<Etiqueta>) => void
+  eliminarEtiqueta: (id: string) => void
+  colorDeEtiqueta: (nombre: string) => string | undefined
+  filtrosGuardados: FiltroGuardado[]
+  crearFiltroGuardado: (nombre: string, criterios: FiltroGuardado['criterios'], atajo?: FiltroGuardado['atajo']) => FiltroGuardado
+  actualizarFiltroGuardado: (id: string, datos: Partial<FiltroGuardado>) => void
+  eliminarFiltroGuardado: (id: string) => void
+  filtroActivoId: string | null
+  setFiltroActivoId: (id: string | null) => void
+  plantillas: PlantillaPendiente[]
+  crearPlantilla: (nombre: string, datos: PlantillaPendiente['datos']) => PlantillaPendiente
+  eliminarPlantilla: (id: string) => void
+  crearPendienteDesdePlantilla: (id: string) => Pendiente | null
   eventos: EventoCalendario[]
   crearEvento: (datos: Partial<EventoCalendario>) => EventoCalendario
   actualizarEvento: (id: string, datos: Partial<EventoCalendario>) => void
@@ -114,18 +137,64 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } catch { /* noop */ }
     return COLUMNAS_DEFECTO
   })
+  const [espacios, setEspacios] = useState<Espacio[]>(() => {
+    try {
+      const raw = storage.get('pn_espacios')
+      if (raw) return JSON.parse(raw) as Espacio[]
+    } catch { /* noop */ }
+    return []
+  })
+  const [etiquetas, setEtiquetas] = useState<Etiqueta[]>(() => {
+    try {
+      const raw = storage.get('pn_etiquetas')
+      if (raw) return JSON.parse(raw) as Etiqueta[]
+    } catch { /* noop */ }
+    return []
+  })
+  const [filtrosGuardados, setFiltrosGuardados] = useState<FiltroGuardado[]>(() => {
+    try {
+      const raw = storage.get('pn_filtros_guardados')
+      if (raw) return JSON.parse(raw) as FiltroGuardado[]
+    } catch { /* noop */ }
+    return []
+  })
+  const [filtroActivoId, setFiltroActivoId] = useState<string | null>(null)
+  const [plantillas, setPlantillas] = useState<PlantillaPendiente[]>(() => {
+    try {
+      const raw = storage.get('pn_plantillas')
+      if (raw) return JSON.parse(raw) as PlantillaPendiente[]
+    } catch { /* noop */ }
+    return []
+  })
   const [usuario, setUsuarioState] = useState(() => storage.get('pn_usuario') || 'Yo')
   const [modal, setModal] = useState<ModalState>({ open: false, editId: null, defaults: {} })
   const [notaActualId, setNotaActualId] = useState<string | null>(null)
   const [proyectoAbiertoId, setProyectoAbiertoId] = useState<string | null>(null)
   const [peekId, setPeekId] = useState<string | null>(null)
   const [filtroFecha, setFiltroFecha] = useState<FiltroFecha>('todos')
+  const [espacioActualId, setEspacioActualId] = useState<string | null>(null)
 
   useEffect(() => { storage.set('pn_pendientes', JSON.stringify(pendientes)) }, [pendientes])
   useEffect(() => { storage.set('pn_notas', JSON.stringify(notas)) }, [notas])
   useEffect(() => { storage.set('pn_proyectos', JSON.stringify(proyectos)) }, [proyectos])
   useEffect(() => { storage.set('pn_eventos', JSON.stringify(eventos)) }, [eventos])
   useEffect(() => { storage.set('pn_columnas_local', JSON.stringify(columnas)) }, [columnas])
+  useEffect(() => { storage.set('pn_espacios', JSON.stringify(espacios)) }, [espacios])
+  useEffect(() => { storage.set('pn_etiquetas', JSON.stringify(etiquetas)) }, [etiquetas])
+  useEffect(() => { storage.set('pn_filtros_guardados', JSON.stringify(filtrosGuardados)) }, [filtrosGuardados])
+  useEffect(() => { storage.set('pn_plantillas', JSON.stringify(plantillas)) }, [plantillas])
+
+  // Purga automática de la papelera (Fase 8): la UI de PapeleraView ya prometía "se purgan a los
+  // 30 días" pero nada lo cumplía — esto lo hace real. Corre una sola vez al montar; si el usuario
+  // deja la app abierta más de 30 días seguidos no vuelve a correr, pero el próximo reinicio sí.
+  useEffect(() => {
+    const limite = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+    const purgar = <T extends { borrado?: boolean; modificado: string }>(arr: T[]) => arr.filter(x => !(x.borrado && x.modificado < limite))
+    setPendientes(prev => { const p = purgar(prev); return p.length === prev.length ? prev : p })
+    setNotas(prev => { const n = purgar(prev); return n.length === prev.length ? prev : n })
+    setEventos(prev => { const e = purgar(prev); return e.length === prev.length ? prev : e })
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- solo al montar, a propósito
+  }, [])
 
   const setUsuario = (u: string) => { setUsuarioState(u); storage.set('pn_usuario', u) }
 
@@ -227,17 +296,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
         modificado: new Date().toISOString(),
       }
     }))
-    // Recurrencia: al completar (no al reabrir) un pendiente con regla, se crea la siguiente instancia.
+    // Recurrencia: al completar (no al reabrir) un pendiente con regla, se crea la siguiente
+    // instancia — salvo que `;until`/`;count` (Fase 8.7) indiquen que la serie ya terminó.
     if (p && p.estado !== idCompletado && p.repetir) {
       const base = p.repetir.startsWith('!') ? hoyISO() : (p.fechaLimite || hoyISO())
-      const nuevaFecha = siguienteFecha(p.repetir, base)
-      crearPendiente({
-        titulo: p.titulo, descripcion: p.descripcion, responsable: p.responsable, solicitante: p.solicitante,
-        prioridad: p.prioridad, proyecto: p.proyecto, etiquetas: p.etiquetas, hora: p.hora, repetir: p.repetir,
-        fechaLimite: nuevaFecha,
-        subtareas: (p.subtareas || []).map(s => ({ ...s, id: uid(), completada: false })),
-      })
-      toast.success(`Se repite: próxima el ${nuevaFecha} (${describirRepeticion(p.repetir)})`)
+      const proxima = proximaInstanciaRepeticion(p.repetir, base)
+      if (proxima) {
+        crearPendiente({
+          titulo: p.titulo, descripcion: p.descripcion, responsable: p.responsable, solicitante: p.solicitante,
+          prioridad: p.prioridad, proyecto: p.proyecto, etiquetas: p.etiquetas, hora: p.hora, repetir: proxima.repetir,
+          fechaLimite: proxima.fechaLimite,
+          subtareas: (p.subtareas || []).map(s => ({ ...s, id: uid(), completada: false })),
+        })
+        toast.success(`Se repite: próxima el ${proxima.fechaLimite} (${describirRepeticion(proxima.repetir)})`)
+      } else {
+        toast.success('Completado — esa era la última repetición de la serie')
+      }
     }
   }
 
@@ -251,10 +325,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }))
   }
 
+  // Fase 8.4 — subtareas anidadas: buscan/actualizan por id recursivamente en `children`, sin
+  // asumir profundidad fija (la UI hoy solo ofrece agregar un nivel, pero el dato soporta más).
+  const alternarSubtareaRec = (arr: Subtarea[], sid: string): Subtarea[] =>
+    arr.map(s => s.id === sid ? { ...s, completada: !s.completada } : s.children ? { ...s, children: alternarSubtareaRec(s.children, sid) } : s)
+  const agregarHijoRec = (arr: Subtarea[], padreId: string, nueva: Subtarea): Subtarea[] =>
+    arr.map(s => s.id === padreId ? { ...s, children: [...(s.children || []), nueva] } : s.children ? { ...s, children: agregarHijoRec(s.children, padreId, nueva) } : s)
+
   const toggleSubtarea = (pid: string, sid: string) => {
     setPendientes(prev => prev.map(p => p.id !== pid ? p : {
       ...p,
-      subtareas: p.subtareas.map(s => s.id !== sid ? s : { ...s, completada: !s.completada }),
+      subtareas: alternarSubtareaRec(p.subtareas, sid),
       modificado: new Date().toISOString(),
     }))
   }
@@ -269,6 +350,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }))
   }
 
+  const agregarSubSubtarea = (pid: string, padreId: string, texto: string) => {
+    const t = texto.trim()
+    if (!t) return
+    setPendientes(prev => prev.map(p => p.id !== pid ? p : {
+      ...p,
+      subtareas: agregarHijoRec(p.subtareas, padreId, { id: uid(), texto: t, completada: false, responsable: '', fechaLimite: '' }),
+      modificado: new Date().toISOString(),
+    }))
+  }
+
   const moverEstado = (id: string, estado: Estado) => actualizarPendiente(id, { estado })
 
   const crearNota = (): Nota => {
@@ -279,6 +370,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
   const actualizarNota = (id: string, datos: Partial<Nota>) => {
     setNotas(prev => prev.map(n => n.id !== id ? n : { ...n, ...datos, modificado: new Date().toISOString() }))
+  }
+  const agregarComentarioNota = (id: string, texto: string) => {
+    const t = texto.trim()
+    if (!t) return
+    setNotas(prev => prev.map(n => n.id !== id ? n : {
+      ...n,
+      comentarios: [...(n.comentarios || []), { id: uid(), texto: t, autor: usuario, fecha: new Date().toISOString() }],
+      modificado: new Date().toISOString(),
+    }))
   }
   const duplicarNota = (id: string) => {
     const n = notas.find(x => x.id === id)
@@ -323,6 +423,84 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // Desvincular pendientes (no se borran)
     setPendientes(prev => prev.map(p => p.proyectoId === id ? { ...p, proyectoId: undefined, modificado: new Date().toISOString() } : p))
     toast('Proyecto eliminado (sus pendientes se conservan)')
+  }
+
+  const crearEspacio = (nombre: string, icono?: string, color?: string): Espacio => {
+    const e: Espacio = {
+      id: uid(), nombre: nombre.trim(),
+      icono: icono || ESPACIO_ICONOS[espacios.length % ESPACIO_ICONOS.length],
+      color: color || PROYECTO_COLORES_KEYS[espacios.length % PROYECTO_COLORES_KEYS.length],
+      creado: new Date().toISOString(), modificado: new Date().toISOString(),
+    }
+    setEspacios(prev => [...prev, e])
+    return e
+  }
+  const actualizarEspacio = (id: string, datos: Partial<Espacio>) => {
+    setEspacios(prev => prev.map(e => e.id !== id ? e : { ...e, ...datos, modificado: new Date().toISOString() }))
+  }
+  const eliminarEspacio = (id: string) => {
+    setEspacios(prev => prev.filter(e => e.id !== id))
+    // Desvincular proyectos (no se borran): vuelven al Espacio "General" implícito
+    setProyectos(prev => prev.map(p => p.espacioId === id ? { ...p, espacioId: undefined, modificado: new Date().toISOString() } : p))
+    if (espacioActualId === id) setEspacioActualId(null)
+    toast('Espacio eliminado (sus proyectos vuelven a General)')
+  }
+
+  const crearEtiqueta = (nombre: string, color?: string): Etiqueta => {
+    const e: Etiqueta = {
+      id: uid(), nombre: nombre.trim(),
+      color: color || PROYECTO_COLORES_KEYS[etiquetas.length % PROYECTO_COLORES_KEYS.length],
+      creado: new Date().toISOString(), modificado: new Date().toISOString(),
+    }
+    setEtiquetas(prev => [...prev, e])
+    return e
+  }
+  const actualizarEtiqueta = (id: string, datos: Partial<Etiqueta>) => {
+    setEtiquetas(prev => prev.map(e => e.id !== id ? e : { ...e, ...datos, modificado: new Date().toISOString() }))
+  }
+  const eliminarEtiqueta = (id: string) => {
+    // Solo se borra el registro de color: los nombres sueltos en `Pendiente.etiquetas`/
+    // `Nota.etiquetas` no se tocan (no hay `etiquetaIds` que desvincular, ver types.ts).
+    setEtiquetas(prev => prev.filter(e => e.id !== id))
+  }
+  const colorDeEtiqueta = (nombre: string): string | undefined => {
+    const n = nombre.trim().toLowerCase()
+    return etiquetas.find(e => e.nombre.toLowerCase() === n)?.color
+  }
+
+  const crearFiltroGuardado = (nombre: string, criterios: FiltroGuardado['criterios'], atajo?: FiltroGuardado['atajo']): FiltroGuardado => {
+    const f: FiltroGuardado = { id: uid(), nombre: nombre.trim(), criterios, atajo, creado: new Date().toISOString(), modificado: new Date().toISOString() }
+    // Un atajo solo puede pertenecer a un filtro a la vez: se lo quitamos a quien lo tuviera.
+    setFiltrosGuardados(prev => [...prev.map(x => x.atajo === atajo && atajo ? { ...x, atajo: undefined } : x), f])
+    return f
+  }
+  const actualizarFiltroGuardado = (id: string, datos: Partial<FiltroGuardado>) => {
+    setFiltrosGuardados(prev => prev.map(f => {
+      if (f.id === id) return { ...f, ...datos, modificado: new Date().toISOString() }
+      if (datos.atajo && f.atajo === datos.atajo) return { ...f, atajo: undefined } // reasignar el atajo lo libera del anterior dueño
+      return f
+    }))
+  }
+  const eliminarFiltroGuardado = (id: string) => {
+    setFiltrosGuardados(prev => prev.filter(f => f.id !== id))
+    if (filtroActivoId === id) setFiltroActivoId(null)
+  }
+
+  const crearPlantilla = (nombre: string, datos: PlantillaPendiente['datos']): PlantillaPendiente => {
+    const pl: PlantillaPendiente = { id: uid(), nombre: nombre.trim(), datos, creado: new Date().toISOString(), modificado: new Date().toISOString() }
+    setPlantillas(prev => [...prev, pl])
+    return pl
+  }
+  const eliminarPlantilla = (id: string) => setPlantillas(prev => prev.filter(p => p.id !== id))
+  const crearPendienteDesdePlantilla = (id: string): Pendiente | null => {
+    const pl = plantillas.find(p => p.id === id)
+    if (!pl) return null
+    return crearPendiente({
+      titulo: pl.datos.titulo, descripcion: pl.datos.descripcion, prioridad: pl.datos.prioridad,
+      etiquetas: pl.datos.etiquetas, proyectoId: pl.datos.proyectoId, duracionMin: pl.datos.duracionMin,
+      fechaLimite: fechaPorPrioridad(pl.datos.prioridad),
+      subtareas: (pl.datos.subtareas || []).map(s => ({ id: uid(), texto: s.texto, completada: false })),
+    })
   }
 
   const eliminarEvento = (id: string) => {
@@ -380,8 +558,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const value: AppCtx = {
     pendientes, notas, usuario, setUsuario,
-    crearPendiente, actualizarPendiente, eliminarPendiente, restaurarPendiente, duplicarPendiente, archivarPendiente, desarchivarPendiente, toggleCompletar, toggleSubtarea, agregarSubtarea, agregarComentario, moverEstado,
-    crearNota, actualizarNota, eliminarNota, restaurarNota, duplicarNota, proyectos, crearProyecto, actualizarProyecto, eliminarProyecto,
+    crearPendiente, actualizarPendiente, eliminarPendiente, restaurarPendiente, duplicarPendiente, archivarPendiente, desarchivarPendiente, toggleCompletar, toggleSubtarea, agregarSubtarea, agregarSubSubtarea, agregarComentario, moverEstado,
+    crearNota, actualizarNota, agregarComentarioNota, eliminarNota, restaurarNota, duplicarNota, proyectos, crearProyecto, actualizarProyecto, eliminarProyecto,
+    espacios, crearEspacio, actualizarEspacio, eliminarEspacio, espacioActualId, setEspacioActualId,
+    etiquetas, crearEtiqueta, actualizarEtiqueta, eliminarEtiqueta, colorDeEtiqueta,
+    filtrosGuardados, crearFiltroGuardado, actualizarFiltroGuardado, eliminarFiltroGuardado, filtroActivoId, setFiltroActivoId,
+    plantillas, crearPlantilla, eliminarPlantilla, crearPendienteDesdePlantilla,
     eventos, crearEvento, actualizarEvento, eliminarEvento, restaurarEvento, columnas, setColumnas, reemplazarTodo, vaciarPapelera,
     personas, modal, abrirModal, cerrarModal, peekId, abrirPeek, cerrarPeek, notaActualId, setNotaActualId,
     proyectoAbiertoId, setProyectoAbiertoId,

@@ -1,5 +1,5 @@
 import { toast } from 'sonner'
-import type { Pendiente, Prioridad } from '@/types'
+import type { Pendiente, Prioridad, Subtarea } from '@/types'
 
 export function uid(): string {
   return typeof crypto !== 'undefined' && crypto.randomUUID
@@ -19,10 +19,28 @@ export function vencido(p: Pendiente, idCompletado: string = 'completado'): bool
   return !!p.fechaLimite && p.estado !== idCompletado && p.fechaLimite < hoyISO()
 }
 
+/** ¿Sigue bloqueado? (Fase 8.5, dependencias): `true` si alguno de sus `bloqueadoPor` referencia
+    un pendiente que todavía no está completado. Un id que ya no existe (se borró) no cuenta como
+    bloqueador — no tiene sentido dejar algo bloqueado para siempre por un dato huérfano. */
+export function estaBloqueado(p: Pendiente, todos: Pendiente[], idCompletado: string = 'completado'): boolean {
+  if (!p.bloqueadoPor?.length) return false
+  return p.bloqueadoPor.some(id => {
+    const b = todos.find(x => x.id === id)
+    return !!b && b.estado !== idCompletado
+  })
+}
+
+/** Progreso de subtareas, incluidas las anidadas (`Subtarea.children`, Fase 8.4) recursivamente:
+    una subtarea con hijos cuenta como 1 + el total de sus hijos, igual para las completadas. */
 export function progresoSub(p: Pendiente): { hechas: number; total: number; pct: number } | null {
   if (!p.subtareas?.length) return null
-  const hechas = p.subtareas.filter(s => s.completada).length
-  return { hechas, total: p.subtareas.length, pct: Math.round((hechas / p.subtareas.length) * 100) }
+  const contar = (arr: Subtarea[]): { hechas: number; total: number } =>
+    arr.reduce((acc, s) => {
+      const hijos = contar(s.children || [])
+      return { hechas: acc.hechas + (s.completada ? 1 : 0) + hijos.hechas, total: acc.total + 1 + hijos.total }
+    }, { hechas: 0, total: 0 })
+  const { hechas, total } = contar(p.subtareas)
+  return { hechas, total, pct: Math.round((hechas / total) * 100) }
 }
 
 const DIAS_SEMANA: Record<string, number> = { domingo: 0, lunes: 1, martes: 2, 'miércoles': 3, miercoles: 3, jueves: 4, viernes: 5, 'sábado': 6, sabado: 6 }
@@ -110,12 +128,45 @@ export function parsearRepeticion(texto: string): { regla?: string; resto: strin
   return { resto }
 }
 
-/** Texto legible de una regla de recurrencia: "cada lunes", "cada 2 semanas (desde que se completa)" */
+const ORDINALES = ['', 'primer', 'segundo', 'tercer', 'cuarto', 'quinto']
+
+/** Fase 8.7 (RRULE avanzado): sufijos opcionales `;until:YYYY-MM-DD` y/o `;count:N` al final de
+    cualquier regla existente — puramente aditivos a la gramática: una regla sin sufijos (todo lo
+    que ya había antes de esta fase) pasa por aquí sin cambios. `base` conserva el prefijo `!` si
+    lo tenía, para no tocar la lógica de `desde`/`cuerpo` que ya usan `describirRepeticion` y
+    `siguienteFecha`. */
+export interface SufijosRepeticion { until?: string; count?: number }
+export function extraerSufijos(regla: string): { base: string; sufijos: SufijosRepeticion } {
+  let base = regla
+  const sufijos: SufijosRepeticion = {}
+  const mUntil = base.match(/;until:(\d{4}-\d{2}-\d{2})/)
+  if (mUntil) { sufijos.until = mUntil[1]; base = base.replace(mUntil[0], '') }
+  const mCount = base.match(/;count:(\d+)/)
+  if (mCount) { sufijos.count = Number(mCount[1]); base = base.replace(mCount[0], '') }
+  return { base, sufijos }
+}
+
+/** N-ésima ocurrencia de un día de la semana en un mes dado (`mes` 0-indexado, como `Date`).
+    Si el mes no tiene una N-ésima ocurrencia (ej. un "5º martes" que no existe), `Date` normaliza
+    hacia el mes siguiente — comportamiento aceptado, documentado aquí a propósito. */
+function enesimoDiaSemana(anio: number, mes: number, n: number, dow: number): Date {
+  const primero = new Date(anio, mes, 1)
+  const dia = 1 + ((dow - primero.getDay() + 7) % 7) + (n - 1) * 7
+  return new Date(anio, mes, dia)
+}
+
+/** Texto legible de una regla de recurrencia: "cada lunes", "cada 2 semanas (desde que se completa)",
+    "el 2º martes de cada mes", con sufijo de fin si aplica ("hasta el 2026-12-31", "quedan 3"). */
 export function describirRepeticion(regla: string): string {
-  const desde = regla.startsWith('!')
-  const cuerpo = desde ? regla.slice(1) : regla
+  const { base, sufijos } = extraerSufijos(regla)
+  const desde = base.startsWith('!')
+  const cuerpo = desde ? base.slice(1) : base
   let texto: string
-  if (cuerpo.startsWith('w:')) {
+  if (cuerpo.startsWith('nth:')) {
+    const [, nStr, dowStr] = cuerpo.split(':')
+    const n = Number(nStr); const dow = Number(dowStr)
+    texto = `el ${ORDINALES[n] || n + 'º'} ${NOMBRES_DIAS[dow]} de cada mes`
+  } else if (cuerpo.startsWith('w:')) {
     const dias = cuerpo.slice(2).split(',').map(Number)
     texto = 'cada ' + dias.map(d => NOMBRES_DIAS[d]).join(' y ')
   } else {
@@ -127,13 +178,27 @@ export function describirRepeticion(regla: string): string {
       texto = `cada ${n} ${nombre}`
     }
   }
-  return desde ? texto + ' (desde que se completa)' : texto
+  if (desde) texto += ' (desde que se completa)'
+  if (sufijos.until) texto += ` hasta el ${sufijos.until}`
+  if (sufijos.count !== undefined) texto += ` (quedan ${sufijos.count})`
+  return texto
 }
 
-/** Siguiente fecha ISO local para una regla de recurrencia, contada a partir de `base` (ISO). */
+/** Siguiente fecha ISO local para una regla de recurrencia, contada a partir de `base` (ISO).
+    Ignora los sufijos `;until`/`;count` (son responsabilidad de `proximaInstanciaRepeticion`,
+    que decide si corresponde crear la siguiente instancia o no). */
 export function siguienteFecha(regla: string, base: string): string {
-  const cuerpo = regla.startsWith('!') ? regla.slice(1) : regla
+  const { base: reglaBase } = extraerSufijos(regla)
+  const cuerpo = reglaBase.startsWith('!') ? reglaBase.slice(1) : reglaBase
   const baseISO = base || hoyISO()
+  if (cuerpo.startsWith('nth:')) {
+    const [, nStr, dowStr] = cuerpo.split(':')
+    const n = Number(nStr); const dow = Number(dowStr)
+    const d = new Date(baseISO + 'T00:00')
+    let candidato = enesimoDiaSemana(d.getFullYear(), d.getMonth(), n, dow)
+    if (candidato <= d) candidato = enesimoDiaSemana(d.getFullYear(), d.getMonth() + 1, n, dow)
+    return isoLocal(candidato)
+  }
   if (cuerpo.startsWith('w:')) {
     const dias = cuerpo.slice(2).split(',').map(Number).filter(n => !Number.isNaN(n))
     const d = new Date(baseISO + 'T00:00')
@@ -148,6 +213,20 @@ export function siguienteFecha(regla: string, base: string): string {
   const dias = unidad === 's' ? n * 7 : unidad === 'm' ? n * 30 : n
   const d = new Date(baseISO + 'T00:00'); d.setDate(d.getDate() + dias)
   return isoLocal(d)
+}
+
+/** Decide si (y cómo) crear la siguiente instancia de un pendiente recurrente, respetando
+    `;until`/`;count` — encapsula toda la lógica de fin de serie en un solo lugar testeable, en
+    vez de repartirla entre `store.tsx` y esta función. Devuelve `null` si la serie ya terminó. */
+export function proximaInstanciaRepeticion(regla: string, fechaBase: string): { fechaLimite: string; repetir: string } | null {
+  const { base, sufijos } = extraerSufijos(regla)
+  if (sufijos.count !== undefined && sufijos.count <= 0) return null
+  const nuevaFecha = siguienteFecha(regla, fechaBase)
+  if (sufijos.until && nuevaFecha > sufijos.until) return null
+  let nuevoRepetir = base
+  if (sufijos.until) nuevoRepetir += ';until:' + sufijos.until
+  if (sufijos.count !== undefined) nuevoRepetir += ';count:' + (sufijos.count - 1)
+  return { fechaLimite: nuevaFecha, repetir: nuevoRepetir }
 }
 
 /** «- Título: descripción @Resp1 @Resp2 !alta >mañana *cada lunes» → campos del pendiente */

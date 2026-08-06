@@ -10,6 +10,7 @@ export interface Subtarea {
   completada: boolean
   responsable?: string
   fechaLimite?: string
+  children?: Subtarea[]   // Fase 8.4: subtareas anidadas — opcional, sin migración de datos existentes
 }
 export interface Comentario { id?: string; texto: string; autor: string; fecha: string; adjuntos?: Adjunto[] }
 
@@ -42,6 +43,7 @@ export interface Pendiente {
   duracionMin?: number    // duración del bloque en la Agenda (time-blocking), en minutos
   googleEventos?: Record<string, string>  // cuentaId de Google Calendar -> id del evento creado ahí
   proyectoId?: string     // referencia a Proyecto.id; `proyecto` (string) se mantiene como espejo del nombre para compatibilidad (export CSV, badges antiguos)
+  bloqueadoPor?: string[] // ids de otros Pendiente que deben completarse antes (Fase 8.5, dependencias)
   ponderacion?: number    // porcentaje (0-100) que vale la entrega, ej. para planes de estudio importados
   modalidad?: 'individual' | 'equipo'
   archivado?: boolean     // "archivar" (estilo Gmail): se saca de las vistas activas sin borrarlo
@@ -56,6 +58,10 @@ export interface Nota {
   titulo: string
   contenidoHTML: string
   carpeta?: string      // carpeta / archivo para organizar notas
+  // Fase 7 ("todo es una Entidad", ver AUDITORIA.md §8): campos opcionales que ya existían en
+  // `Pendiente` — aditivos, sin migración de datos existentes (ausentes = tratados como vacíos).
+  etiquetas?: string[]
+  comentarios?: Comentario[]
   borrado?: boolean
   creado: string
   modificado: string
@@ -83,10 +89,27 @@ export interface Proyecto {
   nombre: string
   color: string           // clave de PROYECTO_COLORES
   cuentaGoogleId?: string // id de conexión en pnp_google_calendar que "es dueña" de este proyecto (ruteo de espejo)
+  espacioId?: string      // referencia a Espacio.id; sin asignar cae en el Espacio "General" implícito (Fase 4)
   archivado?: boolean
   creado: string
   modificado: string
 }
+
+/** Espacio (Personal Workspace, Fase 4): agrupación visual de proyectos por contexto de vida
+    (Trabajo, Escuela, Personal, Finanzas...). Capa nueva sobre `Proyecto`, no reemplaza nada.
+    No confundir con el "Espacio" de `src/sync.tsx` / `src/lib/espacio.ts` — ese es la cuenta
+    compartida de sincronización multi-usuario, un concepto totalmente distinto. Ver glosario
+    en `.claude/skills/workspace-doctrine/SKILL.md`. */
+export interface Espacio {
+  id: string
+  nombre: string
+  icono: string   // un solo emoji, ej. "🏢"
+  color: string   // clave de PROYECTO_COLORES
+  creado: string
+  modificado: string
+}
+
+export const ESPACIO_ICONOS = ['🏢', '🎓', '🏠', '💰', '🏍', '💡', '📚', '🎯', '🛒', '🔧', '❤️', '✈️']
 
 export const PROYECTO_COLORES: Record<string, { dot: string; badge: string; border: string; bg: string }> = {
   rojo:      { dot: 'bg-red-500',     badge: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',         border: 'border-l-red-500',     bg: 'bg-red-50 dark:bg-red-900/20' },
@@ -101,6 +124,19 @@ export const PROYECTO_COLORES: Record<string, { dot: string; badge: string; bord
   gris:      { dot: 'bg-slate-500',   badge: 'bg-slate-100 text-slate-700 dark:bg-slate-900/40 dark:text-slate-300', border: 'border-l-slate-500',    bg: 'bg-slate-50 dark:bg-slate-900/20' },
 }
 export const PROYECTO_COLORES_KEYS = Object.keys(PROYECTO_COLORES)
+
+/** Etiqueta como entidad (Fase 8.1): antes `Pendiente.etiquetas`/`Nota.etiquetas` eran solo
+    nombres sueltos sin color propio. Se resuelve por `nombre` (case-insensitive) contra las
+    etiquetas ya usadas — no se introduce un campo `etiquetaIds` de espejo todavía porque nada lo
+    consumiría aún; se añade cuando una función (ej. filtros guardados) necesite referenciar por id
+    de forma estable a través de renombres. */
+export interface Etiqueta {
+  id: string
+  nombre: string
+  color: string   // clave de PROYECTO_COLORES
+  creado: string
+  modificado: string
+}
 
 /** Columna del tablero Kanban: antes era un `enum` fijo, ahora es un dato moldeable por el usuario
     (nombre, color, orden) guardado en el espacio compartido (`pnp_espacios.config.columnas`) — así
@@ -126,9 +162,52 @@ export const PRIORIDAD_BORDER: Record<Prioridad, string> = {
 
 export type FiltroFecha = 'todos' | 'abiertos' | 'vencidos' | 'hoy' | 'semana'
 
-/** Subtareas pendientes (no completadas) de un pendiente */
+/** Plantilla de pendiente reutilizable (Fase 8.6): captura los campos que tiene sentido repetir
+    (no fecha ni estado, que dependen del momento en que se instancia). */
+export interface PlantillaPendiente {
+  id: string
+  nombre: string
+  datos: {
+    titulo: string
+    descripcion?: string
+    prioridad: Prioridad
+    etiquetas?: string[]
+    subtareas?: { texto: string }[]
+    duracionMin?: number
+    proyectoId?: string
+  }
+  creado: string
+  modificado: string
+}
+
+/** Filtro guardado / smart list (Fase 8.3): captura el mismo criterio que ya usa `ListView`
+    (estado, prioridad, responsable, orden, agrupación, texto, filtro de fecha) bajo un nombre.
+    `atajo` es la posición 1-4 de `Ctrl+Shift+<n>` — NO los dígitos sueltos `6-9` que preveía el
+    plan original de esta fase: cuando se escribió, la app tenía 5 vistas (`1-5` libres para esto);
+    hoy son 7 (`1-7`, incluye Inbox y Papelera de fases posteriores), así que `6-9` ya están
+    tomados por navegación. Ver CHANGELOG.md Fase 8.3. */
+export interface FiltroGuardado {
+  id: string
+  nombre: string
+  atajo?: '1' | '2' | '3' | '4'
+  criterios: {
+    q: string
+    fEstado: string
+    fPrioridad: string
+    fResp: string
+    orden: string
+    grupo: string
+    filtroFecha: FiltroFecha
+  }
+  creado: string
+  modificado: string
+}
+
+/** Subtareas pendientes (no completadas) de un pendiente, contando también las anidadas
+    (`Subtarea.children`, Fase 8.4) recursivamente. */
 export function subtareasPendientes(p: Pendiente): number {
-  return (p.subtareas || []).filter(s => !s.completada).length
+  const contar = (arr: Subtarea[]): number => arr.reduce((n, s) => n + (s.completada ? 0 : 1) + contar(s.children || []), 0)
+  return contar(p.subtareas || [])
 }
 
 /** Igual que `subtareasPendientes` pero con el nombre más declarativo usado por la

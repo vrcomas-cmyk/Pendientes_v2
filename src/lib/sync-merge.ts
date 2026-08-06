@@ -40,7 +40,14 @@ export function mergePendiente(local: Pendiente, remote: Pendiente): { merged: P
 export function mergeNota(local: Nota, remote: Nota): { merged: Nota; conflicto: boolean } {
   const localNewer = (local.modificado || '') >= (remote.modificado || '')
   const conflicto = local.contenidoHTML !== remote.contenidoHTML || local.titulo !== remote.titulo
-  return { merged: localNewer ? local : remote, conflicto }
+  const merged: Nota = { ...(localNewer ? local : remote) }
+  // Fase 7: mismo criterio de unión que `mergePendiente` para los campos que Nota ganó — nunca se
+  // pierden comentarios/etiquetas por sincronizar desde otro dispositivo.
+  merged.comentarios = unionBy([...(local.comentarios || []), ...(remote.comentarios || [])], c => c.id || (c.fecha + '|' + c.autor + '|' + c.texto))
+    .sort((a, b) => (a.fecha + '|' + a.texto) < (b.fecha + '|' + b.texto) ? -1 : 1)
+  merged.etiquetas = [...new Set([...(local.etiquetas || []), ...(remote.etiquetas || [])])].sort()
+  merged.modificado = (local.modificado || '') > (remote.modificado || '') ? local.modificado : remote.modificado
+  return { merged, conflicto }
 }
 
 export function mergeProyecto(local: Proyecto, remote: Proyecto): { merged: Proyecto; conflicto: boolean } {

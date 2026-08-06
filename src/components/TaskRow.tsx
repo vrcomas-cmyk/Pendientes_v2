@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { useApp } from '@/store'
 import type { Pendiente } from '@/types'
 import { PRIORIDAD_BORDER, PROYECTO_COLORES } from '@/types'
-import { progresoSub, vencido, describirRepeticion } from '@/lib/app-utils'
+import { progresoSub, vencido, describirRepeticion, estaBloqueado } from '@/lib/app-utils'
 import { columnaDe, colorColumna, idColumnaCompletado } from '@/lib/columnas'
 import { useIsMobile } from '@/hooks/use-is-mobile'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -10,13 +10,14 @@ import { Button } from '@/components/ui/button'
 import PosponerMenu from '@/components/PosponerMenu'
 import MenuContextoPendiente from '@/components/MenuContextoPendiente'
 import { ContextMenu, ContextMenuTrigger } from '@/components/ui/context-menu'
-import { StickyNote, User, Calendar, CheckSquare, Repeat, Users, Archive, ArchiveRestore } from 'lucide-react'
+import { StickyNote, User, Calendar, CheckSquare, Repeat, Users, Archive, ArchiveRestore, Lock } from 'lucide-react'
 
 const UMBRAL_SWIPE = 0.35 // fracción del ancho para "soltar y archivar"
 
 export default function TaskRow({ p, seleccionado, onClick, modoArchivados }: { p: Pendiente; seleccionado?: boolean; onClick?: () => void; modoArchivados?: boolean }) {
-  const { toggleCompletar, abrirPeek, proyectos, archivarPendiente, desarchivarPendiente, columnas } = useApp()
+  const { toggleCompletar, abrirPeek, proyectos, archivarPendiente, desarchivarPendiente, columnas, pendientes } = useApp()
   const idCompletado = idColumnaCompletado(columnas)
+  const bloqueado = estaBloqueado(p, pendientes, idCompletado)
   const col = columnaDe(columnas, p.estado)
   const sub = progresoSub(p)
   const proyecto = p.proyectoId ? proyectos.find(x => x.id === p.proyectoId) : null
@@ -101,6 +102,7 @@ export default function TaskRow({ p, seleccionado, onClick, modoArchivados }: { 
         <div className="flex items-center gap-1.5">
           <span className={'truncate text-xs font-semibold ' + (p.estado === idCompletado ? 'linea-completada' : '')}>{p.titulo}</span>
           {p.origenNota && <StickyNote size={12} className="shrink-0 text-primary" />}
+          {bloqueado && <span title="Bloqueado por otro pendiente sin completar" className="inline-flex items-center gap-0.5 rounded bg-slate-100 px-1 text-[10px] text-slate-600 dark:bg-slate-800 dark:text-slate-300"><Lock size={9} />bloqueado</span>}
           {vencido(p, idCompletado) && <span className="rounded bg-red-100 px-1 text-[10px] text-red-700 dark:bg-red-900/40 dark:text-red-300">vencido</span>}
         </div>
         <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-muted-foreground">

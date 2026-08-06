@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { Toaster, toast } from 'sonner'
 import { AppProvider, useApp } from '@/store'
 import { columnaDe, idColumnaCompletado } from '@/lib/columnas'
-import { descargar, hoyISO, vencido, parsearLinea, fechaPorPrioridad } from '@/lib/app-utils'
+import { PROYECTO_COLORES } from '@/types'
+import { descargar, hoyISO, vencido, parsearLinea, fechaPorPrioridad, activo } from '@/lib/app-utils'
 import { useIsMobile } from '@/hooks/use-is-mobile'
 import { SyncProvider, useSync, SyncBadge } from '@/sync'
 import TaskModal from '@/components/TaskModal'
@@ -14,28 +15,36 @@ import PaletaComandos from '@/components/PaletaComandos'
 import { manejarCallbackOAuth, listarCuentasGoogle, type CuentaGoogle } from '@/lib/googleCalendar'
 import CuentasGoogleDialog from '@/components/CuentasGoogleDialog'
 import EspacioDialog from '@/components/EspacioDialog'
+import NuevoEspacioDialog from '@/components/NuevoEspacioDialog'
+import ImportarCsvDialog from '@/components/ImportarCsvDialog'
+import WidgetsLayer from '@/components/widgets/WidgetsLayer'
+import { WidgetsProvider, useWidgets } from '@/widgets-store'
+import { WIDGET_DEFAULTS, type WidgetTipo } from '@/lib/widgets'
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu'
 import AjustesDialog from '@/components/AjustesDialog'
 import { aplicarAcento, leerAcento } from '@/lib/tema'
 import PendientesView from '@/views/PendientesView'
 import NotesView from '@/views/NotesView'
 import ProyectosView from '@/views/ProyectosView'
 import PapeleraView from '@/views/PapeleraView'
+import InboxView from '@/views/InboxView'
 import { TodayView, DashboardView } from '@/views/OtherViews'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import {
-  Star, ListTodo, BarChart3, StickyNote, Briefcase,
-  Plus, Moon, Sun, Download, Upload, FileSpreadsheet, AlertTriangle, User, MoreVertical, LogOut, LogIn, HelpCircle, CalendarClock, Users, Settings2, Trash2,
+  Star, ListTodo, BarChart3, StickyNote, Briefcase, Inbox as InboxIcon,
+  Plus, Moon, Sun, Download, Upload, FileSpreadsheet, AlertTriangle, User, MoreVertical, LogOut, LogIn, HelpCircle, CalendarClock, Users, Settings2, Trash2, Search, LayoutGrid, Timer, Columns3, PenLine, ArrowRightCircle,
 } from 'lucide-react'
 
 const LS_VISTA = 'pn_vista'
-const VISTAS_VALIDAS = ['hoy', 'pendientes', 'notas', 'proyectos', 'dashboard', 'papelera'] as const
+const VISTAS_VALIDAS = ['hoy', 'inbox', 'pendientes', 'notas', 'proyectos', 'dashboard', 'papelera'] as const
 
-type Vista = 'hoy' | 'pendientes' | 'notas' | 'proyectos' | 'dashboard' | 'papelera'
+type Vista = 'hoy' | 'inbox' | 'pendientes' | 'notas' | 'proyectos' | 'dashboard' | 'papelera'
 
 const VISTAS: { id: Vista; label: string; corto: string; icon: React.ReactNode }[] = [
   { id: 'hoy', label: 'Hoy', corto: 'Hoy', icon: <Star size={18} /> },
+  { id: 'inbox', label: 'Inbox', corto: 'Inbox', icon: <InboxIcon size={18} /> },
   { id: 'pendientes', label: 'Pendientes', corto: 'Tareas', icon: <ListTodo size={18} /> },
   { id: 'notas', label: 'Notas', corto: 'Notas', icon: <StickyNote size={18} /> },
   { id: 'proyectos', label: 'Proyectos', corto: 'Proyectos', icon: <Briefcase size={18} /> },
@@ -43,10 +52,18 @@ const VISTAS: { id: Vista; label: string; corto: string; icon: React.ReactNode }
   { id: 'papelera', label: 'Papelera', corto: 'Papelera', icon: <Trash2 size={18} /> },
 ]
 
+const WIDGET_ICONOS: Record<WidgetTipo, React.ReactNode> = {
+  pomodoro: <Timer size={14} />,
+  kanban: <Columns3 size={14} />,
+  'nota-rapida': <PenLine size={14} />,
+  'proxima-tarea': <ArrowRightCircle size={14} />,
+}
+
 function Shell() {
   const app = useApp()
-  const { pendientes, notas, proyectos, usuario, setUsuario, crearPendiente, crearNota, abrirModal, reemplazarTodo, notaActualId, setNotaActualId, proyectoAbiertoId, setProyectoAbiertoId, setFiltroFecha } = app
+  const { pendientes, notas, proyectos, usuario, setUsuario, crearPendiente, crearNota, abrirModal, reemplazarTodo, notaActualId, setNotaActualId, proyectoAbiertoId, setProyectoAbiertoId, setFiltroFecha, espacios, espacioActualId, setEspacioActualId, filtrosGuardados, setFiltroActivoId } = app
   const sync = useSync()
+  const { abrirWidget } = useWidgets()
   const isMobile = useIsMobile()
   const [vista, setVistaState] = useState<Vista>(() => {
     try { const v = localStorage.getItem(LS_VISTA); if (v && (VISTAS_VALIDAS as readonly string[]).includes(v)) return v as Vista } catch { /* noop */ }
@@ -62,6 +79,8 @@ function Shell() {
   const [cuentasGoogle, setCuentasGoogle] = useState<CuentaGoogle[]>([])
   const [cuentasGoogleDlg, setCuentasGoogleDlg] = useState(false)
   const [espacioDlg, setEspacioDlg] = useState(false)
+  const [nuevoEspacioDlg, setNuevoEspacioDlg] = useState(false)
+  const [importarCsvDlg, setImportarCsvDlg] = useState(false)
   const [ajustesDlg, setAjustesDlg] = useState(false)
   const [quickTexto, setQuickTexto] = useState('')
   const [fabAbierto, setFabAbierto] = useState(false)
@@ -98,11 +117,18 @@ function Shell() {
       if (e.key.toLowerCase() === 'n') { e.preventDefault(); abrirModal() }
       if (e.key === '/') { e.preventDefault(); quickRef.current?.focus() }
       if (e.key === 'Escape') { if (notaActualId) setNotaActualId(null); else if (proyectoAbiertoId) setProyectoAbiertoId(null) }
-      if (['1', '2', '3', '4', '5'].includes(e.key)) { e.preventDefault(); setVista(VISTAS_VALIDAS[Number(e.key) - 1] as Vista) }
+      if (e.ctrlKey && e.shiftKey && ['1', '2', '3', '4'].includes(e.key)) {
+        // Filtros guardados (Fase 8.3): NO son los dígitos sueltos 6-9 que el plan original
+        // reservaba — esos ya los usa la navegación de vistas (hoy son 7, no 5). Ver types.ts.
+        const filtro = filtrosGuardados.find(f => f.atajo === e.key)
+        if (filtro) { e.preventDefault(); setVista('pendientes'); setFiltroActivoId(filtro.id) }
+        return
+      }
+      if (['1', '2', '3', '4', '5', '6', '7'].includes(e.key)) { e.preventDefault(); setVista(VISTAS_VALIDAS[Number(e.key) - 1] as Vista) }
     }
     window.addEventListener('keydown', h)
     return () => window.removeEventListener('keydown', h)
-  }, [abrirModal, crearNota, notaActualId, proyectoAbiertoId]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [abrirModal, crearNota, notaActualId, proyectoAbiertoId, filtrosGuardados, setFiltroActivoId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Tema: si el usuario ya eligió explícitamente (toggleDark guardó 'darkMode'), se respeta.
   // Si nunca lo tocó, la app sigue el tema del sistema operativo en vivo.
@@ -213,10 +239,12 @@ function Shell() {
   const idCompletado = idColumnaCompletado(app.columnas)
   const nVencidos = pendientes.filter(p => vencido(p, idCompletado)).length
   const nAbiertos = pendientes.filter(p => p.estado !== idCompletado).length
+  const nInbox = pendientes.filter(p => activo(p) && !p.fechaLimite && p.estado !== idCompletado).length
 
   const vistaActual = (
     <>
       {vistaMostrada === 'hoy' && <TodayView />}
+      {vistaMostrada === 'inbox' && <InboxView />}
       {vistaMostrada === 'pendientes' && <PendientesView />}
       {vistaMostrada === 'notas' && <NotesView />}
       {vistaMostrada === 'proyectos' && <ProyectosView />}
@@ -226,6 +254,43 @@ function Shell() {
   )
 
   const inputImport = <input ref={fileRef} type="file" accept="application/json" className="hidden" onChange={importarJSON} />
+
+  // Dock de accesos rápidos (solo escritorio): fila fija de acciones frecuentes, glass. Sustituye
+  // al FAB en desktop porque con sidebar permanente ya hay espacio para mostrarlo siempre visible
+  // en vez de esconderlo detrás de un toggle — "menos clics" (ver Cambios.md).
+  const dockEscritorio = (
+    <div className="fixed inset-x-0 bottom-6 z-40 flex justify-center">
+      <div className="glass flex items-center gap-1 rounded-full p-1.5 shadow-glass">
+        <button onClick={() => crearNota()} title="Nueva nota (Shift+N)"
+          className="flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-medium transition-colors duration-150 hover:bg-accent">
+          <StickyNote size={15} className="text-primary" /> Nota
+        </button>
+        <button onClick={() => abrirModal()} title="Nuevo pendiente (N)"
+          className="flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-medium transition-colors duration-150 hover:bg-accent">
+          <ListTodo size={15} className="text-primary" /> Pendiente
+        </button>
+        <button onClick={() => setPaletaAbierta(true)} title="Buscar (Ctrl+K)"
+          className="flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-medium transition-colors duration-150 hover:bg-accent">
+          <Search size={15} className="text-primary" /> Buscar
+        </button>
+        <div className="mx-0.5 h-5 w-px bg-border" />
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button title="Añadir widget" className="flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-medium transition-colors duration-150 hover:bg-accent">
+              <LayoutGrid size={15} className="text-primary" /> Widgets
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-44">
+            {(Object.keys(WIDGET_DEFAULTS) as WidgetTipo[]).map(tipo => (
+              <DropdownMenuItem key={tipo} onClick={() => abrirWidget(tipo)}>
+                {WIDGET_ICONOS[tipo]} <span className="ml-2">{WIDGET_DEFAULTS[tipo].titulo}</span>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </div>
+  )
 
   // Captura universal: crear pendiente o nota desde CUALQUIER vista, no solo desde el header de
   // escritorio (que solo crea pendientes) o el FAB móvil (que antes se ocultaba en Notas).
@@ -282,6 +347,8 @@ function Shell() {
       <AyudaAtajos open={ayudaAbierta} onOpenChange={setAyudaAbierta} />
       <CuentasGoogleDialog open={cuentasGoogleDlg} onOpenChange={setCuentasGoogleDlg} cuentas={cuentasGoogle} onCambio={recargarCuentasGoogle} />
       <EspacioDialog open={espacioDlg} onOpenChange={setEspacioDlg} />
+      <NuevoEspacioDialog open={nuevoEspacioDlg} onOpenChange={setNuevoEspacioDlg} />
+      <ImportarCsvDialog open={importarCsvDlg} onOpenChange={setImportarCsvDlg} />
       <AjustesDialog open={ajustesDlg} onOpenChange={setAjustesDlg} dark={dark} toggleDark={toggleDark} onIrTablero={() => { setVista('pendientes') }} />
       <PaletaComandos open={paletaAbierta} onOpenChange={setPaletaAbierta}
         onIrVista={setVista} onAlternarTema={toggleDark} onExportarJSON={exportarJSON} onExportarCSV={exportarCSV} onVerVencidos={verVencidos} />
@@ -334,6 +401,7 @@ function Shell() {
                 <button onClick={() => { setMenuAbierto(false); exportarJSON() }} className="flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-accent"><Download size={15} /> Exportar JSON</button>
                 <button onClick={() => { setMenuAbierto(false); exportarCSV() }} className="flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-accent"><FileSpreadsheet size={15} /> Exportar CSV</button>
                 <button onClick={() => { setMenuAbierto(false); fileRef.current?.click() }} className="flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-accent"><Upload size={15} /> Importar JSON</button>
+                <button onClick={() => { setMenuAbierto(false); setImportarCsvDlg(true) }} className="flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-accent"><Upload size={15} /> Importar CSV / Todoist</button>
               </div>
             </>
           )}
@@ -355,7 +423,7 @@ function Shell() {
         {fabCaptura}
 
         {/* Barra inferior de vistas */}
-        <nav className="grid shrink-0 grid-cols-5 border-t bg-card">
+        <nav className="grid shrink-0 grid-cols-7 border-t bg-card">
           {VISTAS.map(v => (
             <button key={v.id} onClick={() => setVista(v.id)} aria-current={vistaMostrada === v.id ? 'page' : undefined}
               className={'flex flex-col items-center gap-0.5 py-2 text-[10px] ' + (vistaMostrada === v.id ? 'text-primary' : 'text-muted-foreground')}>
@@ -376,22 +444,26 @@ function Shell() {
   /* ===================== ESCRITORIO ===================== */
   return (
     <div className="flex h-screen overflow-hidden bg-background text-foreground">
-      <nav className="group/rail z-30 flex w-14 shrink-0 flex-col overflow-hidden border-r bg-card transition-[width] duration-200 hover:w-56 hover:shadow-xl">
-        <div className="p-2">
+      <nav className="z-30 flex w-60 shrink-0 flex-col overflow-hidden border-r bg-card/80 shadow-soft backdrop-blur-xl">
+        <div className="p-2.5">
+          <h1 className="px-1.5 pb-2 text-sm font-bold">Pendientes <span className="text-primary">Pro</span></h1>
           <button onClick={() => abrirModal()} title="Nuevo pendiente (N)"
-            className="flex w-full items-center gap-3 rounded-full bg-primary px-2.5 py-2.5 text-primary-foreground shadow-sm hover:opacity-90">
+            className="flex w-full items-center gap-3 rounded-full bg-primary px-3.5 py-2.5 text-primary-foreground shadow-sm transition-transform duration-150 ease-spring hover:-translate-y-px hover:opacity-90">
             <Plus size={18} className="w-5 shrink-0" />
-            <span className="whitespace-nowrap text-sm font-semibold opacity-0 transition-opacity group-hover/rail:opacity-100">Nuevo pendiente</span>
+            <span className="whitespace-nowrap text-sm font-semibold">Nuevo pendiente</span>
           </button>
         </div>
-        <div className="flex-1 space-y-0.5 overflow-y-auto overflow-x-hidden px-1 scroll-thin">
+        <div className="flex-1 space-y-0.5 overflow-y-auto overflow-x-hidden px-2 scroll-thin">
           {VISTAS.map(v => (
             <button key={v.id} onClick={() => setVista(v.id)} aria-current={vistaMostrada === v.id ? 'page' : undefined}
-              className={'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm ' + (vistaMostrada === v.id ? 'bg-primary text-primary-foreground' : 'hover:bg-accent')}>
+              className={'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ' + (vistaMostrada === v.id ? 'bg-primary text-primary-foreground shadow-sm' : 'hover:bg-accent')}>
               <span className="w-5 shrink-0">{v.icon}</span>
-              <span className="flex-1 whitespace-nowrap text-left opacity-0 transition-opacity group-hover/rail:opacity-100">{v.label}</span>
+              <span className="flex-1 whitespace-nowrap text-left">{v.label}</span>
               {v.id === 'pendientes' && nAbiertos > 0 && (
-                <span className="whitespace-nowrap rounded-full bg-muted px-1.5 text-[10px] text-muted-foreground opacity-0 transition-opacity group-hover/rail:opacity-100">{nAbiertos}</span>
+                <span className="whitespace-nowrap rounded-full bg-muted px-1.5 text-[10px] text-muted-foreground">{nAbiertos}</span>
+              )}
+              {v.id === 'inbox' && nInbox > 0 && (
+                <span className="whitespace-nowrap rounded-full bg-muted px-1.5 text-[10px] text-muted-foreground">{nInbox}</span>
               )}
             </button>
           ))}
@@ -399,21 +471,51 @@ function Shell() {
           <button onClick={verVencidos}
             className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-accent">
             <AlertTriangle size={16} className="w-5 shrink-0 text-red-500" />
-            <span className="flex-1 whitespace-nowrap text-left opacity-0 transition-opacity group-hover/rail:opacity-100">Vencidos</span>
-            {nVencidos > 0 && <span className="whitespace-nowrap rounded-full bg-red-100 px-1.5 text-[10px] text-red-700 opacity-0 transition-opacity group-hover/rail:opacity-100 dark:bg-red-900/40 dark:text-red-300">{nVencidos}</span>}
+            <span className="flex-1 whitespace-nowrap text-left">Vencidos</span>
+            {nVencidos > 0 && <span className="whitespace-nowrap rounded-full bg-red-100 px-1.5 text-[10px] text-red-700 dark:bg-red-900/40 dark:text-red-300">{nVencidos}</span>}
           </button>
+          <button onClick={() => setAjustesDlg(true)}
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-accent">
+            <Settings2 size={16} className="w-5 shrink-0 text-muted-foreground" />
+            <span className="flex-1 whitespace-nowrap text-left">Ajustes</span>
+          </button>
+
+          <div className="my-2 border-t" />
+          <div className="flex items-center justify-between px-3 py-1">
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Espacios</span>
+            <button onClick={() => setNuevoEspacioDlg(true)} title="Nuevo espacio" aria-label="Nuevo espacio"
+              className="rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"><Plus size={13} /></button>
+          </div>
+          <button onClick={() => setEspacioActualId(null)}
+            className={'flex w-full items-center gap-3 rounded-lg px-3 py-1.5 text-sm ' + (espacioActualId === null ? 'bg-accent font-semibold' : 'hover:bg-accent')}>
+            <span className="w-5 shrink-0 text-center">📋</span>
+            <span className="flex-1 whitespace-nowrap text-left">Todos</span>
+          </button>
+          {espacios.map(e => (
+            <button key={e.id} onClick={() => setEspacioActualId(e.id)}
+              className={'flex w-full items-center gap-3 rounded-lg px-3 py-1.5 text-sm ' + (espacioActualId === e.id ? 'bg-accent font-semibold' : 'hover:bg-accent')}>
+              <span className="w-5 shrink-0 text-center">{e.icono}</span>
+              <span className="flex-1 truncate text-left">{e.nombre}</span>
+              <span className={'h-1.5 w-1.5 shrink-0 rounded-full ' + (PROYECTO_COLORES[e.color]?.dot || '')} />
+            </button>
+          ))}
+          {!espacios.length && (
+            <button onClick={() => setNuevoEspacioDlg(true)} className="w-full rounded-lg px-3 py-1.5 text-left text-xs text-muted-foreground hover:bg-accent">
+              + Crea tu primer espacio
+            </button>
+          )}
         </div>
-        <div className="space-y-0.5 border-t p-1">
-          <button onClick={exportarJSON} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-accent"><Download size={16} className="w-5 shrink-0" /><span className="whitespace-nowrap opacity-0 transition-opacity group-hover/rail:opacity-100">Exportar JSON</span></button>
-          <button onClick={exportarCSV} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-accent"><FileSpreadsheet size={16} className="w-5 shrink-0" /><span className="whitespace-nowrap opacity-0 transition-opacity group-hover/rail:opacity-100">Exportar CSV</span></button>
-          <button onClick={() => fileRef.current?.click()} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-accent"><Upload size={16} className="w-5 shrink-0" /><span className="whitespace-nowrap opacity-0 transition-opacity group-hover/rail:opacity-100">Importar JSON</span></button>
+        <div className="space-y-0.5 border-t p-1.5">
+          <button onClick={exportarJSON} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-accent"><Download size={16} className="w-5 shrink-0" /><span className="whitespace-nowrap">Exportar JSON</span></button>
+          <button onClick={exportarCSV} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-accent"><FileSpreadsheet size={16} className="w-5 shrink-0" /><span className="whitespace-nowrap">Exportar CSV</span></button>
+          <button onClick={() => fileRef.current?.click()} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-accent"><Upload size={16} className="w-5 shrink-0" /><span className="whitespace-nowrap">Importar JSON</span></button>
+          <button onClick={() => setImportarCsvDlg(true)} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-accent"><Upload size={16} className="w-5 shrink-0" /><span className="whitespace-nowrap">Importar CSV / Todoist</span></button>
           {inputImport}
         </div>
       </nav>
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <div className="flex shrink-0 items-center gap-3 border-b bg-card px-4 py-2 shadow-sm">
-          <h1 className="hidden whitespace-nowrap text-sm font-bold md:block">Pendientes <span className="text-primary">Pro</span></h1>
           <div className="max-w-2xl flex-1 space-y-1">
             <input ref={quickRef} value={quickTexto} onChange={e => setQuickTexto(e.target.value)}
               placeholder='Captura rápida ( / ):  "cotización Soriana !alta @Liz mañana"'
@@ -438,12 +540,13 @@ function Shell() {
             className="flex items-center gap-1 whitespace-nowrap text-xs font-medium hover:underline"><User size={13} /> {usuario}</button>
         </div>
 
-        <main className="min-h-0 flex-1 overflow-auto p-4 scroll-thin">
+        <main className="min-h-0 flex-1 overflow-auto p-4 pb-24 scroll-thin">
           <div key={vistaMostrada} className="animate-in fade-in slide-in-from-bottom-1 duration-200 motion-reduce:animate-none">{vistaActual}</div>
         </main>
       </div>
 
-      {fabCaptura}
+      {dockEscritorio}
+      <WidgetsLayer />
       <TaskModal />
       <PendientePeek />
       {dialogosGlobales}
@@ -457,7 +560,9 @@ export default function App() {
     <ErrorBoundary>
       <AppProvider>
         <SyncProvider>
-          <Shell />
+          <WidgetsProvider>
+            <Shell />
+          </WidgetsProvider>
         </SyncProvider>
       </AppProvider>
     </ErrorBoundary>

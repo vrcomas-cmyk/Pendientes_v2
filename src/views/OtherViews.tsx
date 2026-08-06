@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useApp } from '@/store'
 import { useSync } from '@/sync'
-import type { Pendiente } from '@/types'
+import type { EventoCalendario, Pendiente } from '@/types'
 import { PROYECTO_COLORES, PROYECTO_COLORES_KEYS } from '@/types'
 import { hoyISO, isoMasDias, vencido, activo } from '@/lib/app-utils'
 import { idColumnaCompletado } from '@/lib/columnas'
@@ -10,7 +10,7 @@ import { sinDuplicarLocal } from '@/lib/agenda'
 import TaskRow from '@/components/TaskRow'
 import ProgressRing from '@/components/ProgressRing'
 import KanbanDnd from '@/components/KanbanDnd'
-import { ChevronDown, StickyNote, X } from 'lucide-react'
+import { ChevronDown, StickyNote, X, Clock } from 'lucide-react'
 
 /* ============ HOY ============ */
 function Seccion({ titulo, color, items, vacio }: { titulo: string; color: string; items: Pendiente[]; vacio: string }) {
@@ -205,6 +205,43 @@ function AgendaGoogleHoy() {
   )
 }
 
+/** Timeline cronológica única de hoy: mezcla pendientes con hora asignada + eventos de
+    calendario, ordenados por hora — el "todo mezclado cronológicamente" de Cambios.md.
+    Los pendientes sin hora siguen viviendo en la sección "Para hoy" de abajo (no se
+    duplican aquí): esta franja es un complemento, no un reemplazo de esa sección. */
+function TimelineHoy({ pendientesHoy }: { pendientesHoy: Pendiente[] }) {
+  const { eventos } = useApp()
+  const h = hoyISO()
+  type Item = { hora: string; key: string } & ({ tipo: 'pendiente'; p: Pendiente } | { tipo: 'evento'; e: EventoCalendario })
+  const items = useMemo<Item[]>(() => {
+    const dePendientes: Item[] = pendientesHoy.filter(p => p.hora).map(p => ({ tipo: 'pendiente', p, hora: p.hora!, key: 'p-' + p.id }))
+    const deEventos: Item[] = eventos.filter(e => !e.borrado && e.fecha === h).map(e => ({ tipo: 'evento', e, hora: e.hora, key: 'e-' + e.id }))
+    return [...dePendientes, ...deEventos].sort((a, b) => a.hora.localeCompare(b.hora))
+  }, [pendientesHoy, eventos, h])
+
+  if (!items.length) return null
+  return (
+    <div className="glass rounded-2xl p-4">
+      <h3 className="mb-3 flex items-center gap-1.5 text-display-sm"><Clock size={15} className="text-primary" /> Cronología de hoy</h3>
+      <div className="space-y-1.5">
+        {items.map(item => item.tipo === 'pendiente' ? (
+          <div key={item.key} className="flex items-start gap-2">
+            <span className="mt-2 w-11 shrink-0 text-right text-[10px] font-medium text-muted-foreground">{item.hora}</span>
+            <div className="min-w-0 flex-1"><TaskRow p={item.p} /></div>
+          </div>
+        ) : (
+          <div key={item.key} className="flex items-center gap-2 rounded-lg px-1 py-1.5">
+            <span className="w-11 shrink-0 text-right text-[10px] font-medium text-muted-foreground">{item.hora}</span>
+            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent2" />
+            <span className="min-w-0 flex-1 truncate text-xs font-medium">{item.e.titulo}</span>
+            {item.e.duracionMin > 0 && <span className="shrink-0 text-[10px] text-muted-foreground">{item.e.duracionMin} min</span>}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export function TodayView() {
   const { pendientes: todosPendientes, columnas } = useApp()
   const idCompletado = idColumnaCompletado(columnas)
@@ -256,6 +293,8 @@ export function TodayView() {
           </div>
         </div>
       )}
+
+      <TimelineHoy pendientesHoy={hoy} />
 
       <ResumenProyectos />
       <NotasRecientes />

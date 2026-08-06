@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { useApp } from '@/store'
 import { colorColumna } from '@/lib/columnas'
+import { PROYECTO_COLORES, PROYECTO_COLORES_KEYS } from '@/types'
 import { ACENTOS, leerAcento, guardarAcento, aplicarAcento } from '@/lib/tema'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { Moon, Sun, Settings2 } from 'lucide-react'
+import { Input } from '@/components/ui/input'
+import { Moon, Sun, Settings2, Tag, X, Plus, Bookmark } from 'lucide-react'
 
 /** Panel centralizado de personalización: tema, color de acento, y un resumen de las columnas del
     Kanban (edición completa — renombrar/recolorear/reordenar/añadir/eliminar — vive en el propio
@@ -18,8 +20,17 @@ export default function AjustesDialog({
   toggleDark: () => void
   onIrTablero: () => void
 }) {
-  const { columnas } = useApp()
+  const { columnas, etiquetas, crearEtiqueta, actualizarEtiqueta, eliminarEtiqueta, plantillas, eliminarPlantilla } = useApp()
   const [acento, setAcento] = useState(leerAcento)
+  const [etiquetaVal, setEtiquetaVal] = useState('')
+
+  const agregarEtiqueta = () => {
+    const n = etiquetaVal.trim()
+    if (!n || etiquetas.some(e => e.nombre.toLowerCase() === n.toLowerCase())) { setEtiquetaVal(''); return }
+    crearEtiqueta(n)
+    setEtiquetaVal('')
+  }
+  const siguienteColor = (actual: string) => PROYECTO_COLORES_KEYS[(PROYECTO_COLORES_KEYS.indexOf(actual) + 1) % PROYECTO_COLORES_KEYS.length]
 
   const elegirAcento = (key: string) => {
     setAcento(key)
@@ -67,6 +78,44 @@ export default function AjustesDialog({
             Se comparten con todas las cuentas de tu espacio: renombrar, recolorear, reordenar,
             añadir o eliminar columnas ahí se ve reflejado para todos.
           </p>
+        </div>
+
+        <div className="space-y-1.5">
+          <p className="flex items-center gap-1 text-[11px] uppercase text-muted-foreground"><Tag size={11} /> Etiquetas ({etiquetas.length})</p>
+          <div className="flex flex-wrap gap-1.5">
+            {etiquetas.map(e => (
+              <span key={e.id} className={'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] ' + PROYECTO_COLORES[e.color].badge}>
+                <button onClick={() => actualizarEtiqueta(e.id, { color: siguienteColor(e.color) })} title="Cambiar color"
+                  className={'h-2 w-2 rounded-full ' + PROYECTO_COLORES[e.color].dot} />
+                #{e.nombre}
+                <button onClick={() => eliminarEtiqueta(e.id)} aria-label={'Eliminar etiqueta ' + e.nombre} className="hover:text-destructive"><X size={10} /></button>
+              </span>
+            ))}
+            {!etiquetas.length && <p className="text-[11px] text-muted-foreground">Sin etiquetas todavía.</p>}
+          </div>
+          <div className="flex gap-1.5">
+            <Input value={etiquetaVal} onChange={e => setEtiquetaVal(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); agregarEtiqueta() } }}
+              placeholder="Nueva etiqueta" className="h-8 text-xs" />
+            <Button size="icon" variant="secondary" className="h-8 w-8 shrink-0" onClick={agregarEtiqueta}><Plus size={14} /></Button>
+          </div>
+          <p className="text-[10px] text-muted-foreground">
+            Da color a las etiquetas que ya usas en pendientes y notas (clic en el punto de color
+            para rotarlo). Escribir el mismo nombre en un pendiente o nota adopta ese color.
+          </p>
+        </div>
+
+        <div className="space-y-1.5">
+          <p className="flex items-center gap-1 text-[11px] uppercase text-muted-foreground"><Bookmark size={11} /> Plantillas ({plantillas.length})</p>
+          <div className="flex flex-wrap gap-1.5">
+            {plantillas.map(t => (
+              <span key={t.id} className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px]">
+                {t.nombre}
+                <button onClick={() => eliminarPlantilla(t.id)} aria-label={'Eliminar plantilla ' + t.nombre} className="hover:text-destructive"><X size={10} /></button>
+              </span>
+            ))}
+            {!plantillas.length && <p className="text-[11px] text-muted-foreground">Sin plantillas todavía — guarda una desde "Nuevo pendiente" → Más detalles.</p>}
+          </div>
         </div>
       </DialogContent>
     </Dialog>

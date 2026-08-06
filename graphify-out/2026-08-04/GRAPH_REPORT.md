@@ -1,11 +1,11 @@
 # Graph Report - pendientes-pro  (2026-08-04)
 
 ## Corpus Check
-- 109 files · ~60,636 words
+- 109 files · ~60,666 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 824 nodes · 1668 edges · 107 communities (44 shown, 63 thin omitted)
+- 824 nodes · 1672 edges · 106 communities (43 shown, 63 thin omitted)
 - Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 9 edges (avg confidence: 0.7)
 - Token cost: 0 input · 0 output
 
@@ -46,7 +46,6 @@
 - Pendientes + Notas Pro — PWA modular
 - sonner.tsx
 - class-variance-authority
-- clsx
 - cmdk
 - date-fns
 - eslint
@@ -144,11 +143,11 @@
 ## Import Cycles
 - None detected.
 
-## Communities (107 total, 63 thin omitted)
+## Communities (106 total, 63 thin omitted)
 
 ### Community 0 - "App.tsx"
-Cohesion: 0.08
-Nodes (54): ColumnaHeader(), MenuContextoPendiente(), PendientePeek(), ProgressRing(), TaskRow(), ContextMenuCheckboxItem, ContextMenuContent, ContextMenuItem (+46 more)
+Cohesion: 0.09
+Nodes (52): ColumnaHeader(), MenuContextoPendiente(), PendientePeek(), ProgressRing(), TaskRow(), ContextMenuCheckboxItem, ContextMenuContent, ContextMenuItem (+44 more)
 
 ### Community 1 - "sync.tsx"
 Cohesion: 0.26
@@ -159,20 +158,20 @@ Cohesion: 0.08
 Nodes (26): DOM, vite/client, compilerOptions, allowImportingTsExtensions, baseUrl, erasableSyntaxOnly, ignoreDeprecations, jsx (+18 more)
 
 ### Community 4 - "use-toast.ts"
-Cohesion: 0.13
-Nodes (22): Toast, ToastAction, ToastActionElement, ToastClose, ToastDescription, ToastProps, ToastTitle, toastVariants (+14 more)
+Cohesion: 0.07
+Nodes (38): react, react, Carousel, CarouselApi, CarouselContent, CarouselContext, CarouselContextProps, CarouselItem (+30 more)
 
 ### Community 5 - "cn"
-Cohesion: 0.12
-Nodes (13): HoverCardContent, PopoverContent, Progress, RadioGroup, RadioGroupItem, ScrollArea, ScrollBar, Separator (+5 more)
+Cohesion: 0.10
+Nodes (16): HoverCardContent, PopoverContent, Progress, RadioGroup, RadioGroupItem, ScrollArea, ScrollBar, Separator (+8 more)
 
 ### Community 6 - "compilerOptions"
 Cohesion: 0.10
 Nodes (20): node, vite.config.ts, compilerOptions, allowImportingTsExtensions, erasableSyntaxOnly, lib, module, moduleDetection (+12 more)
 
 ### Community 7 - "carousel.tsx"
-Cohesion: 0.07
-Nodes (27): react, react, Carousel, CarouselApi, CarouselContent, CarouselContext, CarouselContextProps, CarouselItem (+19 more)
+Cohesion: 0.15
+Nodes (11): FormControl, FormDescription, FormFieldContext, FormFieldContextValue, FormItem, FormItemContext, FormItemContextValue, FormLabel (+3 more)
 
 ### Community 8 - "components.json"
 Cohesion: 0.12
@@ -188,7 +187,7 @@ Nodes (24): For /graphify add and --watch, For /graphify query, For the commit h
 
 ### Community 11 - "devDependencies"
 Cohesion: 0.18
-Nodes (11): autoprefixer, @eslint/js, eslint-plugin-react-hooks, eslint-plugin-react-refresh, devDependencies, autoprefixer, @eslint/js, eslint-plugin-react-hooks (+3 more)
+Nodes (11): autoprefixer, buffer, eslint-plugin-react-hooks, eslint-plugin-react-refresh, devDependencies, autoprefixer, buffer, eslint-plugin-react-hooks (+3 more)
 
 ### Community 13 - "package.json"
 Cohesion: 0.20
@@ -252,19 +251,15 @@ Nodes (8): Base de datos, Compilar para producción, Cómo actualizar a TODOS lo
 
 ### Community 30 - "class-variance-authority"
 Cohesion: 0.06
-Nodes (63): AdjuntosUI(), Miniatura(), ATAJOS, SINTAXIS, adivinarPorEncabezado(), Columna, FilaPreview, ImportarPlanDialog() (+55 more)
-
-### Community 31 - "clsx"
-Cohesion: 0.50
-Nodes (3): TabsContent, TabsList, TabsTrigger
+Nodes (60): AdjuntosUI(), Miniatura(), ATAJOS, SINTAXIS, adivinarPorEncabezado(), Columna, FilaPreview, ImportarPlanDialog() (+52 more)
 
 ### Community 32 - "cmdk"
 Cohesion: 0.15
 Nodes (13): class-variance-authority, dependencies, class-variance-authority, @radix-ui/react-radio-group, @radix-ui/react-scroll-area, @radix-ui/react-toast, @radix-ui/react-tooltip, vaul (+5 more)
 
 ### Community 38 - "html-inline"
-Cohesion: 0.08
-Nodes (44): Shell(), Vista, VISTAS, VISTAS_VALIDAS, AjustesDialog(), ErrorBoundary, Props, State (+36 more)
+Cohesion: 0.07
+Nodes (49): Shell(), Vista, VISTAS, VISTAS_VALIDAS, AjustesDialog(), ErrorBoundary, Props, State (+41 more)
 
 ### Community 43 - "graphify reference: query, path, explain"
 Cohesion: 0.33
@@ -306,17 +301,17 @@ Nodes (11): 1. Crear el proyecto y habilitar la API, 2. Configurar la pantalla d
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `dependencies` connect `cmdk` to `command.tsx`, `carousel.tsx`, `@hookform/resolvers`, `package.json`, `date-fns`, `lucide-react`, `next-themes`, `dependencies`, `@radix-ui/react-aspect-ratio`, `@radix-ui/react-checkbox`, `@radix-ui/react-dropdown-menu`, `@radix-ui/react-hover-card`, `@radix-ui/react-label`, `@radix-ui/react-menubar`, `@radix-ui/react-navigation-menu`, `@radix-ui/react-popover`, `@radix-ui/react-progress`, `@radix-ui/react-radio-group`, `@radix-ui/react-scroll-area`, `@radix-ui/react-select`, `@radix-ui/react-separator`, `@radix-ui/react-slider`, `@radix-ui/react-slot`, `@radix-ui/react-switch`, `@radix-ui/react-toggle`, `@radix-ui/react-toggle-group`, `@radix-ui/react-tooltip`, `react-day-picker`, `react-dom`, `react-hook-form`, `react-resizable-panels`, `tailwind-merge`, `vaul`, `zod`, `@radix-ui/react-collapsible`, `@radix-ui/react-dialog`, `@radix-ui/react-context-menu`, `@radix-ui/react-tabs`, `@radix-ui/react-toast`, `@supabase/supabase-js`, `@radix-ui/react-accordion`, `cmdk`?**
+- **Why does `dependencies` connect `cmdk` to `command.tsx`, `use-toast.ts`, `@hookform/resolvers`, `package.json`, `date-fns`, `lucide-react`, `next-themes`, `dependencies`, `@radix-ui/react-aspect-ratio`, `@radix-ui/react-checkbox`, `@radix-ui/react-dropdown-menu`, `@radix-ui/react-hover-card`, `@radix-ui/react-label`, `@radix-ui/react-menubar`, `@radix-ui/react-navigation-menu`, `@radix-ui/react-popover`, `@radix-ui/react-progress`, `@radix-ui/react-radio-group`, `@radix-ui/react-scroll-area`, `@radix-ui/react-select`, `@radix-ui/react-separator`, `@radix-ui/react-slider`, `@radix-ui/react-slot`, `@radix-ui/react-switch`, `@radix-ui/react-toggle`, `@radix-ui/react-toggle-group`, `@radix-ui/react-tooltip`, `react-day-picker`, `react-dom`, `react-hook-form`, `react-resizable-panels`, `tailwind-merge`, `vaul`, `zod`, `@radix-ui/react-collapsible`, `@radix-ui/react-dialog`, `@radix-ui/react-context-menu`, `@radix-ui/react-tabs`, `@radix-ui/react-toast`, `@supabase/supabase-js`, `@radix-ui/react-accordion`, `cmdk`?**
   _High betweenness centrality (0.235) - this node is a cross-community bridge._
-- **Why does `react` connect `carousel.tsx` to `cmdk`, `use-toast.ts`?**
+- **Why does `react` connect `use-toast.ts` to `cmdk`?**
   _High betweenness centrality (0.211) - this node is a cross-community bridge._
-- **Why does `cn()` connect `cn` to `App.tsx`, `sync.tsx`, `use-toast.ts`, `carousel.tsx`, `menubar.tsx`, `sheet.tsx`, `table.tsx`, `breadcrumb.tsx`, `drawer.tsx`, `navigation-menu.tsx`, `card.tsx`, `toggle-group.tsx`, `alert.tsx`, `avatar.tsx`, `accordion.tsx`, `class-variance-authority`, `clsx`?**
+- **Why does `cn()` connect `cn` to `App.tsx`, `sync.tsx`, `use-toast.ts`, `carousel.tsx`, `menubar.tsx`, `sheet.tsx`, `table.tsx`, `breadcrumb.tsx`, `drawer.tsx`, `navigation-menu.tsx`, `card.tsx`, `toggle-group.tsx`, `alert.tsx`, `avatar.tsx`, `accordion.tsx`, `class-variance-authority`?**
   _High betweenness centrality (0.143) - this node is a cross-community bridge._
 - **What connects `$schema`, `style`, `rsc` to the rest of the system?**
   _357 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `App.tsx` be split into smaller, more focused modules?**
-  _Cohesion score 0.084472049689441 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.08735733099209833 - nodes in this community are weakly interconnected._
 - **Should `compilerOptions` be split into smaller, more focused modules?**
   _Cohesion score 0.07692307692307693 - nodes in this community are weakly interconnected._
 - **Should `use-toast.ts` be split into smaller, more focused modules?**
-  _Cohesion score 0.13333333333333333 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.06620209059233449 - nodes in this community are weakly interconnected._

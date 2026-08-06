@@ -4,7 +4,7 @@ import type { Pendiente } from '@/types'
 import { PROYECTO_COLORES } from '@/types'
 import type { FiltroFecha } from '@/types'
 export type { FiltroFecha } from '@/types'
-import { hoyISO, vencido, activo } from '@/lib/app-utils'
+import { hoyISO, vencido, activo, estaBloqueado } from '@/lib/app-utils'
 import { columnaDe, idColumnaCompletado } from '@/lib/columnas'
 import { useIsMobile } from '@/hooks/use-is-mobile'
 import TaskRow from '@/components/TaskRow'
@@ -14,7 +14,8 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Pencil, Trash2, Search, SlidersHorizontal, ChevronLeft, ChevronDown } from 'lucide-react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Pencil, Trash2, Search, SlidersHorizontal, ChevronLeft, ChevronDown, Bookmark, BookmarkPlus, X } from 'lucide-react'
 
 function TaskDetail({ detalle, onBack, mobile }: { detalle: Pendiente; onBack: () => void; mobile: boolean }) {
   const { abrirModal, eliminarPendiente, columnas } = useApp()
@@ -58,7 +59,7 @@ function cargarFiltros(): FiltrosGuardados {
 }
 
 export default function ListView({ filtroFecha, setFiltroFecha }: { filtroFecha: FiltroFecha; setFiltroFecha: (f: FiltroFecha) => void }) {
-  const { pendientes, personas, proyectos, toggleSubtarea, abrirModal, columnas } = useApp()
+  const { pendientes, personas, proyectos, toggleSubtarea, abrirModal, columnas, filtrosGuardados, crearFiltroGuardado, eliminarFiltroGuardado, filtroActivoId, setFiltroActivoId } = useApp()
   const idCompletado = idColumnaCompletado(columnas)
   const [gruposColapsados, setGruposColapsados] = useState<Set<string>>(new Set())
   const toggleGrupo = (k: string) => setGruposColapsados(prev => { const s = new Set(prev); if (s.has(k)) s.delete(k); else s.add(k); return s })
@@ -73,6 +74,29 @@ export default function ListView({ filtroFecha, setFiltroFecha }: { filtroFecha:
   const [detalleId, setDetalleId] = useState<string | null>(null)
   const [filtrosAbiertos, setFiltrosAbiertos] = useState(false)
   const [mostrarArchivados, setMostrarArchivados] = useState(false)
+  const [soloDisponibles, setSoloDisponibles] = useState(false)
+  const [guardarDlg, setGuardarDlg] = useState(false)
+  const [nombreFiltro, setNombreFiltro] = useState('')
+  const [atajoFiltro, setAtajoFiltro] = useState<string>('__ninguno')
+
+  // Un atajo global (Ctrl+Shift+1-4, ver App.tsx) navega aquí y setea `filtroActivoId`: aplicamos
+  // sus criterios al estado local de esta vista, que es quien realmente filtra/ordena/agrupa.
+  useEffect(() => {
+    if (!filtroActivoId) return
+    const f = filtrosGuardados.find(x => x.id === filtroActivoId)
+    if (!f) return
+    setQ(f.criterios.q); setFEstado(f.criterios.fEstado); setFPrioridad(f.criterios.fPrioridad)
+    setFResp(f.criterios.fResp); setOrden(f.criterios.orden); setGrupo(f.criterios.grupo)
+    setFiltroFecha(f.criterios.filtroFecha)
+  }, [filtroActivoId, filtrosGuardados, setFiltroFecha])
+
+  const guardarFiltroActual = () => {
+    const n = nombreFiltro.trim()
+    if (!n) return
+    const atajo = atajoFiltro === '__ninguno' ? undefined : (atajoFiltro as '1' | '2' | '3' | '4')
+    crearFiltroGuardado(n, { q, fEstado, fPrioridad, fResp, orden, grupo, filtroFecha }, atajo)
+    setGuardarDlg(false); setNombreFiltro(''); setAtajoFiltro('__ninguno')
+  }
 
   useEffect(() => {
     try { localStorage.setItem(LS_FILTROS, JSON.stringify({ fEstado, fPrioridad, fResp, orden, grupo, verSub })) } catch { /* noop */ }
@@ -105,6 +129,7 @@ export default function ListView({ filtroFecha, setFiltroFecha }: { filtroFecha:
         if (fResp !== 'todos' && p.responsable !== fResp) return false
         if (mostrarArchivados) return !!p.archivado
         if (!activo(p)) return false
+        if (soloDisponibles && estaBloqueado(p, pendientes, idCompletado)) return false
         return pasaFecha(p)
       })
       .sort((a, b) => {
@@ -113,7 +138,7 @@ export default function ListView({ filtroFecha, setFiltroFecha }: { filtroFecha:
         if (orden === 'titulo') return a.titulo.localeCompare(b.titulo)
         return new Date(b.creado).getTime() - new Date(a.creado).getTime()
       })
-  }, [pendientes, q, fEstado, fPrioridad, fResp, orden, filtroFecha, mostrarArchivados]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [pendientes, q, fEstado, fPrioridad, fResp, orden, filtroFecha, mostrarArchivados, soloDisponibles, idCompletado]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const grupos = useMemo(() => {
     if (grupo === 'ninguno') return null
@@ -238,10 +263,53 @@ export default function ListView({ filtroFecha, setFiltroFecha }: { filtroFecha:
           ))}
           <button onClick={() => setMostrarArchivados(v => !v)}
             className={'shrink-0 rounded-full border px-2.5 py-1 text-[11px] ' + (mostrarArchivados ? 'border-primary bg-primary text-primary-foreground' : 'hover:bg-accent')}>🗄 Archivados</button>
+          <button disabled={mostrarArchivados} onClick={() => setSoloDisponibles(v => !v)} title="Oculta pendientes bloqueados por otros sin completar"
+            className={'shrink-0 rounded-full border px-2.5 py-1 text-[11px] disabled:opacity-40 ' + (soloDisponibles ? 'border-primary bg-primary text-primary-foreground' : 'hover:bg-accent')}>🔓 Disponibles</button>
         </div>
         <div className="hidden md:block">{filtrosAvanzados}</div>
         {filtrosAbiertos && <div className="md:hidden">{filtrosAvanzados}</div>}
+
+        {/* Filtros guardados / smart lists (Fase 8.3) */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          {filtrosGuardados.map(f => (
+            <span key={f.id} className={'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] ' + (filtroActivoId === f.id ? 'border-primary bg-primary/10 text-primary' : 'hover:bg-accent')}>
+              <button onClick={() => setFiltroActivoId(f.id)} className="flex items-center gap-1">
+                <Bookmark size={10} />{f.nombre}{f.atajo && <kbd className="ml-0.5 rounded bg-muted px-1 text-[9px]">⇧{f.atajo}</kbd>}
+              </button>
+              <button onClick={() => eliminarFiltroGuardado(f.id)} aria-label={'Eliminar filtro ' + f.nombre} className="hover:text-destructive"><X size={9} /></button>
+            </span>
+          ))}
+          <button onClick={() => setGuardarDlg(true)} className="inline-flex items-center gap-1 rounded-full border border-dashed px-2 py-0.5 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground">
+            <BookmarkPlus size={11} /> Guardar filtro actual
+          </button>
+        </div>
       </div>
+
+      <Dialog open={guardarDlg} onOpenChange={setGuardarDlg}>
+        <DialogContent className="max-w-xs">
+          <DialogHeader><DialogTitle className="text-base">Guardar filtro actual</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <Input autoFocus value={nombreFiltro} onChange={e => setNombreFiltro(e.target.value)} placeholder="Nombre (ej. Vencidos de Trabajo)"
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); guardarFiltroActual() } }} />
+            <div className="space-y-1">
+              <label className="text-[11px] uppercase text-muted-foreground">Atajo (opcional)</label>
+              <Select value={atajoFiltro} onValueChange={setAtajoFiltro}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__ninguno">Ninguno</SelectItem>
+                  {(['1', '2', '3', '4'] as const).map(n => (
+                    <SelectItem key={n} value={n}>Ctrl+Shift+{n}{filtrosGuardados.some(f => f.atajo === n) && ' (reasigna)'}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setGuardarDlg(false)}>Cancelar</Button>
+            <Button onClick={guardarFiltroActual}>Guardar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {isMobile ? listado : (
         <div className="flex min-h-0 flex-1 gap-3">

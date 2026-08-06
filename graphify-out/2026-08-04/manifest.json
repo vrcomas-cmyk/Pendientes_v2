@@ -575,8 +575,8 @@
     "semantic_hash": ""
   },
   "src/components/ColumnaHeader.tsx": {
-    "mtime": 1785824998.5338335,
-    "ast_hash": "a3310884d748796f0b7628b43eb69e7e",
+    "mtime": 1785855627.192281,
+    "ast_hash": "edd18dc7aff5c90ceedd2c49ef5b36a9",
     "semantic_hash": ""
   },
   "src/lib/useEditorColumnas.ts": {

@@ -11,12 +11,12 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem, ContextMenuSeparator } from '@/components/ui/context-menu'
+import { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuSub, ContextMenuSubTrigger, ContextMenuSubContent } from '@/components/ui/context-menu'
 import { useIsMobile } from '@/hooks/use-is-mobile'
 import { Plus, Briefcase, ChevronLeft, List, Columns3, Trash2, Upload } from 'lucide-react'
 
 function NuevoProyectoDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
-  const { crearProyecto } = useApp()
+  const { crearProyecto, actualizarProyecto, espacioActualId } = useApp()
   const [nombre, setNombre] = useState('')
   const [color, setColor] = useState(PROYECTO_COLORES_KEYS[0])
   const [cuentaId, setCuentaId] = useState<string>('')
@@ -31,7 +31,10 @@ function NuevoProyectoDialog({ open, onOpenChange }: { open: boolean; onOpenChan
   const guardar = () => {
     const n = nombre.trim()
     if (!n) return
-    crearProyecto(n, color, cuentaId || undefined)
+    const nuevo = crearProyecto(n, color, cuentaId || undefined)
+    // Si el usuario está mirando un espacio filtrado, el proyecto nuevo nace en ese espacio
+    // (menos clics: no obliga a un segundo paso de "mover a espacio").
+    if (espacioActualId) actualizarProyecto(nuevo.id, { espacioId: espacioActualId })
     onOpenChange(false)
   }
 
@@ -91,12 +94,16 @@ function ListaProyecto({ proyectoId }: { proyectoId: string }) {
 }
 
 export default function ProyectosView() {
-  const { proyectos, pendientes, eliminarProyecto, actualizarProyecto, proyectoAbiertoId: proyectoSelId, setProyectoAbiertoId: setProyectoSelId, columnas } = useApp()
+  const { proyectos: todosProyectos, pendientes, eliminarProyecto, actualizarProyecto, proyectoAbiertoId: proyectoSelId, setProyectoAbiertoId: setProyectoSelId, columnas, espacios, espacioActualId } = useApp()
   const idCompletado = idColumnaCompletado(columnas)
   const isMobile = useIsMobile()
   const [modo, setModo] = useState<'tablero' | 'lista'>('tablero')
   const [nuevoDlg, setNuevoDlg] = useState(false)
   const [importarDlg, setImportarDlg] = useState(false)
+
+  // Filtro por Espacio (Fase 4): "Todos" (espacioActualId=null) no filtra nada, para no
+  // cambiar el comportamiento por defecto que ya existía antes de que hubiera Espacios.
+  const proyectos = espacioActualId ? todosProyectos.filter(p => p.espacioId === espacioActualId) : todosProyectos
 
   const proyecto = proyectos.find(p => p.id === proyectoSelId) || null
 
@@ -111,6 +118,7 @@ export default function ProyectosView() {
           const items = pendientes.filter(x => x.proyectoId === p.id && activo(x))
           const abiertos = items.filter(x => x.estado !== idCompletado).length
           const colores = PROYECTO_COLORES[p.color] || PROYECTO_COLORES[PROYECTO_COLORES_KEYS[0]]
+          const espacio = p.espacioId ? espacios.find(e => e.id === p.espacioId) : null
           return (
             <ContextMenu key={p.id}>
               <ContextMenuTrigger asChild>
@@ -118,20 +126,40 @@ export default function ProyectosView() {
                   className={'flex cursor-pointer items-center gap-2 rounded-lg p-2.5 ' + (proyectoSelId === p.id ? 'bg-primary/10 ring-1 ring-primary/40' : 'hover:bg-accent')}>
                   <span className={'h-2.5 w-2.5 shrink-0 rounded-full ' + colores.dot} />
                   <span className="min-w-0 flex-1 truncate text-sm font-semibold">{p.nombre}</span>
+                  {espacio && <span className="shrink-0 text-xs" title={espacio.nombre}>{espacio.icono}</span>}
                   <span className="shrink-0 text-[10px] text-muted-foreground">{abiertos} abiertos</span>
                 </div>
               </ContextMenuTrigger>
-              <ContextMenuContent className="w-44">
+              <ContextMenuContent className="w-48">
                 <ContextMenuItem onClick={() => actualizarProyecto(p.id, { color: PROYECTO_COLORES_KEYS[(PROYECTO_COLORES_KEYS.indexOf(p.color) + 1) % PROYECTO_COLORES_KEYS.length] })}>
                   Cambiar color
                 </ContextMenuItem>
+                {espacios.length > 0 && (
+                  <ContextMenuSub>
+                    <ContextMenuSubTrigger>Mover a espacio</ContextMenuSubTrigger>
+                    <ContextMenuSubContent>
+                      <ContextMenuItem onClick={() => actualizarProyecto(p.id, { espacioId: undefined })}>
+                        📋 General {!p.espacioId && '✓'}
+                      </ContextMenuItem>
+                      {espacios.map(e => (
+                        <ContextMenuItem key={e.id} onClick={() => actualizarProyecto(p.id, { espacioId: e.id })}>
+                          {e.icono} {e.nombre} {p.espacioId === e.id && '✓'}
+                        </ContextMenuItem>
+                      ))}
+                    </ContextMenuSubContent>
+                  </ContextMenuSub>
+                )}
                 <ContextMenuSeparator />
                 <ContextMenuItem className="text-destructive" onClick={() => eliminarProyecto(p.id)}>Eliminar</ContextMenuItem>
               </ContextMenuContent>
             </ContextMenu>
           )
         })}
-        {!proyectos.length && <p className="p-4 text-center text-xs text-muted-foreground">Crea tu primer proyecto para organizar trabajo o estudio en un tablero propio.</p>}
+        {!proyectos.length && (
+          <p className="p-4 text-center text-xs text-muted-foreground">
+            {espacioActualId ? 'Ningún proyecto en este espacio todavía.' : 'Crea tu primer proyecto para organizar trabajo o estudio en un tablero propio.'}
+          </p>
+        )}
       </div>
     </div>
   )

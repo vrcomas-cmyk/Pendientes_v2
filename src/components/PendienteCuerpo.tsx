@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { Adjunto, Pendiente } from '@/types'
+import type { Adjunto, Pendiente, Subtarea } from '@/types'
 import { PROYECTO_COLORES } from '@/types'
 import { useApp } from '@/store'
 import { googleCalendarUrl, progresoSub, vencido, describirRepeticion } from '@/lib/app-utils'
@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
 import AdjuntosUI, { Miniatura } from '@/components/AdjuntosUI'
-import { StickyNote, Calendar, CalendarPlus, Send, User, ImagePlus, X, Plus } from 'lucide-react'
+import { StickyNote, Calendar, CalendarPlus, Send, User, ImagePlus, X, Plus, CornerDownRight } from 'lucide-react'
 
 /**
  * Cuerpo compartido entre el panel deDetalle de la ListView y el diálogo `PendientePeek`.
@@ -36,13 +36,55 @@ interface Props {
   mostrarCreado?: boolean
 }
 
+/** Fila de subtarea recursiva (Fase 8.4): se llama a sí misma para renderizar `children` con
+    indentación creciente. `permitirAgregar` solo habilita el "+" de agregar hijo en el nivel
+    donde `PendienteCuerpo` lo permite (Peek); TaskDetail sigue siendo de solo lectura. */
+function FilaSubtarea({ s, pid, nivel, permitirAgregar }: { s: Subtarea; pid: string; nivel: number; permitirAgregar: boolean }) {
+  const { toggleSubtarea, agregarSubSubtarea } = useApp()
+  const [agregando, setAgregando] = useState(false)
+  const [texto, setTexto] = useState('')
+  const confirmar = () => { if (texto.trim()) { agregarSubSubtarea(pid, s.id, texto); setTexto(''); setAgregando(false) } }
+  return (
+    <div style={{ marginLeft: nivel * 16 }}>
+      <div className="flex items-start gap-2 rounded-md border px-2 py-1.5 text-sm">
+        <Checkbox checked={s.completada} onCheckedChange={() => toggleSubtarea(pid, s.id)} className="mt-0.5" />
+        <div className="min-w-0 flex-1">
+          <span className={s.completada ? 'linea-completada' : ''}>{s.texto}</span>
+          {(s.responsable || s.fechaLimite) && (
+            <div className="mt-0.5 flex flex-wrap gap-2 text-[10px] text-muted-foreground">
+              {s.responsable && <span className="inline-flex items-center gap-0.5"><User size={9} />{s.responsable}</span>}
+              {s.fechaLimite && <span className="inline-flex items-center gap-0.5"><Calendar size={9} />{s.fechaLimite}</span>}
+            </div>
+          )}
+        </div>
+        {permitirAgregar && nivel < 2 && (
+          <button onClick={() => setAgregando(v => !v)} title="Agregar sub-subtarea" className="shrink-0 text-muted-foreground hover:text-primary">
+            <CornerDownRight size={13} />
+          </button>
+        )}
+      </div>
+      {agregando && (
+        <div className="mt-1 flex gap-2" style={{ marginLeft: 16 }}>
+          <Input autoFocus value={texto} onChange={e => setTexto(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') confirmar() }} placeholder="Sub-subtarea y Enter" className="h-7 text-xs" />
+          <Button variant="secondary" size="sm" onClick={confirmar}><Plus size={13} /></Button>
+        </div>
+      )}
+      {!!s.children?.length && (
+        <div className="mt-1 space-y-1">
+          {s.children.map(h => <FilaSubtarea key={h.id} s={h} pid={pid} nivel={nivel + 1} permitirAgregar={permitirAgregar} />)}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function PendienteCuerpo({
   pendiente: p,
   permitirAgregarSubtarea = false,
   destacarOrigenNota = false,
   mostrarCreado = false,
 }: Props) {
-  const { proyectos, columnas, toggleSubtarea, agregarSubtarea, setNotaActualId, agregarComentario, actualizarPendiente } = useApp()
+  const { proyectos, columnas, agregarSubtarea, setNotaActualId, agregarComentario, actualizarPendiente, colorDeEtiqueta } = useApp()
   const idCompletado = idColumnaCompletado(columnas)
   const col = columnaDe(columnas, p.estado)
   const sub = progresoSub(p)
@@ -116,20 +158,7 @@ export default function PendienteCuerpo({
         <div className="mb-1.5 text-xs font-bold">Subtareas {sub && <span className="font-normal text-muted-foreground">({sub.hechas}/{sub.total})</span>}</div>
         {sub && <div className="mb-2 h-1.5 w-full rounded-full bg-muted"><div className="h-1.5 rounded-full bg-primary transition-all" style={{ width: sub.pct + '%' }} /></div>}
         <div className="space-y-1">
-          {p.subtareas.map(s => (
-            <div key={s.id} className="flex items-start gap-2 rounded-md border px-2 py-1.5 text-sm">
-              <Checkbox checked={s.completada} onCheckedChange={() => toggleSubtarea(p.id, s.id)} className="mt-0.5" />
-              <div className="min-w-0 flex-1">
-                <span className={s.completada ? 'linea-completada' : ''}>{s.texto}</span>
-                {(s.responsable || s.fechaLimite) && (
-                  <div className="mt-0.5 flex flex-wrap gap-2 text-[10px] text-muted-foreground">
-                    {s.responsable && <span className="inline-flex items-center gap-0.5"><User size={9} />{s.responsable}</span>}
-                    {s.fechaLimite && <span className="inline-flex items-center gap-0.5"><Calendar size={9} />{s.fechaLimite}</span>}
-                  </div>
-                )}
-              </div>
-            </div>
-          ))}
+          {p.subtareas.map(s => <FilaSubtarea key={s.id} s={s} pid={p.id} nivel={0} permitirAgregar={permitirAgregarSubtarea} />)}
           {!p.subtareas.length && <p className="text-xs text-muted-foreground">Sin subtareas.</p>}
         </div>
         {permitirAgregarSubtarea && (
@@ -147,9 +176,16 @@ export default function PendienteCuerpo({
         <AdjuntosUI adjuntos={p.adjuntos || []} taskId={p.id} onChange={a => actualizarPendiente(p.id, { adjuntos: a })} />
       </div>
 
-      {/* Etiquetas */}
+      {/* Etiquetas — color propio si la etiqueta está registrada en Ajustes (Fase 8.1), gris si no */}
       {p.etiquetas.length > 0 && (
-        <div className="flex flex-wrap gap-1">{p.etiquetas.map(e => <span key={e} className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary">#{e}</span>)}</div>
+        <div className="flex flex-wrap gap-1">
+          {p.etiquetas.map(e => {
+            const color = colorDeEtiqueta(e)
+            return (
+              <span key={e} className={'rounded-full px-1.5 py-0.5 text-[10px] ' + (color ? PROYECTO_COLORES[color].badge : 'bg-primary/10 text-primary')}>#{e}</span>
+            )
+          })}
+        </div>
       )}
 
       {/* Comentarios */}
