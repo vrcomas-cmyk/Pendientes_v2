@@ -156,7 +156,8 @@ export default function TaskModal() {
 
   return (
     <Dialog open={modal.open} onOpenChange={o => { if (!o) cerrarModal() }}>
-      <DialogContent className="max-w-xl max-h-[92vh] overflow-y-auto scroll-thin">
+      <DialogContent className="max-w-xl max-h-[92vh] overflow-y-auto scroll-thin"
+        onKeyDown={e => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); guardar() } }}>
         <DialogHeader><DialogTitle>{editando ? 'Editar pendiente' : 'Nuevo pendiente'}</DialogTitle></DialogHeader>
 
         <div className="space-y-4">
@@ -243,7 +244,7 @@ export default function TaskModal() {
               {subtareas.map((s, i) => (
                 <div key={s.id} className="rounded-lg border p-2">
                   <div className="flex items-center gap-2">
-                    <Checkbox checked={s.completada} onCheckedChange={v => setSub(i, 'completada', !!v)} />
+                    <Checkbox checked={s.completada} onCheckedChange={v => setSub(i, 'completada', !!v)} aria-label={`Marcar subtarea "${s.texto || 'sin título'}" como ${s.completada ? 'no completada' : 'completada'}`} />
                     <Input value={s.texto} onChange={e => setSub(i, 'texto', e.target.value)} className={'h-7 flex-1 text-xs ' + (s.completada ? 'line-through opacity-60' : '')} />
                     <button onClick={() => setSubtareas(arr => arr.filter((_, j) => j !== i))} className="text-muted-foreground hover:text-destructive"><X size={14} /></button>
                   </div>

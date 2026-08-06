@@ -2,11 +2,12 @@ import { useEffect, useMemo, useState } from 'react'
 import { useApp } from '@/store'
 import { useSync } from '@/sync'
 import type { EventoCalendario } from '@/types'
-import { activo, hoyISO } from '@/lib/app-utils'
+import { activo, hoyISO, nombreMes } from '@/lib/app-utils'
 import { columnaDe, colorColumna, idColumnaCompletado } from '@/lib/columnas'
 import { listarCuentasGoogle, listarEventosRango, type CuentaGoogle, type EventoGCal } from '@/lib/googleCalendar'
 import { sincronizarEspejoGoogle, sinDuplicarLocal } from '@/lib/agenda'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import ConfirmDialog from '@/components/ConfirmDialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -20,7 +21,6 @@ const HORA_INICIO = 6
 const HORA_FIN = 22
 const PX_HORA = 48
 const CUARTOS = [0, 15, 30, 45]
-const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
 const DIAS_CORTOS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
 
 const COLORES_CUENTA = ['bg-blue-500', 'bg-violet-500', 'bg-amber-500', 'bg-rose-500', 'bg-emerald-500']
@@ -76,6 +76,7 @@ export default function CalendarioView() {
   const [editando, setEditando] = useState<EventoCalendario | null>(null)
   const [verGoogle, setVerGoogle] = useState<EventoGCal | null>(null)
   const [cargandoGoogle, setCargandoGoogle] = useState(false)
+  const [eventoAEliminar, setEventoAEliminar] = useState<EventoCalendario | null>(null)
 
   const conectado = cuentas.length > 0
   const cambiarModo = (m: ModoCal) => { setModoVista(m); try { localStorage.setItem('pn_calendario_modo', m) } catch { /* noop */ } }
@@ -204,7 +205,7 @@ export default function CalendarioView() {
     eliminarEvento(ev.id)
     setEditando(null)
   }
-  const borrarEdicion = () => { if (editando) eliminarEventoSuelto(editando) }
+  const borrarEdicion = () => { if (editando) setEventoAEliminar(editando) }
 
   const backlog = pendientes.filter(p => !p.fechaLimite && p.estado !== idCompletado)
   const horas = Array.from({ length: HORA_FIN - HORA_INICIO }, (_, i) => HORA_INICIO + i)
@@ -217,9 +218,9 @@ export default function CalendarioView() {
   const todoElDiaDe = (iso: string) => eventosGoogleVisibles.filter(e => e.todoElDia && e.inicio?.slice(0, 10) === iso)
 
   const etiquetaRango = () => {
-    if (modoVista === 'dia') { const d = new Date(fecha + 'T00:00:00'); return `${DIAS_CORTOS[d.getDay()]} ${d.getDate()} de ${MESES[d.getMonth()]}` }
-    if (modoVista === 'semana') { const ini = diasVisibles[0], fin = diasVisibles[6]; return `${ini.slice(8)} – ${fin.slice(8)} de ${MESES[Number(fin.slice(5, 7)) - 1]} ${fin.slice(0, 4)}` }
-    const [a, m] = fecha.split('-').map(Number); return `${MESES[m - 1]} ${a}`
+    if (modoVista === 'dia') { const d = new Date(fecha + 'T00:00:00'); return `${DIAS_CORTOS[d.getDay()]} ${d.getDate()} de ${nombreMes(d.getMonth())}` }
+    if (modoVista === 'semana') { const ini = diasVisibles[0], fin = diasVisibles[6]; return `${ini.slice(8)} – ${fin.slice(8)} de ${nombreMes(Number(fin.slice(5, 7)) - 1)} ${fin.slice(0, 4)}` }
+    const [a, m] = fecha.split('-').map(Number); return `${nombreMes(m - 1)} ${a}`
   }
 
   const anchoMinCol = modoVista === 'semana' ? 120 : undefined
@@ -273,7 +274,7 @@ export default function CalendarioView() {
             </ContextMenuTrigger>
             <ContextMenuContent className="w-40">
               <ContextMenuItem onClick={() => setEditando(e)}>Editar</ContextMenuItem>
-              <ContextMenuItem className="text-destructive" onClick={() => eliminarEventoSuelto(e)}>Eliminar</ContextMenuItem>
+              <ContextMenuItem className="text-destructive" onClick={() => setEventoAEliminar(e)}>Eliminar</ContextMenuItem>
             </ContextMenuContent>
           </ContextMenu>
         ))}
@@ -356,7 +357,7 @@ export default function CalendarioView() {
                           <ContextMenuTrigger asChild>{chip}</ContextMenuTrigger>
                           <ContextMenuContent className="w-40">
                             <ContextMenuItem onClick={() => setEditando(e)}>Editar</ContextMenuItem>
-                            <ContextMenuItem className="text-destructive" onClick={() => eliminarEventoSuelto(e)}>Eliminar</ContextMenuItem>
+                            <ContextMenuItem className="text-destructive" onClick={() => setEventoAEliminar(e)}>Eliminar</ContextMenuItem>
                           </ContextMenuContent>
                         </ContextMenu>
                       )
@@ -503,6 +504,14 @@ export default function CalendarioView() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={!!eventoAEliminar}
+        onOpenChange={o => { if (!o) setEventoAEliminar(null) }}
+        titulo="Eliminar evento"
+        descripcion={`"${eventoAEliminar?.titulo || ''}" se eliminará${eventoAEliminar?.googleEventos && Object.keys(eventoAEliminar.googleEventos).length ? ' también de Google Calendar' : ''}.`}
+        onConfirmar={() => { if (eventoAEliminar) eliminarEventoSuelto(eventoAEliminar) }}
+      />
     </div>
   )
 }

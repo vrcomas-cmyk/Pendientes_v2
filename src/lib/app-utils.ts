@@ -152,7 +152,21 @@ export interface LineaParseada {
   repetir?: string
 }
 
-const NOMBRES_DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado']
+// Fase 10.1 (i18n es-MX consistente): nombres de día vía Intl en vez de un array hardcodeado —
+// 2024-01-07 es domingo, así que sumarle `dow` días da el día de esa semana con el índice
+// correcto (0=domingo..6=sábado, igual que `Date.getDay()`).
+const FMT_DIA_LARGO = new Intl.DateTimeFormat('es-MX', { weekday: 'long' })
+export function nombreDiaSemana(dow: number): string {
+  return FMT_DIA_LARGO.format(new Date(2024, 0, 7 + dow))
+}
+const FMT_MES_LARGO = new Intl.DateTimeFormat('es-MX', { month: 'long' })
+/** Nombre del mes (0-indexado, como `Date.getMonth()`), con mayúscula inicial — Intl en es-MX
+    devuelve el nombre en minúsculas ("enero"), pero `CalendarioView` ya lo mostraba capitalizado. */
+export function nombreMes(mes: number): string {
+  const n = FMT_MES_LARGO.format(new Date(2024, mes, 1))
+  return n.charAt(0).toUpperCase() + n.slice(1)
+}
+const NOMBRES_DIAS = Array.from({ length: 7 }, (_, dow) => nombreDiaSemana(dow))
 const UNIDAD_RE = /^(d(?:ias?)?|s(?:em(?:anas?)?)?|m(?:es(?:es)?)?)$/i
 function normalizarUnidad(u: string): 'd' | 's' | 'm' {
   const c = u.toLowerCase()[0]

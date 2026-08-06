@@ -79,7 +79,7 @@ function FilaSubtarea({ s, pid, nivel, permitirAgregar }: { s: Subtarea; pid: st
   return (
     <div style={{ marginLeft: nivel * 16 }}>
       <div className="flex items-start gap-2 rounded-md border px-2 py-1.5 text-sm">
-        <Checkbox checked={s.completada} onCheckedChange={() => toggleSubtarea(pid, s.id)} className="mt-0.5" />
+        <Checkbox checked={s.completada} onCheckedChange={() => toggleSubtarea(pid, s.id)} aria-label={`Marcar subtarea "${s.texto}" como ${s.completada ? 'no completada' : 'completada'}`} className="mt-0.5" />
         <div className="min-w-0 flex-1">
           <span className={s.completada ? 'linea-completada' : ''}>{s.texto}</span>
           {(s.responsable || s.fechaLimite) && (

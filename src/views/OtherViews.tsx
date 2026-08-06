@@ -3,7 +3,7 @@ import { useApp } from '@/store'
 import { useSync } from '@/sync'
 import type { EventoCalendario, Pendiente } from '@/types'
 import { PROYECTO_COLORES, PROYECTO_COLORES_KEYS } from '@/types'
-import { hoyISO, isoMasDias, isoSumarDias, vencido, activo, actividadPorDia, rachaDiaria, medianaTiempoVida, throughputSemanal } from '@/lib/app-utils'
+import { hoyISO, isoMasDias, isoSumarDias, vencido, activo, actividadPorDia, rachaDiaria, medianaTiempoVida, throughputSemanal, nombreDiaSemana } from '@/lib/app-utils'
 import { idColumnaCompletado } from '@/lib/columnas'
 import { listarEventosDia, type EventoGCal } from '@/lib/googleCalendar'
 import { sinDuplicarLocal } from '@/lib/agenda'
@@ -24,7 +24,6 @@ function Seccion({ titulo, color, items, vacio }: { titulo: string; color: strin
     </div>
   )
 }
-const NOMBRES_DIAS_LARGO = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado']
 function saludo(): string {
   const hh = new Date().getHours()
   return hh < 12 ? 'Buenos días' : hh < 19 ? 'Buenas tardes' : 'Buenas noches'
@@ -34,7 +33,7 @@ function etiquetaDia(iso: string): string {
   if (iso === h) return 'Hoy'
   if (iso === isoMasDias(-1)) return 'Ayer'
   const d = new Date(iso + 'T00:00')
-  return `${NOMBRES_DIAS_LARGO[d.getDay()]} ${iso.slice(5)}`
+  return `${nombreDiaSemana(d.getDay())} ${iso.slice(5)}`
 }
 
 /** Completados recientes agrupados por día — la sensación de logro que hoy no existe: al completar, el

@@ -12,6 +12,7 @@ import { Plus, Image as ImageIcon, ListChecks, Trash2, Search, StickyNote, Chevr
 import { useIsMobile } from '@/hooks/use-is-mobile'
 import { subirAdjunto, urlAdjunto } from '@/lib/adjuntos'
 import PreviaParseo from '@/components/PreviaParseo'
+import ConfirmDialog from '@/components/ConfirmDialog'
 
 const SIN_CARPETA = '__sin__'
 const RE_BULLET = /^\s*[-*+•]\s+\S/
@@ -319,10 +320,14 @@ export default function NotesView() {
     }
     setRenombrarDlg(null)
   }
-  const eliminarCarpeta = (c: string) => {
+  const [eliminarCarpetaDlg, setEliminarCarpetaDlg] = useState<string | null>(null)
+  const confirmarEliminarCarpeta = () => {
+    const c = eliminarCarpetaDlg
+    if (!c) return
     notas.filter(n => n.carpeta === c).forEach(n => actualizarNota(n.id, { carpeta: undefined }))
     if (carpetaSel === c) setCarpetaSel('todas')
     toast('Carpeta eliminada (las notas se conservan sin carpeta)')
+    setEliminarCarpetaDlg(null)
   }
 
   const notasFiltradas = notas
@@ -346,7 +351,7 @@ export default function NotesView() {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-44">
               <DropdownMenuItem onClick={() => { setRenombrarDlg(c); setRenombrarVal(c) }}><Pencil size={12} className="mr-2" /> Renombrar</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => eliminarCarpeta(c)} className="text-destructive"><Trash2 size={12} className="mr-2" /> Eliminar carpeta</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setEliminarCarpetaDlg(c)} className="text-destructive"><Trash2 size={12} className="mr-2" /> Eliminar carpeta</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -570,6 +575,16 @@ export default function NotesView() {
     </Dialog>
   )
 
+  const eliminarCarpetaDialog = (
+    <ConfirmDialog
+      open={!!eliminarCarpetaDlg}
+      onOpenChange={o => { if (!o) setEliminarCarpetaDlg(null) }}
+      titulo="Eliminar carpeta"
+      descripcion={`"${eliminarCarpetaDlg}" se eliminará (${eliminarCarpetaDlg ? contarPorCarpeta(eliminarCarpetaDlg) : 0} nota(s)). Las notas se conservan, solo quedan sin carpeta.`}
+      onConfirmar={confirmarEliminarCarpeta}
+    />
+  )
+
   if (isMobile) {
     return (
       <div className="flex h-full flex-col gap-2">
@@ -586,6 +601,7 @@ export default function NotesView() {
         )}
         {carpetaDialog}
         {renombrarDialog}
+        {eliminarCarpetaDialog}
       </div>
     )
   }
@@ -602,6 +618,7 @@ export default function NotesView() {
       </div>
       {carpetaDialog}
       {renombrarDialog}
+      {eliminarCarpetaDialog}
     </div>
   )
 }

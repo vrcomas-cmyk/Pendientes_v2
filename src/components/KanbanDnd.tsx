@@ -8,7 +8,8 @@ import { useEditorColumnas } from '@/lib/useEditorColumnas'
 import ColumnaHeader from '@/components/ColumnaHeader'
 import MenuContextoPendiente from '@/components/MenuContextoPendiente'
 import { ContextMenu, ContextMenuTrigger } from '@/components/ui/context-menu'
-import { Plus, User, CheckSquare, StickyNote } from 'lucide-react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Plus, User, CheckSquare, StickyNote, ArrowRight } from 'lucide-react'
 
 interface Props {
   /** Pendientes ya filtrados por el caller (la barra se renderiza con éstos). */
@@ -34,8 +35,14 @@ export default function KanbanDnd({ pendientes, defaultsAlAgregar = {}, minColW 
   const { moverEstado, abrirModal, abrirPeek, columnas } = useApp()
   const { agregar } = useEditorColumnas()
   const [dragId, setDragId] = useState<string | null>(null)
+  // Fase 10.4 (accesibilidad): equivalente por teclado al drag & drop. El menú contextual de la
+  // tarjeta ya tiene "Mover a columna", pero abrirlo por teclado no es consistente entre
+  // navegadores (depende de la tecla "Menú" física) — <Space> sobre la tarjeta enfocada siempre
+  // funciona igual.
+  const [moverDlgId, setMoverDlgId] = useState<string | null>(null)
 
   const items = useMemo(() => pendientes.filter(activo), [pendientes])
+  const pendienteAMover = moverDlgId ? items.find(p => p.id === moverDlgId) : null
 
   return (
     <div
@@ -69,7 +76,14 @@ export default function KanbanDnd({ pendientes, defaultsAlAgregar = {}, minColW 
                         draggable
                         onDragStart={() => setDragId(p.id)}
                         onClick={() => abrirPeek(p.id)}
-                        className={'cursor-pointer rounded-lg border-l-4 bg-card p-2 shadow-sm ' + (PRIORIDAD_BORDER[p.prioridad] || '')}
+                        tabIndex={0}
+                        role="button"
+                        aria-label={`Pendiente: ${p.titulo}, columna ${col.nombre}. Espacio abre el diálogo para mover de columna.`}
+                        onKeyDown={e => {
+                          if (e.key === ' ') { e.preventDefault(); setMoverDlgId(p.id) }
+                          else if (e.key === 'Enter') { e.preventDefault(); abrirPeek(p.id) }
+                        }}
+                        className={'cursor-pointer rounded-lg border-l-4 bg-card p-2 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-primary ' + (PRIORIDAD_BORDER[p.prioridad] || '')}
                       >
                         <div className={'text-xs font-medium ' + (col.esCompletado ? 'linea-completada' : '')}>{p.titulo}</div>
                         <div className="mt-1 flex flex-wrap items-center gap-x-2 text-[10px] text-muted-foreground">
@@ -93,6 +107,22 @@ export default function KanbanDnd({ pendientes, defaultsAlAgregar = {}, minColW 
       >
         <Plus size={16} className="mr-1" /> Añadir columna
       </button>
+
+      <Dialog open={!!moverDlgId} onOpenChange={o => { if (!o) setMoverDlgId(null) }}>
+        <DialogContent className="max-w-xs">
+          <DialogHeader><DialogTitle className="text-base">Mover "{pendienteAMover?.titulo}"</DialogTitle></DialogHeader>
+          <div className="space-y-1">
+            {columnas.map(c => (
+              <button key={c.id} onClick={() => { if (moverDlgId) moverEstado(moverDlgId, c.id); setMoverDlgId(null) }}
+                disabled={pendienteAMover?.estado === c.id}
+                className="flex w-full items-center justify-between rounded-lg border px-3 py-2 text-sm hover:bg-accent disabled:opacity-40">
+                {c.nombre}
+                {pendienteAMover?.estado !== c.id && <ArrowRight size={14} className="text-muted-foreground" />}
+              </button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -59,7 +59,7 @@ function cargarFiltros(): FiltrosGuardados {
 }
 
 export default function ListView({ filtroFecha, setFiltroFecha }: { filtroFecha: FiltroFecha; setFiltroFecha: (f: FiltroFecha) => void }) {
-  const { pendientes, personas, proyectos, toggleSubtarea, abrirModal, columnas, filtrosGuardados, crearFiltroGuardado, eliminarFiltroGuardado, filtroActivoId, setFiltroActivoId } = useApp()
+  const { pendientes, personas, proyectos, toggleSubtarea, toggleCompletar, abrirModal, columnas, filtrosGuardados, crearFiltroGuardado, eliminarFiltroGuardado, filtroActivoId, setFiltroActivoId } = useApp()
   const idCompletado = idColumnaCompletado(columnas)
   const [gruposColapsados, setGruposColapsados] = useState<Set<string>>(new Set())
   const toggleGrupo = (k: string) => setGruposColapsados(prev => { const s = new Set(prev); if (s.has(k)) s.delete(k); else s.add(k); return s })
@@ -164,6 +164,28 @@ export default function ListView({ filtroFecha, setFiltroFecha }: { filtroFecha:
   const detalleId2 = detalleId && filtrados.some(p => p.id === detalleId) ? detalleId : null
   const detalle = pendientes.find(p => p.id === detalleId2) || null
 
+  // Atajos J/K (navegar filas) y X (completar la seleccionada) — Fase 10.3. Solo en escritorio:
+  // en móvil "J"/"K"/"X" son letras normales que el usuario escribiría en un campo, y sin teclado
+  // físico el atajo no tiene destinatario.
+  useEffect(() => {
+    if (isMobile) return
+    const h = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement).tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable) return
+      if (e.ctrlKey || e.metaKey || e.altKey) return
+      const tecla = e.key.toLowerCase()
+      if (tecla !== 'j' && tecla !== 'k' && tecla !== 'x') return
+      if (!filtrados.length) return
+      e.preventDefault()
+      const idx = filtrados.findIndex(p => p.id === detalleId2)
+      if (tecla === 'j') setDetalleId(filtrados[idx < 0 ? 0 : Math.min(idx + 1, filtrados.length - 1)].id)
+      else if (tecla === 'k') setDetalleId(filtrados[idx < 0 ? 0 : Math.max(idx - 1, 0)].id)
+      else if (tecla === 'x' && detalleId2) toggleCompletar(detalleId2)
+    }
+    window.addEventListener('keydown', h)
+    return () => window.removeEventListener('keydown', h)
+  }, [isMobile, filtrados, detalleId2, toggleCompletar])
+
   if (isMobile && detalle) {
     return <div className="h-full rounded-xl border bg-card"><TaskDetail detalle={detalle} mobile onBack={() => setDetalleId(null)} /></div>
   }
@@ -174,7 +196,7 @@ export default function ListView({ filtroFecha, setFiltroFecha }: { filtroFecha:
       <div className="ml-7 space-y-0.5 border-l-2 border-dashed border-muted pl-2">
         {p.subtareas.map(s => (
           <div key={s.id} className="flex items-center gap-2 py-0.5 text-xs">
-            <Checkbox checked={s.completada} onCheckedChange={() => toggleSubtarea(p.id, s.id)} onClick={e => e.stopPropagation()} className="h-3.5 w-3.5" />
+            <Checkbox checked={s.completada} onCheckedChange={() => toggleSubtarea(p.id, s.id)} onClick={e => e.stopPropagation()} aria-label={`Marcar subtarea "${s.texto}" como ${s.completada ? 'no completada' : 'completada'}`} className="h-3.5 w-3.5" />
             <span className="rounded bg-muted px-1 text-[9px] uppercase text-muted-foreground">sub</span>
             <span className={'flex-1 truncate ' + (s.completada ? 'linea-completada' : '')}>{s.texto}</span>
             {s.responsable && <span className="text-[10px] text-muted-foreground">👤{s.responsable}</span>}

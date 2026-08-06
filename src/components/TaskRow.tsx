@@ -96,6 +96,7 @@ export default function TaskRow({ p, seleccionado, onClick, modoArchivados }: { 
         checked={p.estado === idCompletado}
         onCheckedChange={() => toggleCompletar(p.id)}
         onClick={e => e.stopPropagation()}
+        aria-label={p.estado === idCompletado ? `Marcar "${p.titulo}" como no completado` : `Marcar "${p.titulo}" como completado`}
         className="mt-0.5"
       />
       <div className="min-w-0 flex-1">
@@ -116,7 +117,7 @@ export default function TaskRow({ p, seleccionado, onClick, modoArchivados }: { 
           {p.fechaLimite && <span className="inline-flex items-center gap-0.5"><Calendar size={10} />{p.fechaLimite}</span>}
           {sub && <span className="inline-flex items-center gap-0.5"><CheckSquare size={10} />{sub.hechas}/{sub.total}</span>}
           {p.repetir && <span className="inline-flex items-center gap-0.5" title={describirRepeticion(p.repetir)}><Repeat size={10} /></span>}
-          {typeof p.ponderacion === 'number' && <span className="inline-flex items-center gap-0.5 rounded-full bg-indigo-100 px-1.5 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">{p.ponderacion}%</span>}
+          {typeof p.ponderacion === 'number' && <span aria-label={`Vale ${p.ponderacion} por ciento de la calificación`} className="inline-flex items-center gap-0.5 rounded-full bg-indigo-100 px-1.5 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">{p.ponderacion}%</span>}
           {p.modalidad === 'equipo' && <span className="inline-flex items-center gap-0.5" title="En equipo"><Users size={10} /></span>}
         </div>
       </div>

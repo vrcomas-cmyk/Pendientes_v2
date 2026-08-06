@@ -479,22 +479,125 @@ por redundancia), el bloque de estadísticas y productividad queda cerrado.
 Verificación acumulada: 126/126 tests, `tsc --noEmit` y `npm run build`
 limpios en cada hito.
 
-### Fase 10 — UX/UI y accesibilidad (antes Fase 4, planificado)
+### Fase 10.1 — Accesibilidad rápida (2026-08-06)
 
-- **Añadido**: skeletons en el primer pull (en vez de spinners).
-- **Cambiado**: confirmaciones destructivas para eliminar proyecto / carpeta / evento
-  (reemplaza el `confirm()` nativo de "Vaciar papelera").
-- **Cambiado**: zoom accesible en móvil (`maximum-scale=5`, `user-scalable=yes`).
-- **Añadido**: SkipLink al contenido principal.
-- **Añadido**: drag & drop accesible por teclado (`<Space>` abre diálogo mover).
-- **Añadido**: `aria-label` en `Checkbox` de toggle y badges de ponderación.
-- **Cambiado**: i18n es-MX consistente (`Intl.DateTimeFormat`) eliminando `MESES` /
-  `NOMBRES_DIAS` hardcodeados.
-- **Añadido**: búsqueda con sintaxis `assignee:Liz priority:alta due:<5d`.
-- **Añadido**: atajos nuevos (`Ctrl+Z` undo global, `Ctrl+Enter` guardar en TaskModal,
-  `J/K` navegar filas, `X` completar); corrección de atajos `1-6` (hoy `1-5` no
-  alcanzan Papelera, `App.tsx:101`).
-- **Añadido**: undo stack global multi-nivel (`Ctrl+Z` / `Shift+Ctrl+Z`).
+- **Cambiado**: zoom accesible en móvil — `index.html` pasa de
+  `maximum-scale=1.0, user-scalable=no` (bloqueaba el zoom, una violación de
+  accesibilidad conocida) a `maximum-scale=5.0, user-scalable=yes`.
+- **Añadido**: `SkipLink` (`src/components/SkipLink.tsx`) — invisible hasta
+  recibir foco por teclado, salta directo a `#main-content` sin pasar por todo
+  el sidebar. Montado en ambos layouts (móvil y escritorio) de `App.tsx`.
+- **Añadido**: `aria-label` descriptivo en los `Checkbox` de completar/toggle
+  (`TaskRow.tsx`, `PendienteCuerpo.tsx`, `ListView.tsx`, `TaskModal.tsx`) y en
+  el badge de ponderación (`TaskRow.tsx`) — antes un lector de pantalla solo
+  anunciaba "casilla de verificación" sin decir de qué.
+- **Cambiado**: i18n es-MX consistente — `nombreDiaSemana`/`nombreMes` en
+  `src/lib/app-utils.ts`, vía `Intl.DateTimeFormat('es-MX', ...)`, reemplazan
+  los arrays `NOMBRES_DIAS_LARGO` (`OtherViews.tsx`) y `MESES`
+  (`CalendarioView.tsx`) hardcodeados. `NOMBRES_DIAS` interno de
+  `app-utils.ts` ahora se deriva del mismo helper (mismo array final, sin
+  cambio de comportamiento). Se dejaron intactos los diccionarios que existen
+  para *parsear* texto libre del usuario (`DIAS_SEMANA` en `app-utils.ts`,
+  usado por `parsearLinea`) — Intl formatea fechas, no reemplaza un parser de
+  lenguaje natural.
+- **Alcance deliberado, no tocado en este hito**: los arrays de días
+  *abreviados* (`DIAS_CORTOS` en `OtherViews.tsx`/`CalendarioView.tsx`) se
+  dejaron como estaban — `Intl` con `weekday: 'short'` en es-MX agrega un
+  punto final ("dom." en vez de "dom"), lo que habría sido un cambio visual
+  real en muchas etiquetas de fecha sin aportar valor de accesibilidad
+  (es puro estilo, no i18n real: la app ya no tiene otro idioma).
+- Verificado con `npm run test` (129/129, +3 nuevos para `nombreDiaSemana`/
+  `nombreMes`), `tsc --noEmit`, `npm run build`, y una pasada visual en
+  Chrome: `Tab` desde la carga muestra "Saltar al contenido principal",
+  `Enter` salta a `#main-content` y el siguiente `Tab` entra directo a la
+  vista (sin pasar por el sidebar); el Calendario muestra "02 – 08 De Agosto
+  2026" con el mes vía `nombreMes`.
+- Service Worker: sin bump todavía.
+
+### Fase 10.2 — Confirmaciones destructivas (2026-08-06)
+
+- **Añadido**: `src/components/ConfirmDialog.tsx` — confirmación destructiva
+  genérica (título + descripción + Cancelar/Eliminar), extraída del patrón que
+  ya usaba `PapeleraView.tsx` (Fase 8.2) para "Vaciar papelera", en vez de
+  reimplementarlo en cada sitio nuevo.
+- **Cambiado**: eliminar proyecto (`ProyectosView.tsx`, dos entradas: menú
+  contextual de la lista y botón de la cabecera del detalle), eliminar carpeta
+  de notas (`NotesView.tsx`, con conteo de notas afectadas en el mensaje) y
+  eliminar evento de calendario (`CalendarioView.tsx`, tres entradas: dos
+  menús contextuales + el botón del diálogo de edición) ahora piden
+  confirmación en vez de borrar al primer clic.
+- Verificado con `npm run test` (129/129), `tsc --noEmit`, `npm run build`, y
+  una pasada visual en Chrome: eliminar un proyecto por el menú contextual
+  abre el diálogo con el nombre interpolado; Cancelar lo conserva.
+- Service Worker: sin bump todavía.
+
+### Fase 10.3 — Atajos nuevos (2026-08-06)
+
+- **Añadido**: `Ctrl+Enter` guarda en `TaskModal.tsx` (a nivel de `DialogContent`,
+  no interfiere con el `Enter` simple que ya usaban los campos de subtarea/comentario).
+- **Añadido**: `J`/`K` (mover selección a la fila siguiente/anterior) y `X`
+  (completar la fila seleccionada) en `ListView.tsx` — solo en escritorio
+  (`isMobile` los desactiva: en móvil son letras normales para escribir, y sin
+  teclado físico el atajo no tiene destinatario).
+- **Cambiado**: `AyudaAtajos.tsx` documenta los tres.
+- Verificado con `npm run test` (129/129), `tsc --noEmit`, `npm run build`, y
+  una pasada visual en Chrome: `J` selecciona y abre el detalle de la primera
+  fila, `X` la completa (título tachado + badge), `X` de nuevo la reabre.
+- Service Worker: sin bump todavía.
+
+### Fase 10.4 — Drag & drop accesible por teclado (2026-08-06)
+
+- **Añadido**: tarjetas del Kanban (`KanbanDnd.tsx`) ahora son enfocables
+  (`tabIndex=0`, `role="button"`, `aria-label` describiendo pendiente + columna
+  actual). `Espacio` sobre una tarjeta enfocada abre un diálogo "Mover
+  <título>" con las columnas restantes (la actual queda deshabilitada);
+  `Enter` sigue abriendo el detalle (Peek), igual que el click.
+- **Decisión de diseño**: no se reutilizó el "Mover a columna" que ya existía
+  en el menú contextual (`MenuContextoPendiente.tsx`) porque abrir un
+  `ContextMenu` por teclado depende de la tecla física "Menú", que no todos
+  los teclados tienen y el soporte varía entre navegadores — un diálogo
+  dedicado con `Espacio` es la única vía garantizada de funcionar igual en
+  cualquier teclado.
+- Verificado con `npm run test` (129/129), `tsc --noEmit`, `npm run build`, y
+  una pasada visual en Chrome: foco confirmado programáticamente en una
+  tarjeta, `Espacio` abrió el diálogo con las columnas restantes correctas.
+- Service Worker: sin bump todavía.
+
+### Fase 10 — resto: decisión de diferir (2026-08-06)
+
+- **Skeletons en el primer pull**: la app es local-first (los datos cargan
+  síncronos desde `localStorage` al montar `AppProvider`) — no hay una espera
+  de red visible en el camino crítico salvo la primera sincronización remota
+  con Supabase, que ya muestra su propio estado (`SyncBadge`). Construir
+  skeletons sin un caso de espera real que los justifique sería UI
+  especulativa; se revisita si `sync.tsx` gana una carga inicial
+  perceptiblemente lenta.
+- **Búsqueda con sintaxis `assignee:/priority:/due:<`**: `ListView.tsx` ya
+  tiene filtros estructurados equivalentes (selects de Responsable/Prioridad +
+  chips de fecha) — la sintaxis de texto sería una segunda forma de expresar
+  lo mismo que ya se puede hacer con controles visibles, no una capacidad
+  nueva. Se prioriza si aparece una necesidad real de combinar criterios que
+  los filtros actuales no cubran (ej. "vencidos hace más de 5 días").
+- **Undo stack global multi-nivel (`Ctrl+Z`)**: la app ya tiene undo de
+  un-nivel en las acciones destructivas más comunes (toast "Deshacer" al
+  eliminar/archivar un pendiente o nota, `store.tsx`). Un stack global
+  multi-nivel real requeriría un patrón de comando genérico sobre *todas* las
+  mutaciones de las 6+ entidades del store (crear/actualizar/eliminar
+  pendiente/nota/proyecto/evento/etiqueta/plantilla/filtro/espacio, más
+  subacciones como subtareas/comentarios/timer), lo cual es un refactor
+  arquitectónico de fondo — no algo para sumar al final de una sesión ya
+  larga sin el diseño y la revisión que merece. Queda como el ítem pendiente
+  más grande de esta fase, candidato a su propia sesión dedicada.
+- Estas tres decisiones cierran la Fase 10 con lo de mayor valor/riesgo
+  razonable ya resuelto (10.1-10.4) y lo que falta explícitamente justificado,
+  no simplemente omitido.
+
+### Cierre del bloque Fase 10
+
+Con 10.1-10.4 implementadas y el resto conscientemente diferido con su
+razón documentada, el bloque de UX/UI y accesibilidad queda cerrado.
+Verificación acumulada: 129/129 tests, `tsc --noEmit` y `npm run build`
+limpios en cada hito.
 
 ### Fase 11 — Colaboración multi-usuario (antes Fase 5, planificado, sin push server)
 

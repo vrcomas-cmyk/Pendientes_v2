@@ -7,6 +7,7 @@ import { idColumnaCompletado } from '@/lib/columnas'
 import TaskRow from '@/components/TaskRow'
 import KanbanDnd from '@/components/KanbanDnd'
 import ImportarPlanDialog from '@/components/ImportarPlanDialog'
+import ConfirmDialog from '@/components/ConfirmDialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
@@ -100,6 +101,7 @@ export default function ProyectosView() {
   const [modo, setModo] = useState<'tablero' | 'lista'>('tablero')
   const [nuevoDlg, setNuevoDlg] = useState(false)
   const [importarDlg, setImportarDlg] = useState(false)
+  const [eliminarId, setEliminarId] = useState<string | null>(null)
 
   // Filtro por Espacio (Fase 4): "Todos" (espacioActualId=null) no filtra nada, para no
   // cambiar el comportamiento por defecto que ya existía antes de que hubiera Espacios.
@@ -150,7 +152,7 @@ export default function ProyectosView() {
                   </ContextMenuSub>
                 )}
                 <ContextMenuSeparator />
-                <ContextMenuItem className="text-destructive" onClick={() => eliminarProyecto(p.id)}>Eliminar</ContextMenuItem>
+                <ContextMenuItem className="text-destructive" onClick={() => setEliminarId(p.id)}>Eliminar</ContextMenuItem>
               </ContextMenuContent>
             </ContextMenu>
           )
@@ -183,7 +185,7 @@ export default function ProyectosView() {
             <Button size="sm" variant="secondary" onClick={() => setImportarDlg(true)} className="shrink-0" title="Importar plan de estudio">
               <Upload size={13} className="mr-1" /> {!isMobile && 'Importar plan'}
             </Button>
-            <button onClick={() => { eliminarProyecto(proyecto.id); setProyectoSelId(null) }} title="Eliminar proyecto"
+            <button onClick={() => setEliminarId(proyecto.id)} title="Eliminar proyecto"
               className="shrink-0 px-1 text-muted-foreground hover:text-destructive"><Trash2 size={15} /></button>
           </div>
           <div className="min-h-0 flex-1 p-2">
@@ -193,6 +195,17 @@ export default function ProyectosView() {
         </>
       )}
     </div>
+  )
+
+  const proyectoAEliminar = eliminarId ? todosProyectos.find(p => p.id === eliminarId) : null
+  const confirmarEliminarDlg = (
+    <ConfirmDialog
+      open={!!eliminarId}
+      onOpenChange={o => { if (!o) setEliminarId(null) }}
+      titulo="Eliminar proyecto"
+      descripcion={`"${proyectoAEliminar?.nombre || ''}" se eliminará. Sus pendientes se conservan, solo se desvinculan del proyecto.`}
+      onConfirmar={() => { if (eliminarId) { eliminarProyecto(eliminarId); if (proyectoSelId === eliminarId) setProyectoSelId(null) } }}
+    />
   )
 
   if (isMobile) {
@@ -209,6 +222,7 @@ export default function ProyectosView() {
           <div className="min-h-0 flex-1">{panelDetalle}</div>
         )}
         <NuevoProyectoDialog open={nuevoDlg} onOpenChange={setNuevoDlg} />
+        {confirmarEliminarDlg}
       </div>
     )
   }
@@ -223,6 +237,7 @@ export default function ProyectosView() {
         <div className="min-h-0 flex-1">{panelDetalle}</div>
       </div>
       <NuevoProyectoDialog open={nuevoDlg} onOpenChange={setNuevoDlg} />
+      {confirmarEliminarDlg}
     </div>
   )
 }

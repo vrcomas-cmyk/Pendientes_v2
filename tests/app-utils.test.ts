@@ -17,6 +17,8 @@ import {
   medianaTiempoVida,
   throughputSemanal,
   isoSumarDias,
+  nombreDiaSemana,
+  nombreMes,
   parsearLinea,
   esBullet,
   defaultsHorario,
@@ -196,6 +198,22 @@ function pendienteCompletado(fechaCompletado: string, creado = "2026-01-01T00:00
     fechaCompletado,
   };
 }
+
+describe("Fase 10.1 — i18n vía Intl (nombreDiaSemana / nombreMes)", () => {
+  it("nombreDiaSemana respeta el índice de Date.getDay() (0=domingo..6=sábado)", () => {
+    expect(nombreDiaSemana(0)).toBe("domingo");
+    expect(nombreDiaSemana(1)).toBe("lunes");
+    expect(nombreDiaSemana(6)).toBe("sábado");
+  });
+  it("coincide con Date.getDay() real para una fecha conocida (2026-08-04 es martes)", () => {
+    const d = new Date("2026-08-04T00:00");
+    expect(nombreDiaSemana(d.getDay())).toBe("martes");
+  });
+  it("nombreMes devuelve el nombre capitalizado (0=enero..11=diciembre)", () => {
+    expect(nombreMes(0)).toBe("Enero");
+    expect(nombreMes(11)).toBe("Diciembre");
+  });
+});
 
 describe("Fase 9.1 — métricas de productividad", () => {
   describe("actividadPorDia", () => {

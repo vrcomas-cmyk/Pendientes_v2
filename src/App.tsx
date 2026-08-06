@@ -17,6 +17,7 @@ import CuentasGoogleDialog from '@/components/CuentasGoogleDialog'
 import EspacioDialog from '@/components/EspacioDialog'
 import NuevoEspacioDialog from '@/components/NuevoEspacioDialog'
 import ImportarCsvDialog from '@/components/ImportarCsvDialog'
+import SkipLink from '@/components/SkipLink'
 import WidgetsLayer from '@/components/widgets/WidgetsLayer'
 import { WidgetsProvider, useWidgets } from '@/widgets-store'
 import { WIDGET_DEFAULTS, type WidgetTipo } from '@/lib/widgets'
@@ -360,6 +361,7 @@ function Shell() {
     const tituloVista = VISTAS.find(v => v.id === vistaMostrada)?.label || ''
     return (
       <div className="flex h-screen flex-col overflow-hidden bg-background text-foreground">
+        <SkipLink />
         {/* Header compacto */}
         <header className="relative flex shrink-0 items-center gap-2 border-b bg-card px-3 py-2.5 shadow-sm">
           <span className="text-base font-bold">{tituloVista}</span>
@@ -417,7 +419,7 @@ function Shell() {
           </div>
         )}
 
-        <main className="relative min-h-0 flex-1 overflow-auto p-3 scroll-thin">
+        <main id="main-content" tabIndex={-1} className="relative min-h-0 flex-1 overflow-auto p-3 scroll-thin outline-none">
           <div key={vistaMostrada} className="animate-in fade-in slide-in-from-bottom-1 duration-200 motion-reduce:animate-none">{vistaActual}</div>
         </main>
         {fabCaptura}
@@ -444,6 +446,7 @@ function Shell() {
   /* ===================== ESCRITORIO ===================== */
   return (
     <div className="flex h-screen overflow-hidden bg-background text-foreground">
+      <SkipLink />
       <nav className="z-30 flex w-60 shrink-0 flex-col overflow-hidden border-r bg-card/80 shadow-soft backdrop-blur-xl">
         <div className="p-2.5">
           <h1 className="px-1.5 pb-2 text-sm font-bold">Pendientes <span className="text-primary">Pro</span></h1>
@@ -540,7 +543,7 @@ function Shell() {
             className="flex items-center gap-1 whitespace-nowrap text-xs font-medium hover:underline"><User size={13} /> {usuario}</button>
         </div>
 
-        <main className="min-h-0 flex-1 overflow-auto p-4 pb-24 scroll-thin">
+        <main id="main-content" tabIndex={-1} className="min-h-0 flex-1 overflow-auto p-4 pb-24 scroll-thin outline-none">
           <div key={vistaMostrada} className="animate-in fade-in slide-in-from-bottom-1 duration-200 motion-reduce:animate-none">{vistaActual}</div>
         </main>
       </div>
