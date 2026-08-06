@@ -4,7 +4,7 @@ import { useApp } from '@/store'
 import type { Comentario, Estado, Prioridad, Subtarea, Adjunto } from '@/types'
 type Modalidad = 'individual' | 'equipo'
 import { PROYECTO_COLORES, PROYECTO_COLORES_KEYS } from '@/types'
-import { uid, fechaPorPrioridad, describirRepeticion, defaultsHorario } from '@/lib/app-utils'
+import { uid, fechaPorPrioridad, describirRepeticion, defaultsHorario, asignarProyecto } from '@/lib/app-utils'
 import { isGoogleConfigurado } from '@/lib/googleCalendar'
 import { sincronizarEspejoGoogle } from '@/lib/agenda'
 import { idColumnaCompletado } from '@/lib/columnas'
@@ -99,7 +99,10 @@ export default function TaskModal() {
       toast.error('No puedes marcarlo como completado: faltan subtareas')
       return
     }
-    const nombreProyecto = proyectos.find(p => p.id === proyectoId)?.nombre || ''
+    // Si `proyectoId` apunta a un proyecto que no está (todavía) en `proyectos` — ej. borrado o
+    // creado en otro dispositivo, no sincronizado — se conserva el nombre anterior en vez de
+    // vaciarlo: así el guardado no deja la tarea sin proyecto visible mientras llega el dato.
+    const { proyecto: nombreProyecto } = asignarProyecto(proyectoId || undefined, proyectos, editando?.proyecto || '')
     // El default de horario (8:00-8:05 solo fecha, +15min solo hora) se aplica al agendar por
     // primera vez, no en cada guardado suelto — así no se reagenda algo que el usuario ya quitó
     // deliberadamente de la Agenda.

@@ -77,15 +77,24 @@ function NuevoProyectoDialog({ open, onOpenChange }: { open: boolean; onOpenChan
   )
 }
 
-function TableroProyecto({ proyectoId }: { proyectoId: string }) {
+// Predicado único de "pertenece a este proyecto y hay que mostrarlo": antes el tablero
+// (sin `activo()`) y la lista (con `activo()`) usaban criterios distintos — una tarea
+// archivada por el swipe móvil desaparecía de la lista sin ninguna forma de recuperarla desde
+// el proyecto. Ahora ambos modos comparten el mismo filtro; `mostrarArchivados` los muestra en
+// los dos. Las borradas (papelera) nunca se muestran acá — tienen su propia vista.
+function itemsDelProyecto(pendientes: import('@/types').Pendiente[], proyectoId: string, mostrarArchivados: boolean) {
+  return pendientes.filter(p => p.proyectoId === proyectoId && !p.borrado && (mostrarArchivados || !p.archivado))
+}
+
+function TableroProyecto({ proyectoId, mostrarArchivados }: { proyectoId: string; mostrarArchivados: boolean }) {
   const { pendientes } = useApp()
-  const items = pendientes.filter(p => p.proyectoId === proyectoId)
+  const items = itemsDelProyecto(pendientes, proyectoId, mostrarArchivados)
   return <KanbanDnd pendientes={items} defaultsAlAgregar={{ proyectoId }} minColW={220} />
 }
 
-function ListaProyecto({ proyectoId }: { proyectoId: string }) {
+function ListaProyecto({ proyectoId, mostrarArchivados }: { proyectoId: string; mostrarArchivados: boolean }) {
   const { pendientes } = useApp()
-  const items = pendientes.filter(p => p.proyectoId === proyectoId && activo(p))
+  const items = itemsDelProyecto(pendientes, proyectoId, mostrarArchivados)
   return (
     <div className="h-full space-y-1.5 overflow-y-auto p-1 scroll-thin">
       {items.map(p => <TaskRow key={p.id} p={p} />)}
@@ -99,6 +108,7 @@ export default function ProyectosView() {
   const idCompletado = idColumnaCompletado(columnas)
   const isMobile = useIsMobile()
   const [modo, setModo] = useState<'tablero' | 'lista'>('tablero')
+  const [mostrarArchivados, setMostrarArchivados] = useState(false)
   const [nuevoDlg, setNuevoDlg] = useState(false)
   const [importarDlg, setImportarDlg] = useState(false)
   const [eliminarId, setEliminarId] = useState<string | null>(null)
@@ -182,6 +192,10 @@ export default function ProyectosView() {
               <button onClick={() => setModo('tablero')} className={'rounded-md p-1.5 ' + (modo === 'tablero' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground')}><Columns3 size={14} /></button>
               <button onClick={() => setModo('lista')} className={'rounded-md p-1.5 ' + (modo === 'lista' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground')}><List size={14} /></button>
             </div>
+            <button onClick={() => setMostrarArchivados(v => !v)} title="Mostrar/ocultar archivados en este proyecto"
+              className={'shrink-0 rounded-md border px-2 py-1 text-[11px] ' + (mostrarArchivados ? 'border-primary/40 bg-primary/10 text-primary' : 'text-muted-foreground')}>
+              🗄 {!isMobile && 'Archivados'}
+            </button>
             <Button size="sm" variant="secondary" onClick={() => setImportarDlg(true)} className="shrink-0" title="Importar plan de estudio">
               <Upload size={13} className="mr-1" /> {!isMobile && 'Importar plan'}
             </Button>
@@ -189,7 +203,9 @@ export default function ProyectosView() {
               className="shrink-0 px-1 text-muted-foreground hover:text-destructive"><Trash2 size={15} /></button>
           </div>
           <div className="min-h-0 flex-1 p-2">
-            {modo === 'tablero' ? <TableroProyecto proyectoId={proyecto.id} /> : <ListaProyecto proyectoId={proyecto.id} />}
+            {modo === 'tablero'
+              ? <TableroProyecto proyectoId={proyecto.id} mostrarArchivados={mostrarArchivados} />
+              : <ListaProyecto proyectoId={proyecto.id} mostrarArchivados={mostrarArchivados} />}
           </div>
           <ImportarPlanDialog open={importarDlg} onOpenChange={setImportarDlg} proyectoId={proyecto.id} />
         </>

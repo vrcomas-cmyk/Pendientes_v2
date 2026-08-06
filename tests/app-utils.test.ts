@@ -27,6 +27,8 @@ import {
   parsearHoraFlexible,
   googleCalendarUrl,
   activo,
+  asignarProyecto,
+  normalizarNombreProyecto,
 } from "@/lib/app-utils";
 import type { Pendiente } from "@/types";
 
@@ -554,5 +556,34 @@ describe("activo", () => {
   });
   it("false si archivado true", () => {
     expect(activo({ archivado: true } as Pendiente)).toBe(false);
+  });
+});
+
+describe("normalizarNombreProyecto", () => {
+  it("ignora mayúsculas, acentos y espacios sobrantes", () => {
+    expect(normalizarNombreProyecto("  Escuéla  ")).toBe(normalizarNombreProyecto("escuela"));
+    expect(normalizarNombreProyecto("Proyecto Integrador")).toBe(normalizarNombreProyecto("proyecto integrador"));
+  });
+  it("nombres distintos no colapsan", () => {
+    expect(normalizarNombreProyecto("Trabajo")).not.toBe(normalizarNombreProyecto("Escuela"));
+  });
+});
+
+describe("asignarProyecto", () => {
+  const proyectos = [
+    { id: "p1", nombre: "Trabajo" },
+    { id: "p2", nombre: "Proyecto Integrador" },
+  ];
+  it("sin id → desvincula ambos campos", () => {
+    expect(asignarProyecto(undefined, proyectos, "Trabajo")).toEqual({ proyectoId: undefined, proyecto: "" });
+  });
+  it("id existente → nombre siempre coherente con el proyecto real", () => {
+    expect(asignarProyecto("p2", proyectos)).toEqual({ proyectoId: "p2", proyecto: "Proyecto Integrador" });
+  });
+  it("id colgante (proyecto no encontrado) → conserva el nombre anterior en vez de vaciarlo", () => {
+    expect(asignarProyecto("id-borrado", proyectos, "Finanzas")).toEqual({ proyectoId: "id-borrado", proyecto: "Finanzas" });
+  });
+  it("id colgante sin nombre anterior → nombre vacío, pero el id no se pierde", () => {
+    expect(asignarProyecto("id-borrado", proyectos)).toEqual({ proyectoId: "id-borrado", proyecto: "" });
   });
 });

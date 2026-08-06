@@ -3,7 +3,7 @@ import { Toaster, toast } from 'sonner'
 import { AppProvider, useApp } from '@/store'
 import { columnaDe, idColumnaCompletado } from '@/lib/columnas'
 import { PROYECTO_COLORES } from '@/types'
-import { descargar, hoyISO, vencido, parsearLinea, fechaPorPrioridad, activo } from '@/lib/app-utils'
+import { descargar, hoyISO, vencido, parsearLinea, fechaPorPrioridad, activo, asignarProyecto, normalizarNombreProyecto } from '@/lib/app-utils'
 import { generarICS, generarMarkdown, generarHTMLImprimible } from '@/lib/exportar'
 import { useIsMobile } from '@/hooks/use-is-mobile'
 import { SyncProvider, useSync, SyncBadge } from '@/sync'
@@ -185,20 +185,28 @@ function Shell() {
     const txt0 = quickTexto.trim()
     if (!txt0) return
     const etiquetasHash: string[] = []
-    const txt = txt0.replace(/#(\S+)/g, (_m, p: string) => { etiquetasHash.push(p); return '' })
+    // #"Mi proyecto" (con espacios, comillas) o #tag (una sola palabra) — las comillas permiten
+    // referenciar proyectos multi-palabra, que antes nunca podían matchear (ver AUDITORIA/CHANGELOG).
+    const txt = txt0.replace(/#"([^"]+)"|#(\S+)/g, (_m, conEspacios: string | undefined, simple: string | undefined) => {
+      etiquetasHash.push(conEspacios ?? simple ?? '')
+      return ''
+    })
     const parsed = parsearLinea('- ' + txt) // reusa la misma sintaxis de las notas (@ ! > *)
     if (!parsed) { toast.error('No se entendió el texto. Revisa la sintaxis con "?"'); return }
     const prioridad = parsed.prioridad || 'Media'
     const nombreProyecto = etiquetasHash[0] || ''
     // Si el #hashtag coincide con un proyecto gestionado existente, hereda su ruteo de espejo.
-    const proyectoExistente = nombreProyecto ? proyectos.find(p => p.nombre.toLowerCase() === nombreProyecto.toLowerCase()) : null
+    // Comparación insensible a mayúsculas/acentos — antes un desajuste de acentuación (ej. "Escuela"
+    // vs "escuéla") dejaba la tarea con el nombre pero sin `proyectoId`, invisible en el proyecto.
+    const proyectoExistente = nombreProyecto
+      ? proyectos.find(p => normalizarNombreProyecto(p.nombre) === normalizarNombreProyecto(nombreProyecto))
+      : null
     crearPendiente({
       titulo: parsed.titulo,
       descripcion: parsed.descripcion,
       responsable: parsed.responsable,
       prioridad,
-      proyecto: nombreProyecto,
-      proyectoId: proyectoExistente?.id,
+      ...(nombreProyecto ? asignarProyecto(proyectoExistente?.id, proyectos, nombreProyecto) : { proyecto: '', proyectoId: undefined }),
       etiquetas: etiquetasHash.slice(1),
       fechaLimite: parsed.fechaLimite || fechaPorPrioridad(prioridad),
       repetir: parsed.repetir,

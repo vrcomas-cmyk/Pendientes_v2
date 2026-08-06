@@ -347,6 +347,28 @@ export function defaultsHorario(fecha: string, hora: string, duracionMin?: numbe
   return { hora, duracionMin }
 }
 
+/** Normaliza un nombre de proyecto para comparar sin distinguir mayúsculas/acentos/espacios
+    redundantes — usado para resolver `proyecto` (nombre) contra `proyectoId` (referencia). */
+export function normalizarNombreProyecto(nombre: string): string {
+  return nombre.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+}
+
+/** Única fuente de verdad para asignar un pendiente a un proyecto: `proyectoId` manda,
+    `proyecto` (nombre) es siempre un espejo derivado — nunca se escribe uno sin el otro.
+    Si `proyectoId` apunta a un proyecto que ya no existe (borrado en otro dispositivo,
+    no sincronizado todavía), se conserva el nombre anterior en vez de vaciarlo: así la
+    tarea no queda muda mientras el dato llega. Pasar `proyectoId: undefined` desvincula
+    de verdad (limpia ambos campos). */
+export function asignarProyecto(
+  proyectoId: string | undefined,
+  proyectos: { id: string; nombre: string }[],
+  nombreAnterior = '',
+): { proyectoId: string | undefined; proyecto: string } {
+  if (!proyectoId) return { proyectoId: undefined, proyecto: '' }
+  const p = proyectos.find(pr => pr.id === proyectoId)
+  return { proyectoId, proyecto: p ? p.nombre : nombreAnterior }
+}
+
 export function normalizar(p: Partial<Pendiente>): Pendiente {
   const base: Pendiente = {
     id: uid(), titulo: '', solicitante: '', responsable: '', descripcion: '',

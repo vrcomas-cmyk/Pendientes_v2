@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '@/store'
-import { fechaPorPrioridad } from '@/lib/app-utils'
+import { fechaPorPrioridad, normalizarNombreProyecto } from '@/lib/app-utils'
 import { parsearCSV, detectarFormato, mapearFilas, type FilaImportada, type FormatoCSV } from '@/lib/importCsv'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -13,7 +13,7 @@ const NOMBRE_FORMATO: Record<FormatoCSV, string> = { propio: 'Pendientes Pro (ex
     crear antes de confirmar — nunca importa a ciegas, coherente con el resto de confirmaciones
     destructivas/masivas de la app. */
 export default function ImportarCsvDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
-  const { crearPendiente, proyectos } = useApp()
+  const { crearPendiente, crearProyecto, proyectos } = useApp()
   const [filas, setFilas] = useState<FilaImportada[]>([])
   const [formato, setFormato] = useState<FormatoCSV>('generico')
   const fileRef = useRef<HTMLInputElement>(null)
@@ -40,11 +40,28 @@ export default function ImportarCsvDialog({ open, onOpenChange }: { open: boolea
   }
 
   const confirmarImportacion = () => {
+    // Los proyectos ya creados en esta misma importación (ej. varias filas del mismo proyecto
+    // nuevo) se reusan en vez de crear uno por fila.
+    const nuevosPorNombre = new Map<string, string>()
     filas.forEach(f => {
-      const proyectoExistente = f.proyecto ? proyectos.find(p => p.nombre.toLowerCase() === f.proyecto!.toLowerCase()) : null
+      let proyectoId: string | undefined
+      if (f.proyecto) {
+        const clave = normalizarNombreProyecto(f.proyecto)
+        const existente = proyectos.find(p => normalizarNombreProyecto(p.nombre) === clave)
+        if (existente) proyectoId = existente.id
+        else if (nuevosPorNombre.has(clave)) proyectoId = nuevosPorNombre.get(clave)
+        else {
+          // Si el nombre no matchea ningún proyecto existente (ej. reimportar el CSV propio
+          // después de que el proyecto se renombró o no está en este dispositivo) se crea el
+          // proyecto en vez de dejar la tarea con el nombre pero sin pertenencia real.
+          const creado = crearProyecto(f.proyecto)
+          nuevosPorNombre.set(clave, creado.id)
+          proyectoId = creado.id
+        }
+      }
       crearPendiente({
         titulo: f.titulo, descripcion: f.descripcion || '', responsable: f.responsable || '', solicitante: f.solicitante || '',
-        prioridad: f.prioridad, proyecto: f.proyecto || '', proyectoId: proyectoExistente?.id,
+        prioridad: f.prioridad, proyecto: f.proyecto || '', proyectoId,
         fechaLimite: f.fechaLimite || fechaPorPrioridad(f.prioridad),
       })
     })

@@ -53,6 +53,53 @@ sienta las bases para las siguientes fases. El cache del Service Worker sube a `
 
 ## [Unreleased]
 
+### Fase 13 — Reparación de integridad: pendientes que se "salían" de su proyecto (2026-08-06)
+
+Bug reportado por el usuario: un proyecto con varias actividades dejaba algunas fuera
+del proyecto. Diagnóstico: no era un problema de sincronización — `Pendiente` guarda la
+pertenencia dos veces (`proyecto`: nombre-espejo; `proyectoId`: referencia real), toda
+la lectura filtra por `proyectoId`, y varios escritores actualizaban solo el nombre. El
+resultado: la tarea seguía mostrando el badge del proyecto pero desaparecía de él.
+
+- **Añadido** `src/lib/app-utils.ts`: `asignarProyecto(proyectoId, proyectos,
+  nombreAnterior?)` — única fuente de verdad para asignar proyecto a un pendiente;
+  `proyecto` (nombre) nunca se escribe solo. Si el `proyectoId` no resuelve (proyecto
+  borrado/no sincronizado todavía), conserva el nombre anterior en vez de vaciarlo.
+  `normalizarNombreProyecto(nombre)` — compara nombres sin distinguir mayúsculas/acentos.
+- **Corregido** `store.tsx` `toggleCompletar` (recurrencia): la siguiente instancia de
+  una tarea recurrente copiaba `proyecto` pero no `proyectoId` — cada repetición nacía
+  fuera del proyecto. Causa principal del bug reportado.
+- **Corregido** `store.tsx` `eliminarProyecto`: ahora limpia `proyecto` **y**
+  `proyectoId` (antes dejaba el nombre del proyecto eliminado colgando en el badge).
+- **Corregido** `store.tsx` `crearPendienteDesdePlantilla`: ahora resuelve el nombre
+  además del id (antes el export CSV salía con el proyecto vacío).
+- **Corregido** `TaskModal.tsx` `guardar`: si `proyectoId` apunta a un proyecto no
+  presente todavía (otro dispositivo), conserva el nombre en vez de vaciarlo al guardar.
+- **Corregido** `App.tsx` `quickAdd`: soporta `#"Nombre con espacios"` (antes el
+  hashtag `#(\S+)` nunca podía matchear un proyecto de más de una palabra) y compara
+  nombres sin distinguir acentos/mayúsculas.
+- **Corregido** `ImportarCsvDialog.tsx`: si el nombre de proyecto de una fila no
+  matchea ninguno existente, ahora **crea el proyecto** en vez de importar la tarea sin
+  vínculo real (afectaba el roundtrip del propio export CSV de la app).
+- **Corregido** `ProyectosView.tsx`: el tablero (sin `activo()`) y la lista (con
+  `activo()`) usaban predicados distintos — una tarea archivada desaparecía de la lista
+  del proyecto sin forma de recuperarla desde ahí. Unificado en `itemsDelProyecto`, con
+  un toggle "🗄 Archivados" nuevo para verlas en ambos modos.
+- **Cambiado** `src/lib/sync-merge.ts`: `proyectoId` se agrega a `CAMPOS_ESCALARES` —
+  antes mover una tarea de proyecto en dos dispositivos a la vez no se detectaba como
+  conflicto de sync.
+- **Añadido** `store.tsx`: migración de reparación, una sola vez al montar — vincula
+  por nombre (normalizado) todo pendiente con `proyecto` seteado y `proyectoId`
+  ausente contra los proyectos existentes. Recupera las actividades ya huérfanas de
+  antes de este fix. Idempotente, sin re-marcar `modificado` si no hay nada que reparar.
+- Verificado con `npm run test` (147/147, 6 tests nuevos para `asignarProyecto`/
+  `normalizarNombreProyecto`), `npm run lint`, `tsc --noEmit`, `npm run build`, y una
+  prueba en vivo en Chrome: proyecto "Proyecto Integrador" (dos palabras) creado vía
+  quickAdd con comillas, tarea recurrente diaria completada — la siguiente instancia
+  nació dentro del tablero del proyecto —, y un pendiente huérfano inyectado a mano en
+  `localStorage` fue reparado automáticamente al recargar.
+- Service Worker: sin bump todavía (se agrupa con el resto de esta fase de diseño).
+
 ### Fase 2 — Personal Workspace (reorientación, ver `AUDITORIA.md`)
 
 A partir de `Cambios.md` (2026-08-05), el roadmap se reordena: la app evoluciona hacia

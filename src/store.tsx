@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 import { toast } from 'sonner'
 import type { Nota, Pendiente, Estado, FiltroFecha, Proyecto, EventoCalendario, ColumnaKanban, Espacio, Etiqueta, FiltroGuardado, Subtarea, PlantillaPendiente } from '@/types'
 import { PROYECTO_COLORES_KEYS, COLUMNAS_DEFECTO, ESPACIO_ICONOS } from '@/types'
-import { hoyISO, normalizar, storage, uid, describirRepeticion, defaultsHorario, fechaPorPrioridad, proximaInstanciaRepeticion } from '@/lib/app-utils'
+import { hoyISO, normalizar, storage, uid, describirRepeticion, defaultsHorario, fechaPorPrioridad, proximaInstanciaRepeticion, asignarProyecto, normalizarNombreProyecto } from '@/lib/app-utils'
 
 interface ModalState { open: boolean; editId: string | null; defaults: Partial<Pendiente> }
 
@@ -202,6 +202,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [])
 
+  // Reparación de pendientes huérfanos (Fase 13): varios caminos (recurrencia, quickAdd con
+  // nombres de proyecto ambiguos, un proyecto borrado en otro dispositivo) podían dejar
+  // `proyecto` (nombre) seteado sin `proyectoId` — la tarea mostraba el badge del proyecto pero
+  // ya no aparecía en él, porque toda la lectura filtra por `proyectoId`. Corre una sola vez al
+  // montar y vincula por nombre (case/acento-insensible) contra los proyectos existentes; si no
+  // hay match no toca nada (no inventa un proyecto). Idempotente: una vez vinculado, no vuelve a
+  // tocar el pendiente.
+  useEffect(() => {
+    if (!proyectos.length) return
+    const reparaciones = new Map<string, string>() // pendienteId -> proyectoId
+    for (const p of pendientes) {
+      if (p.proyectoId || !p.proyecto) continue
+      const match = proyectos.find(pr => normalizarNombreProyecto(pr.nombre) === normalizarNombreProyecto(p.proyecto))
+      if (match) reparaciones.set(p.id, match.id)
+    }
+    if (!reparaciones.size) return
+    /* eslint-disable react-hooks/set-state-in-effect */
+    setPendientes(prev => prev.map(p => reparaciones.has(p.id) ? { ...p, proyectoId: reparaciones.get(p.id), modificado: new Date().toISOString() } : p))
+    /* eslint-enable react-hooks/set-state-in-effect */
+    toast.success(`Se reparó la pertenencia a proyecto de ${reparaciones.size} pendiente(s)`)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- una sola vez al montar, con `proyectos`/`pendientes` ya cargados
+  }, [])
+
   const setUsuario = (u: string) => { setUsuarioState(u); storage.set('pn_usuario', u) }
 
   // Id de la única columna marcada "esCompletado" (dispara fechaCompletado, bloqueo por subtareas
@@ -315,7 +338,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (proxima) {
         crearPendiente({
           titulo: p.titulo, descripcion: p.descripcion, responsable: p.responsable, solicitante: p.solicitante,
-          prioridad: p.prioridad, proyecto: p.proyecto, etiquetas: p.etiquetas, hora: p.hora, repetir: proxima.repetir,
+          prioridad: p.prioridad, proyecto: p.proyecto, proyectoId: p.proyectoId, etiquetas: p.etiquetas, hora: p.hora, repetir: proxima.repetir,
           fechaLimite: proxima.fechaLimite,
           subtareas: (p.subtareas || []).map(s => ({ ...s, id: uid(), completada: false })),
         })
@@ -453,9 +476,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
   const eliminarProyecto = (id: string) => {
     setProyectos(prev => prev.filter(p => p.id !== id))
-    // Desvincular pendientes (no se borran)
-    setPendientes(prev => prev.map(p => p.proyectoId === id ? { ...p, proyectoId: undefined, modificado: new Date().toISOString() } : p))
-    toast('Proyecto eliminado (sus pendientes se conservan)')
+    // Desvincular pendientes (no se borran): limpiar proyectoId Y el nombre-espejo,
+    // para no dejar un badge de un proyecto que ya no existe (ver AUDITORIA/CHANGELOG).
+    setPendientes(prev => prev.map(p => p.proyectoId === id ? { ...p, proyectoId: undefined, proyecto: '', modificado: new Date().toISOString() } : p))
+    toast('Proyecto eliminado (sus pendientes se conservan, sin proyecto)')
   }
 
   const crearEspacio = (nombre: string, icono?: string, color?: string): Espacio => {
@@ -530,7 +554,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!pl) return null
     return crearPendiente({
       titulo: pl.datos.titulo, descripcion: pl.datos.descripcion, prioridad: pl.datos.prioridad,
-      etiquetas: pl.datos.etiquetas, proyectoId: pl.datos.proyectoId, duracionMin: pl.datos.duracionMin,
+      etiquetas: pl.datos.etiquetas, duracionMin: pl.datos.duracionMin,
+      ...asignarProyecto(pl.datos.proyectoId, proyectos),
       fechaLimite: fechaPorPrioridad(pl.datos.prioridad),
       subtareas: (pl.datos.subtareas || []).map(s => ({ id: uid(), texto: s.texto, completada: false })),
     })
