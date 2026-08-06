@@ -1,0 +1,31 @@
+name: CI
+
+# Fase 12.2: CI mínimo — corre en cada PR y en push a main. Lint/typecheck/build/test son
+# rápidos y determinísticos; no hay job de despliegue acá (el README documenta el despliegue
+# manual de dist/, y no hay secretos de hosting configurados en este repo).
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck + build
+        run: npm run build
+
+      - name: Test
+        run: npm run test

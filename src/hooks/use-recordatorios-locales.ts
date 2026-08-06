@@ -34,7 +34,8 @@ function marcarNotificado(clave: string) {
     la app completamente cerrada. Es "mejor que nada", no un sustituto de push real. */
 export function useRecordatoriosLocales(pendientes: Pendiente[], idCompletado: ReturnType<typeof idColumnaCompletado>) {
   const pendientesRef = useRef(pendientes)
-  pendientesRef.current = pendientes
+  // Los refs no se leen/escriben durante el render (debe ser puro) — solo dentro de efectos.
+  useEffect(() => { pendientesRef.current = pendientes }, [pendientes])
 
   useEffect(() => {
     if (typeof Notification === 'undefined') return

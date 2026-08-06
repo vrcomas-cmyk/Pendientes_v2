@@ -206,13 +206,13 @@ export interface FiltroGuardado {
 }
 
 /** Subtareas pendientes (no completadas) de un pendiente, contando también las anidadas
-    (`Subtarea.children`, Fase 8.4) recursivamente. */
-export function subtareasPendientes(p: Pendiente): number {
+    (`Subtarea.children`, Fase 8.4) recursivamente. Solo se expone como `subtareasFaltantes`
+    (Fase 12.3, auditoría knip): nada importa este nombre directamente. */
+function subtareasPendientes(p: Pendiente): number {
   const contar = (arr: Subtarea[]): number => arr.reduce((n, s) => n + (s.completada ? 0 : 1) + contar(s.children || []), 0)
   return contar(p.subtareas || [])
 }
 
-/** Igual que `subtareasPendientes` pero con el nombre más declarativo usado por la
-    UI (Peek) para habilitar/deshabilitar el botón "Completar" — alias explícito para
-    no romper el import existente que usa el nombre corto. */
+/** Nombre más declarativo usado por la UI (Peek) para habilitar/deshabilitar el botón
+    "Completar". */
 export const subtareasFaltantes = subtareasPendientes

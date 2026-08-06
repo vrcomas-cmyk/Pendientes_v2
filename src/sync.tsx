@@ -9,7 +9,7 @@ import { mergeNota, mergePendiente, mergeProyecto, mergeEvento, reconciliar, typ
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
-import { Cloud, CloudOff, RefreshCw, LogOut, Loader2 } from 'lucide-react'
+import { Cloud, CloudOff, RefreshCw, Loader2 } from 'lucide-react'
 
 type EstadoSync = 'local' | 'sincronizando' | 'sincronizado' | 'offline' | 'error'
 export type RolEspacio = 'padre' | 'hija'
@@ -494,5 +494,3 @@ function Pantalla({ titulo, subtitulo, children }: { titulo: string; subtitulo: 
     </div>
   )
 }
-
-export { LogOut }

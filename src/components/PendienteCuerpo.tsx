@@ -31,14 +31,17 @@ function formatearMin(min: number): string {
     minutos redondeados. */
 function TimerPendiente({ p }: { p: Pendiente }) {
   const { iniciarTimer, pausarTimer } = useApp()
-  const [, forzarRender] = useState(0)
+  // `ahora` vive en estado (no se llama a `Date.now()` durante el render, que debe ser puro) y se
+  // actualiza cada minuto desde el efecto — el propio cambio de estado es lo que dispara el
+  // re-render, sin necesitar un `forzarRender` aparte.
+  const [ahora, setAhora] = useState(() => Date.now())
   const corriendo = !!p.tiempoInicio
   useEffect(() => {
     if (!corriendo) return
-    const id = setInterval(() => forzarRender(v => v + 1), 60000)
+    const id = setInterval(() => setAhora(Date.now()), 60000)
     return () => clearInterval(id)
   }, [corriendo])
-  const enCurso = corriendo ? Math.round((Date.now() - new Date(p.tiempoInicio!).getTime()) / 60000) : 0
+  const enCurso = corriendo ? Math.round((ahora - new Date(p.tiempoInicio!).getTime()) / 60000) : 0
   const total = (p.tiempoTotalMin || 0) + enCurso
   return (
     <div className="flex items-center gap-2 rounded-lg border bg-muted/40 px-2.5 py-1.5 text-xs">

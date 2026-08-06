@@ -670,19 +670,116 @@ documentada, el bloque de colaboración multi-usuario queda cerrado hasta que
 se confirme el diseño de los ítems restantes. Verificación acumulada:
 129/129 tests, `tsc --noEmit` y `npm run build` limpios en cada hito.
 
-### Fase 12 — Limpieza final y exportación (antes Fase 6, planificado)
+### Fase 12.1 — Exportación a ICS, Markdown y HTML imprimible (2026-08-06)
 
-- **Añadido**: exportación a ICS, Markdown y HTML imprimible.
-- **Añadido**: CI mínimo (`lint` + `typecheck` + `build` + `test` en PRs).
-- **Añadido**: auditoría final con `knip`.
-- **Cambiado**: versión `0.0.0` → `1.0.0`.
+- **Añadido**: `src/lib/exportar.ts` — `generarICS` (VEVENT por pendiente
+  agendado, con hora o de día completo, más eventos de calendario sueltos;
+  escapado RFC 5545 de `\`, `;`, `,` y saltos de línea), `generarMarkdown`
+  (checklist agrupado por prioridad, `- [x]`/`- [ ]` según `fechaCompletado`,
+  más una sección de notas), `generarHTMLImprimible` (documento autocontenido
+  con CSS de impresión, título/proyecto/fecha escapados contra inyección
+  HTML).
+- **Añadido**: dropdown "Más formatos…" en el sidebar de escritorio (junto a
+  Exportar JSON/CSV, agrupado para no sumar 3 botones sueltos a un sidebar ya
+  con varios) y 3 botones planos en el menú móvil.
+- **Añadido**: 12 tests en `tests/exportar.test.ts` — formato de fecha/hora
+  ICS, suma de `duracionMin`, evento de día completo, escapado de caracteres
+  especiales, filtrado de borrados/archivados, resolución de nombre de
+  proyecto por `proyectoId`, y que el HTML escapa `<`/`>` en vez de
+  interpolar el título crudo.
+- Verificado con `npm run test` (141/141, +12 nuevos), `tsc --noEmit`,
+  `npm run build`, y una pasada visual en Chrome: el dropdown se abre sin
+  romper el layout del sidebar, "HTML imprimible" descarga sin errores en
+  consola.
+- Service Worker: sin bump todavía.
+
+### Fase 12.2 — CI mínimo (2026-08-06)
+
+- **Añadido**: `.github/workflows/ci.yml` — corre en cada PR y en push a
+  `main`: `npm ci` → `npm run lint` → `npm run build` (que ya encadena
+  `tsc -b && vite build`, cubriendo typecheck) → `npm run test`. Sin job de
+  despliegue (el README documenta despliegue manual de `dist/`, no hay
+  secretos de hosting en este repo).
+- **Corregido**: `npm run lint` no se había corrido en toda esta sesión (Fases
+  2-11) y tenía 4 errores reales acumulados de las reglas
+  `react-hooks/purity`/`react-hooks/refs`/`react-hooks/set-state-in-effect`
+  (parte de las reglas del compilador de React, más estrictas que antes):
+  - `PendienteCuerpo.tsx` (`TimerPendiente`, Fase 9.2): llamaba `Date.now()`
+    directo en el cuerpo del render (debe ser puro). Ahora vive en estado
+    (`ahora`), actualizado desde el propio efecto que ya existía.
+  - `use-recordatorios-locales.ts` (Fase 11.3): escribía `ref.current` durante
+    el render en vez de dentro de un efecto.
+  - `store.tsx` (purga de papelera, Fase 8.2) y `ListView.tsx` (aplicar filtro
+    guardado, Fase 8.3): `setState` síncrono dentro de un efecto — patrones
+    legítimos (corrección puntual contra el reloj al montar; sincronizar
+    estado local desde una señal externa) que la regla nueva marca por
+    defecto; se documentó por qué con un `eslint-disable` acotado al bloque,
+    no una supresión global.
+  - Si se hubiera agregado el CI *antes* de corregir esto, habría fallado en
+    el primer push — se corrigió antes de habilitarlo, no después.
+- Verificado con `npm run lint` (0 errores, 0 warnings), `npm run test`
+  (141/141), `tsc --noEmit`, `npm run build` — los cuatro pasos que el CI
+  nuevo va a correr, confirmados localmente primero.
+- Service Worker: sin bump (solo tooling, sin cambio visible al usuario).
+
+### Fase 12.3 — Auditoría final con `knip` (2026-08-06)
+
+- **Añadido**: `knip` como devDependency, con `knip.json` mínimo (`project:
+  ["src/**/*.{ts,tsx}", "tests/**/*.ts"]`) — el glob restringe el análisis al
+  grafo real de la app Vite, evitando falsos positivos en `public/sw.js` (no
+  es un módulo importado, lo carga el navegador directo) y
+  `supabase/functions/**` (Deno, fuera del bundle). Se probó primero una
+  versión con `ignore` explícito para esos dos paths; el propio knip marcó esa
+  config como redundante frente al `project` glob y se simplificó.
+- **Eliminado** (confirmado sin importadores vía `grep -rl` antes de borrar):
+  `src/App.css`; 10 componentes shadcn sin uso (`alert`, `card`, `popover`,
+  `progress`, `separator`, `sheet`, `skeleton`, `switch`, `tabs`, `tooltip` —
+  se habían conservado desde la Fase 1 "para fases 3-5" pero ninguna fase
+  terminó consumiéndolos).
+- **Eliminado** del `package.json`: dependencias de producción
+  `@radix-ui/react-{popover,progress,separator,switch,tabs,tooltip}`,
+  `date-fns`, `next-themes`; devDependencies `@parcel/config-default`,
+  `@testing-library/user-event`, `buffer`, `html-inline`, `parcel`,
+  `parcel-resolver-tspaths` (restos de un toolchain Parcel nunca conectado a
+  este proyecto, que en realidad usa Vite).
+- **Cambiado**: `src/types.ts` deja de exportar `subtareasPendientes`
+  directamente (nada la importaba por ese nombre); se mantiene solo el alias
+  público `subtareasFaltantes` que sí usa la UI. `src/sync.tsx` deja de
+  reexportar `LogOut` de `lucide-react` (export muerto sin importadores) y
+  elimina el import ahora innecesario.
+- **Conservado deliberadamente** (falsos positivos de knip, no dead code):
+  `saveGoogleClientId` (`src/lib/googleCalendarConfig.ts`, se invoca desde un
+  flujo de configuración manual documentado en README, no desde código
+  importado); los exports de superficie de librería de los componentes
+  shadcn restantes (`badgeVariants`, `buttonVariants`, subcomponentes de
+  `dialog`/`dropdown-menu`/`context-menu`/`select` — son la API pública del
+  primitive, se usan mezclando composición JSX aunque el analizador estático
+  no siempre conecte el import con el uso).
+- Verificado con `npx knip` (config final, sin `ignore` redundante — los dos
+  falsos positivos siguen suprimidos correctamente), `npm run lint` (0/0),
+  `tsc --noEmit`, `npm run build`, `npm run test` (141/141) — todo limpio
+  después de los borrados y `npm uninstall`.
+- Service Worker: sin bump (limpieza interna, sin cambio visible al usuario).
+
+### Fase 12.4 — Release `1.0.0` (2026-08-06)
+
+- **Cambiado**: versión `0.1.0-pre.1` → `1.0.0` en `package.json`. Cierra el
+  roadmap reordenado completo de `Cambios.md` (Fases 2-12): cimientos
+  visuales, shell Workspace, Espacios, Inbox universal, widgets flotantes,
+  entidad común, y el bloque de funcionalidad tipo Todoist (papelera
+  avanzada, etiquetas-entidad, filtros guardados, subtareas anidadas,
+  dependencias, plantillas, RRULE, import CSV, exportación ICS/Markdown/HTML,
+  CI, auditoría de dead code).
+- Service Worker: bump a `v9` — cubre todo lo servible al usuario desde `v8`
+  (Fases 9-12: estadísticas/actividad, UX/accesibilidad, exportación,
+  limpieza de bundle).
 
 ### Versiones del Service Worker (gantt)
 
 - `v6` — línea base previa a la refactor.
 - `v7` — fin de la Fase 1 (refactor interno completado; primer bump que confirma
   la base).
-- `v8` (actual) — cierre de las Fases 2-8 en un solo bump: cimientos visuales,
+- `v8` — cierre de las Fases 2-8 en un solo bump: cimientos visuales,
   shell Workspace, Espacios, Inbox, widgets, entidad común (etiquetas/comentarios
   en notas) y todo el bloque de funcionalidad tipo Todoist (papelera avanzada,
   etiquetas-entidad, filtros guardados, subtareas anidadas, dependencias,
@@ -692,7 +789,6 @@ se confirme el diseño de los ítems restantes. Verificación acumulada:
   entre pasos — no había un usuario final recibiendo cada hito por separado,
   así que un solo bump al cerrar el bloque es más honesto que fingir 20+
   versiones intermedias que nunca se sirvieron.
-- `v9` en adelante — Fase 9 (estadísticas, ex Fase 3), Fase 10
-  (UX/UI/accesibilidad, ex Fase 4), Fase 11 (colaboración, ex Fase 5), Fase 12
-  (limpieza + release `1.0.0`, ex Fase 6) — numeración exacta a definir cuando
-  arranque cada una.
+- `v9` (actual) — cierre de las Fases 9-12: estadísticas/actividad, ajustes
+  UX/accesibilidad, exportación ICS/Markdown/HTML, CI, y limpieza final de
+  dead code — release `1.0.0`.

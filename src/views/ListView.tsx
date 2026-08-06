@@ -85,9 +85,14 @@ export default function ListView({ filtroFecha, setFiltroFecha }: { filtroFecha:
     if (!filtroActivoId) return
     const f = filtrosGuardados.find(x => x.id === filtroActivoId)
     if (!f) return
+    // Sincroniza estado local desde una señal externa (`filtroActivoId`, seteada por el atajo
+    // global en App.tsx) — no hay forma de derivarlo sin efecto porque el criterio completo vive
+    // fuera de este componente.
+    /* eslint-disable react-hooks/set-state-in-effect */
     setQ(f.criterios.q); setFEstado(f.criterios.fEstado); setFPrioridad(f.criterios.fPrioridad)
     setFResp(f.criterios.fResp); setOrden(f.criterios.orden); setGrupo(f.criterios.grupo)
     setFiltroFecha(f.criterios.filtroFecha)
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [filtroActivoId, filtrosGuardados, setFiltroFecha])
 
   const guardarFiltroActual = () => {

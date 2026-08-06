@@ -4,6 +4,7 @@ import { AppProvider, useApp } from '@/store'
 import { columnaDe, idColumnaCompletado } from '@/lib/columnas'
 import { PROYECTO_COLORES } from '@/types'
 import { descargar, hoyISO, vencido, parsearLinea, fechaPorPrioridad, activo } from '@/lib/app-utils'
+import { generarICS, generarMarkdown, generarHTMLImprimible } from '@/lib/exportar'
 import { useIsMobile } from '@/hooks/use-is-mobile'
 import { SyncProvider, useSync, SyncBadge } from '@/sync'
 import TaskModal from '@/components/TaskModal'
@@ -36,7 +37,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import {
   Star, ListTodo, BarChart3, StickyNote, Briefcase, Inbox as InboxIcon,
-  Plus, Moon, Sun, Download, Upload, FileSpreadsheet, AlertTriangle, User, MoreVertical, LogOut, LogIn, HelpCircle, CalendarClock, Users, Settings2, Trash2, Search, LayoutGrid, Timer, Columns3, PenLine, ArrowRightCircle,
+  Plus, Moon, Sun, Download, Upload, FileSpreadsheet, AlertTriangle, User, MoreVertical, LogOut, LogIn, HelpCircle, CalendarClock, Users, Settings2, Trash2, Search, LayoutGrid, Timer, Columns3, PenLine, ArrowRightCircle, FileText,
 } from 'lucide-react'
 
 const LS_VISTA = 'pn_vista'
@@ -63,7 +64,7 @@ const WIDGET_ICONOS: Record<WidgetTipo, React.ReactNode> = {
 
 function Shell() {
   const app = useApp()
-  const { pendientes, notas, proyectos, usuario, setUsuario, crearPendiente, crearNota, abrirModal, reemplazarTodo, notaActualId, setNotaActualId, proyectoAbiertoId, setProyectoAbiertoId, setFiltroFecha, espacios, espacioActualId, setEspacioActualId, filtrosGuardados, setFiltroActivoId } = app
+  const { pendientes, notas, proyectos, eventos, usuario, setUsuario, crearPendiente, crearNota, abrirModal, reemplazarTodo, notaActualId, setNotaActualId, proyectoAbiertoId, setProyectoAbiertoId, setFiltroFecha, espacios, espacioActualId, setEspacioActualId, filtrosGuardados, setFiltroActivoId } = app
   const sync = useSync()
   const { abrirWidget } = useWidgets()
   const isMobile = useIsMobile()
@@ -216,6 +217,9 @@ function Shell() {
     ].map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(','))
     descargar('pendientes_' + hoyISO() + '.csv', '\uFEFF' + [cab.join(','), ...filas].join('\n'), 'text/csv')
   }
+  const exportarICS = () => descargar('pendientes_' + hoyISO() + '.ics', generarICS(pendientes, eventos), 'text/calendar')
+  const exportarMarkdown = () => descargar('pendientes_' + hoyISO() + '.md', generarMarkdown(pendientes, notas, proyectos), 'text/markdown')
+  const exportarHTML = () => descargar('pendientes_' + hoyISO() + '.html', generarHTMLImprimible(pendientes, proyectos), 'text/html')
   const importarJSON = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]
     if (!f) return
@@ -404,6 +408,9 @@ function Shell() {
                 <div className="border-t" />
                 <button onClick={() => { setMenuAbierto(false); exportarJSON() }} className="flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-accent"><Download size={15} /> Exportar JSON</button>
                 <button onClick={() => { setMenuAbierto(false); exportarCSV() }} className="flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-accent"><FileSpreadsheet size={15} /> Exportar CSV</button>
+                <button onClick={() => { setMenuAbierto(false); exportarICS() }} className="flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-accent"><CalendarClock size={15} /> Exportar calendario (.ics)</button>
+                <button onClick={() => { setMenuAbierto(false); exportarMarkdown() }} className="flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-accent"><FileText size={15} /> Exportar Markdown</button>
+                <button onClick={() => { setMenuAbierto(false); exportarHTML() }} className="flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-accent"><FileText size={15} /> Exportar HTML imprimible</button>
                 <button onClick={() => { setMenuAbierto(false); fileRef.current?.click() }} className="flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-accent"><Upload size={15} /> Importar JSON</button>
                 <button onClick={() => { setMenuAbierto(false); setImportarCsvDlg(true) }} className="flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-accent"><Upload size={15} /> Importar CSV / Todoist</button>
               </div>
@@ -513,6 +520,16 @@ function Shell() {
         <div className="space-y-0.5 border-t p-1.5">
           <button onClick={exportarJSON} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-accent"><Download size={16} className="w-5 shrink-0" /><span className="whitespace-nowrap">Exportar JSON</span></button>
           <button onClick={exportarCSV} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-accent"><FileSpreadsheet size={16} className="w-5 shrink-0" /><span className="whitespace-nowrap">Exportar CSV</span></button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-accent"><FileText size={16} className="w-5 shrink-0" /><span className="whitespace-nowrap">Más formatos…</span></button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" side="right" className="w-48">
+              <DropdownMenuItem onClick={exportarICS}><CalendarClock size={13} className="mr-2" /> Calendario (.ics)</DropdownMenuItem>
+              <DropdownMenuItem onClick={exportarMarkdown}><FileText size={13} className="mr-2" /> Markdown (.md)</DropdownMenuItem>
+              <DropdownMenuItem onClick={exportarHTML}><FileText size={13} className="mr-2" /> HTML imprimible</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <button onClick={() => fileRef.current?.click()} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-accent"><Upload size={16} className="w-5 shrink-0" /><span className="whitespace-nowrap">Importar JSON</span></button>
           <button onClick={() => setImportarCsvDlg(true)} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-accent"><Upload size={16} className="w-5 shrink-0" /><span className="whitespace-nowrap">Importar CSV / Todoist</span></button>
           {inputImport}

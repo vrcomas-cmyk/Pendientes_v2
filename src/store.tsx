@@ -192,10 +192,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const limite = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
     const purgar = <T extends { borrado?: boolean; modificado: string }>(arr: T[]) => arr.filter(x => !(x.borrado && x.modificado < limite))
+    // Corrección puntual contra el reloj de pared al montar (no hay forma de sincronizar "cuánto
+    // tiempo pasó desde la última sesión" sin comparar contra `Date.now()` en un efecto; no es una
+    // cascada, corre una sola vez).
+    /* eslint-disable react-hooks/set-state-in-effect */
     setPendientes(prev => { const p = purgar(prev); return p.length === prev.length ? prev : p })
     setNotas(prev => { const n = purgar(prev); return n.length === prev.length ? prev : n })
     setEventos(prev => { const e = purgar(prev); return e.length === prev.length ? prev : e })
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- solo al montar, a propósito
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [])
 
   const setUsuario = (u: string) => { setUsuarioState(u); storage.set('pn_usuario', u) }
