@@ -12,6 +12,15 @@ import { Badge } from '@/components/ui/badge'
 import AdjuntosUI, { Miniatura } from '@/components/AdjuntosUI'
 import { StickyNote, Calendar, CalendarPlus, Send, User, ImagePlus, X, Plus, CornerDownRight, Play, Pause, Timer } from 'lucide-react'
 
+/** Resalta `@nombre` dentro de un comentario ya publicado (Fase 11.2) — puramente visual, no
+    dispara nada (no hay push server; ver decisión de alcance en CHANGELOG.md Fase 11). */
+function conMenciones(texto: string): React.ReactNode {
+  const partes = texto.split(/(@\w+)/g)
+  return partes.map((parte, i) => parte.startsWith('@')
+    ? <span key={i} className="font-medium text-primary">{parte}</span>
+    : parte)
+}
+
 function formatearMin(min: number): string {
   const h = Math.floor(min / 60), m = min % 60
   return h > 0 ? `${h}h ${m}m` : `${m}m`
@@ -116,7 +125,7 @@ export default function PendienteCuerpo({
   destacarOrigenNota = false,
   mostrarCreado = false,
 }: Props) {
-  const { proyectos, columnas, agregarSubtarea, setNotaActualId, agregarComentario, actualizarPendiente, colorDeEtiqueta } = useApp()
+  const { proyectos, columnas, agregarSubtarea, setNotaActualId, agregarComentario, actualizarPendiente, colorDeEtiqueta, personas } = useApp()
   const idCompletado = idColumnaCompletado(columnas)
   const col = columnaDe(columnas, p.estado)
   const sub = progresoSub(p)
@@ -126,6 +135,7 @@ export default function PendienteCuerpo({
   const [subNueva, setSubNueva] = useState('')
   const [com, setCom] = useState('')
   const [comImgs, setComImgs] = useState<Adjunto[]>([])
+  const [sugerenciasMencion, setSugerenciasMencion] = useState<string[]>([])
 
   const agregar = () => {
     if (subNueva.trim()) { agregarSubtarea(p.id, subNueva); setSubNueva('') }
@@ -133,7 +143,21 @@ export default function PendienteCuerpo({
   const enviarCom = () => {
     if (!com.trim() && !comImgs.length) return
     agregarComentario(p.id, com, comImgs)
-    setCom(''); setComImgs([])
+    setCom(''); setComImgs([]); setSugerenciasMencion([])
+  }
+  // Menciones @nombre (Fase 11.2): solo detecta "@fragmento" al FINAL del texto (mientras se está
+  // escribiendo la mención), no una reescritura completa del texto en cada tecla — suficiente para
+  // el caso de uso real (mencionar a alguien al redactar el comentario).
+  const onChangeCom = (v: string) => {
+    setCom(v)
+    const m = v.match(/@(\w*)$/)
+    if (!m) { setSugerenciasMencion([]); return }
+    const frag = m[1].toLowerCase()
+    setSugerenciasMencion(personas.filter(nombre => nombre.toLowerCase().startsWith(frag) && nombre.toLowerCase() !== frag).slice(0, 5))
+  }
+  const elegirMencion = (nombre: string) => {
+    setCom(v => v.replace(/@(\w*)$/, '@' + nombre + ' '))
+    setSugerenciasMencion([])
   }
   const adjuntarImagenCom = async (file: File) => {
     try { const a = await subirAdjunto(file, p.id); setComImgs(prev => [...prev, a]) }
@@ -228,7 +252,7 @@ export default function PendienteCuerpo({
         <div className="space-y-1">
           {(p.comentarios || []).map((c, i) => (
             <div key={c.id || i} className="rounded bg-muted p-1.5 text-xs">
-              <div><b>{c.autor}:</b> {c.texto} <span className="text-muted-foreground">· {new Date(c.fecha).toLocaleString()}</span></div>
+              <div><b>{c.autor}:</b> {conMenciones(c.texto)} <span className="text-muted-foreground">· {new Date(c.fecha).toLocaleString()}</span></div>
               {c.adjuntos && c.adjuntos.length > 0 && <div className="mt-1 flex flex-wrap gap-1.5">{c.adjuntos.map(a => <Miniatura key={a.id} a={a} />)}</div>}
             </div>
           ))}
@@ -244,10 +268,21 @@ export default function PendienteCuerpo({
             ))}
           </div>
         )}
-        <div className="mt-2 flex gap-2">
-          <Input value={com} onChange={e => setCom(e.target.value)} onPaste={onPasteCom} onKeyDown={e => { if (e.key === 'Enter') enviarCom() }} placeholder="Comenta… (pega una captura con Ctrl+V)" className="h-8 text-xs" />
+        <div className="relative mt-2 flex gap-2">
+          <Input value={com} onChange={e => onChangeCom(e.target.value)} onPaste={onPasteCom}
+            onKeyDown={e => { if (e.key === 'Enter' && !sugerenciasMencion.length) enviarCom() }}
+            placeholder="Comenta… @menciona a alguien, pega una captura con Ctrl+V" className="h-8 text-xs" />
           <Button size="sm" variant="secondary" onClick={elegirImagenCom} title="Adjuntar captura"><ImagePlus size={13} /></Button>
           <Button size="sm" onClick={enviarCom}><Send size={13} /></Button>
+          {sugerenciasMencion.length > 0 && (
+            <div className="absolute bottom-full left-0 mb-1 w-40 overflow-hidden rounded-lg border bg-popover shadow-lg">
+              {sugerenciasMencion.map(nombre => (
+                <button key={nombre} onClick={() => elegirMencion(nombre)} className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-left text-xs hover:bg-accent">
+                  <User size={11} className="text-muted-foreground" /> {nombre}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

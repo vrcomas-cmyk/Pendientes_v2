@@ -30,8 +30,8 @@
     "semantic_hash": ""
   },
   "src/App.tsx": {
-    "mtime": 1785998874.8333979,
-    "ast_hash": "52f27b1c57222be55e3f8867562f6f57",
+    "mtime": 1786001351.51772,
+    "ast_hash": "cbc4c1063021abd31128f7eb8bc8ee45",
     "semantic_hash": ""
   },
   "src/components/AdjuntosUI.tsx": {
@@ -40,13 +40,13 @@
     "semantic_hash": "fd4edda2c3c64a2a505b08ae3d02829e"
   },
   "src/components/TaskModal.tsx": {
-    "mtime": 1785998002.4253411,
-    "ast_hash": "f983fdb9dfad23c4946557e8d8784fbe",
+    "mtime": 1786002781.6798327,
+    "ast_hash": "7c5704e1889a18bdc2add6c66b8bf0a1",
     "semantic_hash": ""
   },
   "src/components/TaskRow.tsx": {
-    "mtime": 1785997668.0304773,
-    "ast_hash": "8335f4f6cbf0270ed8a4418bacb2c500",
+    "mtime": 1786001613.990024,
+    "ast_hash": "043c8444568f0876cfe200ae8f3403b1",
     "semantic_hash": ""
   },
   "src/components/ui/alert.tsx": {
@@ -165,8 +165,8 @@
     "semantic_hash": ""
   },
   "src/lib/app-utils.ts": {
-    "mtime": 1786000100.3694522,
-    "ast_hash": "7ca898ce35f9b93a4f8f8dfe32617f40",
+    "mtime": 1786001420.3862987,
+    "ast_hash": "97926126e276d4da6debb474978fd865",
     "semantic_hash": ""
   },
   "src/lib/supabase.ts": {
@@ -205,18 +205,18 @@
     "semantic_hash": ""
   },
   "src/views/ListView.tsx": {
-    "mtime": 1785997628.3545291,
-    "ast_hash": "7b8de50a6fa350a8410a42cbbbf14367",
+    "mtime": 1786002870.3848908,
+    "ast_hash": "fb2e5c7f2a27d5c060a76459718baf3e",
     "semantic_hash": ""
   },
   "src/views/NotesView.tsx": {
-    "mtime": 1785995999.1651816,
-    "ast_hash": "c5b1950d17f582b7700842c9f5028839",
+    "mtime": 1786002371.1482763,
+    "ast_hash": "7889a38b97ed377c2e025073f9ba40bd",
     "semantic_hash": ""
   },
   "src/views/OtherViews.tsx": {
-    "mtime": 1786000363.3876464,
-    "ast_hash": "c4a40e6bc7dccfa8be6efa4bf1fb4196",
+    "mtime": 1786001480.119446,
+    "ast_hash": "ecac095e7b78584bf514732834264318",
     "semantic_hash": ""
   },
   "src/views/PendientesView.tsx": {
@@ -325,8 +325,8 @@
     "semantic_hash": ""
   },
   "index.html": {
-    "mtime": 1785568278.5146172,
-    "ast_hash": "21f7905cb2673f38fc33e88f9177c6f3",
+    "mtime": 1786001211.9346826,
+    "ast_hash": "336ad05c04895a1a93c6903bdec47d5e",
     "semantic_hash": ""
   },
   "public/favicon.svg": {
@@ -360,8 +360,8 @@
     "semantic_hash": ""
   },
   "src/components/AyudaAtajos.tsx": {
-    "mtime": 1785996773.3569865,
-    "ast_hash": "53f012d2ce130977a7cf1751b9882167",
+    "mtime": 1786002883.383267,
+    "ast_hash": "e5b39ba0b48e91aab24f6048a2e7f909",
     "semantic_hash": ""
   },
   "src/components/ErrorBoundary.tsx": {
@@ -405,8 +405,8 @@
     "semantic_hash": ""
   },
   "src/views/ProyectosView.tsx": {
-    "mtime": 1785993913.2994657,
-    "ast_hash": "d82f2aff41d06ce429d5f4ab61a0ef04",
+    "mtime": 1786002187.6794236,
+    "ast_hash": "88dc3e38e1261fc73769ec3c1569de1a",
     "semantic_hash": ""
   },
   "src/components/ProgressRing.tsx": {
@@ -435,8 +435,8 @@
     "semantic_hash": ""
   },
   "src/views/CalendarioView.tsx": {
-    "mtime": 1785826571.2475278,
-    "ast_hash": "aa3335c83fa6e884b8680859be985dce",
+    "mtime": 1786002529.4665887,
+    "ast_hash": "28915c12be01579d54edbebf5b774d60",
     "semantic_hash": ""
   },
   ".claude/skills/probar-como-usuario/SKILL.md": {
@@ -475,8 +475,8 @@
     "semantic_hash": ""
   },
   "tests/app-utils.test.ts": {
-    "mtime": 1786000190.5582266,
-    "ast_hash": "c0a50f438ad8cddde9b5633f56b083ef",
+    "mtime": 1786001794.0238276,
+    "ast_hash": "d9dcf2efaa385d0325ebfb45f35f2d2b",
     "semantic_hash": ""
   },
   "tests/setup.ts": {
@@ -500,18 +500,18 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1786000998.635037,
-    "ast_hash": "f48ba4b11403ce55bf88c9c95ffc62ca",
+    "mtime": 1786003491.242695,
+    "ast_hash": "330707d82b863db755f339717983a526",
     "semantic_hash": ""
   },
   "src/components/PendienteCuerpo.tsx": {
-    "mtime": 1786000756.7008934,
-    "ast_hash": "9bf81408891935bff457387886ae3112",
+    "mtime": 1786001650.9697897,
+    "ast_hash": "510d0fa90e061cd3553d5b22e847d473",
     "semantic_hash": ""
   },
   "src/components/KanbanDnd.tsx": {
-    "mtime": 1785914255.0790462,
-    "ast_hash": "88ec98b769b615df648bbfab6e92d800",
+    "mtime": 1786003183.0702794,
+    "ast_hash": "43cda36924c32ffda7e7bf4aa159c87e",
     "semantic_hash": ""
   },
   "skills-lock.json": {
@@ -627,6 +627,16 @@
   "Cambios.md": {
     "mtime": 1785992227.925206,
     "ast_hash": "cc18698f93845145c428fc8e417397db",
+    "semantic_hash": ""
+  },
+  "src/components/ConfirmDialog.tsx": {
+    "mtime": 1786002015.8023565,
+    "ast_hash": "efd9b826053512334ae3ad32e1cfe3e3",
+    "semantic_hash": ""
+  },
+  "src/components/SkipLink.tsx": {
+    "mtime": 1786001228.9327056,
+    "ast_hash": "a1e7a113245f2af71958f5ba97e83173",
     "semantic_hash": ""
   }
 }

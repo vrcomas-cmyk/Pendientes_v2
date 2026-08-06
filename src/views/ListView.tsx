@@ -59,7 +59,7 @@ function cargarFiltros(): FiltrosGuardados {
 }
 
 export default function ListView({ filtroFecha, setFiltroFecha }: { filtroFecha: FiltroFecha; setFiltroFecha: (f: FiltroFecha) => void }) {
-  const { pendientes, personas, proyectos, toggleSubtarea, toggleCompletar, abrirModal, columnas, filtrosGuardados, crearFiltroGuardado, eliminarFiltroGuardado, filtroActivoId, setFiltroActivoId } = useApp()
+  const { pendientes, personas, proyectos, toggleSubtarea, toggleCompletar, abrirModal, columnas, filtrosGuardados, crearFiltroGuardado, eliminarFiltroGuardado, filtroActivoId, setFiltroActivoId, usuario } = useApp()
   const idCompletado = idColumnaCompletado(columnas)
   const [gruposColapsados, setGruposColapsados] = useState<Set<string>>(new Set())
   const toggleGrupo = (k: string) => setGruposColapsados(prev => { const s = new Set(prev); if (s.has(k)) s.delete(k); else s.add(k); return s })
@@ -283,6 +283,11 @@ export default function ListView({ filtroFecha, setFiltroFecha }: { filtroFecha:
             <button key={c.f} disabled={mostrarArchivados} onClick={() => setFiltroFecha(c.f)}
               className={'shrink-0 rounded-full border px-2.5 py-1 text-[11px] disabled:opacity-40 ' + (!mostrarArchivados && filtroFecha === c.f ? 'border-primary bg-primary text-primary-foreground' : 'hover:bg-accent')}>{c.label}</button>
           ))}
+          {/* Smart list fija "Asignadas a mí" (Fase 11.1): reusa el filtro de Responsable que ya
+              existía en vez de duplicar la lógica de filtrado — un atajo de un clic a "Responsable:
+              <tu nombre>" en vez de tener que abrir el select y buscarte en la lista. */}
+          <button onClick={() => setFResp(v => v === usuario ? 'todos' : usuario)}
+            className={'shrink-0 rounded-full border px-2.5 py-1 text-[11px] ' + (fResp === usuario ? 'border-primary bg-primary text-primary-foreground' : 'hover:bg-accent')}>🙋 Asignadas a mí</button>
           <button onClick={() => setMostrarArchivados(v => !v)}
             className={'shrink-0 rounded-full border px-2.5 py-1 text-[11px] ' + (mostrarArchivados ? 'border-primary bg-primary text-primary-foreground' : 'hover:bg-accent')}>🗄 Archivados</button>
           <button disabled={mostrarArchivados} onClick={() => setSoloDisponibles(v => !v)} title="Oculta pendientes bloqueados por otros sin completar"

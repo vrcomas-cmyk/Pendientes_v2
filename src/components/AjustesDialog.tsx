@@ -6,7 +6,9 @@ import { ACENTOS, leerAcento, guardarAcento, aplicarAcento } from '@/lib/tema'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Moon, Sun, Settings2, Tag, X, Plus, Bookmark } from 'lucide-react'
+import { Moon, Sun, Settings2, Tag, X, Plus, Bookmark, Bell } from 'lucide-react'
+import { recordatoriosActivos, setRecordatoriosActivos } from '@/hooks/use-recordatorios-locales'
+import { toast } from 'sonner'
 
 /** Panel centralizado de personalización: tema, color de acento, y un resumen de las columnas del
     Kanban (edición completa — renombrar/recolorear/reordenar/añadir/eliminar — vive en el propio
@@ -23,6 +25,16 @@ export default function AjustesDialog({
   const { columnas, etiquetas, crearEtiqueta, actualizarEtiqueta, eliminarEtiqueta, plantillas, eliminarPlantilla } = useApp()
   const [acento, setAcento] = useState(leerAcento)
   const [etiquetaVal, setEtiquetaVal] = useState('')
+  const [recordatorios, setRecordatorios] = useState(recordatoriosActivos)
+
+  const toggleRecordatorios = async () => {
+    if (recordatorios) { setRecordatoriosActivos(false); setRecordatorios(false); return }
+    if (typeof Notification === 'undefined') { toast.error('Este navegador no soporta notificaciones'); return }
+    const permiso = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission()
+    if (permiso !== 'granted') { toast.error('Necesitas permitir notificaciones para activar los recordatorios'); return }
+    setRecordatoriosActivos(true); setRecordatorios(true)
+    toast.success('Recordatorios activados — avisan mientras esta pestaña siga abierta')
+  }
 
   const agregarEtiqueta = () => {
     const n = etiquetaVal.trim()
@@ -77,6 +89,18 @@ export default function AjustesDialog({
           <p className="text-[10px] text-muted-foreground">
             Se comparten con todas las cuentas de tu espacio: renombrar, recolorear, reordenar,
             añadir o eliminar columnas ahí se ve reflejado para todos.
+          </p>
+        </div>
+
+        <div className="space-y-1.5">
+          <p className="flex items-center gap-1 text-[11px] uppercase text-muted-foreground"><Bell size={11} /> Recordatorios</p>
+          <button onClick={toggleRecordatorios} className="flex w-full items-center justify-between rounded-lg border px-3 py-2 text-sm hover:bg-accent">
+            <span className="flex items-center gap-2"><Bell size={15} /> Recordatorios locales</span>
+            <span className={'text-xs ' + (recordatorios ? 'text-primary' : 'text-muted-foreground')}>{recordatorios ? 'Activados' : 'Desactivados'}</span>
+          </button>
+          <p className="text-[10px] text-muted-foreground">
+            Avisan de pendientes con hora agendada, vía notificación del navegador. Sin servidor de
+            push: solo funcionan mientras esta pestaña siga abierta (puede estar en segundo plano).
           </p>
         </div>
 

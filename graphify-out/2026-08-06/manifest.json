@@ -165,8 +165,8 @@
     "semantic_hash": ""
   },
   "src/lib/app-utils.ts": {
-    "mtime": 1785998358.2009723,
-    "ast_hash": "31ff3efbfc5d9d0fb36fbbf07501dbb3",
+    "mtime": 1786000100.3694522,
+    "ast_hash": "7ca898ce35f9b93a4f8f8dfe32617f40",
     "semantic_hash": ""
   },
   "src/lib/supabase.ts": {
@@ -190,8 +190,8 @@
     "semantic_hash": ""
   },
   "src/store.tsx": {
-    "mtime": 1785998428.6853552,
-    "ast_hash": "3c58568a81069abe0484b3a6e2ca721b",
+    "mtime": 1786000708.2711353,
+    "ast_hash": "1593005c33a9e0e3033a5275b3669c15",
     "semantic_hash": ""
   },
   "src/sync.tsx": {
@@ -200,8 +200,8 @@
     "semantic_hash": ""
   },
   "src/types.ts": {
-    "mtime": 1785997836.8987422,
-    "ast_hash": "6142e20c59cbbe07ba5622289128af0d",
+    "mtime": 1786000634.1623552,
+    "ast_hash": "095dc390182349836b1a4e659af0158c",
     "semantic_hash": ""
   },
   "src/views/ListView.tsx": {
@@ -215,8 +215,8 @@
     "semantic_hash": ""
   },
   "src/views/OtherViews.tsx": {
-    "mtime": 1785993272.773882,
-    "ast_hash": "55986e9c7f5aeca5517c1a3a2fbae73c",
+    "mtime": 1786000363.3876464,
+    "ast_hash": "c4a40e6bc7dccfa8be6efa4bf1fb4196",
     "semantic_hash": ""
   },
   "src/views/PendientesView.tsx": {
@@ -475,8 +475,8 @@
     "semantic_hash": ""
   },
   "tests/app-utils.test.ts": {
-    "mtime": 1785998522.2080834,
-    "ast_hash": "5d966f8f5426570ccc807ca78c68c834",
+    "mtime": 1786000190.5582266,
+    "ast_hash": "c0a50f438ad8cddde9b5633f56b083ef",
     "semantic_hash": ""
   },
   "tests/setup.ts": {
@@ -500,13 +500,13 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1785999639.058059,
-    "ast_hash": "29b7f89dc0cf1b8f1bb820fc13bb0768",
+    "mtime": 1786000998.635037,
+    "ast_hash": "f48ba4b11403ce55bf88c9c95ffc62ca",
     "semantic_hash": ""
   },
   "src/components/PendienteCuerpo.tsx": {
-    "mtime": 1785997388.9900782,
-    "ast_hash": "0778e4cefacda8ceebb93db5012f91f4",
+    "mtime": 1786000756.7008934,
+    "ast_hash": "9bf81408891935bff457387886ae3112",
     "semantic_hash": ""
   },
   "src/components/KanbanDnd.tsx": {

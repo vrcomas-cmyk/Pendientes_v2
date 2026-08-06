@@ -599,16 +599,76 @@ razón documentada, el bloque de UX/UI y accesibilidad queda cerrado.
 Verificación acumulada: 129/129 tests, `tsc --noEmit` y `npm run build`
 limpios en cada hito.
 
-### Fase 11 — Colaboración multi-usuario (antes Fase 5, planificado, sin push server)
+### Fase 11.1-11.3 — Colaboración multi-usuario, parte local (2026-08-06)
 
-- **Añadido**: schema SQL idempotente (`supabase_setup.sql`) con tablas para etiquetas,
-  presets, plantillas, compartidos, menciones, notificaciones, proyecto_miembros. RLS
-  por espacio.
-- **Añadido**: vista "Asignadas a mí" como smart list destacada.
-- **Añadido**: compartir pendiente ítem-a-ítem con miembros del espacio.
-- **Añadido**: menciones `@miembro` en comentarios con suggestions popover.
-- **Añadido**: vista Notificaciones con badge en header (realtime Supabase).
-- **Añadido**: recordatorios locales (Web Notifications) sin push server.
+- **11.1 — "Asignadas a mí"**: chip fijo `🙋 Asignadas a mí` en `ListView.tsx`,
+  junto a "Archivados"/"Disponibles". Reusa el filtro de Responsable que ya
+  existía (`fResp`) en vez de duplicar lógica de filtrado — un clic pone
+  "Responsable: `<tu usuario>`" sin abrir el select y buscarte en la lista.
+- **11.2 — Menciones `@nombre`**: en el input de comentarios de
+  `PendienteCuerpo.tsx`, detecta `@fragmento` al final del texto mientras se
+  escribe y muestra un popover con coincidencias de `personas` (nombres ya
+  usados como responsable/solicitante en la app — no requiere estar en un
+  espacio sincronizado). Los comentarios ya publicados resaltan `@nombre` en
+  color primario. Es puramente visual/de texto: no dispara ninguna
+  notificación ni requiere que la persona mencionada exista como cuenta.
+- **11.3 — Recordatorios locales**: `src/hooks/use-recordatorios-locales.ts` +
+  toggle en `AjustesDialog.tsx` (pide permiso de `Notification` al activarlo).
+  Revisa cada minuto los pendientes agendados con hora para hoy y dispara una
+  notificación del navegador cuando llega (o hasta 5 min después, por si el
+  intervalo lo agarra tarde), sin repetir el mismo aviso. **Limitación real,
+  explicada en la propia UI**: sin servidor de push, solo funciona mientras la
+  pestaña sigue abierta (aunque sea en segundo plano) — con la app totalmente
+  cerrada no hay forma de notificar. Es "mejor que nada", no un sustituto de
+  push real.
+- Verificado con `npm run test` (129/129), `tsc --noEmit`, `npm run build`, y
+  una pasada visual en Chrome: "Asignadas a mí" sincroniza con el select de
+  Responsable; `@Li` en un comentario mostró el popover con "Liz", seleccionarla
+  insertó `@Liz `, y el comentario publicado la resalta; el toggle de
+  recordatorios intentó pedir permiso de notificación correctamente
+  (`Notification.requestPermission()` se invoca — el diálogo nativo del
+  navegador no es interactuable desde la automatización de pruebas, límite
+  esperado, no un bug).
+- Service Worker: sin bump todavía.
+
+### Fase 11 — resto: decisión de diferir (2026-08-06)
+
+Los ítems que quedan de esta fase cambian el **modelo de datos compartido en
+vivo** (esquema de Supabase con datos reales de usuarios ya sincronizados) o
+inventan una semántica de producto nueva que no pidió `Cambios.md`
+explícitamente — se difieren con su razón, no se omiten en silencio:
+
+- **Compartir pendiente ítem-a-ítem con miembros del espacio**: el modelo de
+  sync actual (`src/sync.tsx`, RLS en `supabase_setup.sql`) comparte *todo* lo
+  del espacio por igual entre padre e hija — no existe hoy un concepto de
+  visibilidad por ítem. Pasar a compartir selectivo es un cambio de semántica
+  de producto (¿quién decide qué se comparte? ¿el padre siempre ve todo?) que
+  además requiere una tabla y políticas RLS nuevas tocando el esquema que ya
+  usan cuentas reales — no algo para decidir unilateralmente sin confirmar el
+  diseño con el usuario primero.
+- **Vista Notificaciones con badge realtime**: requeriría una tabla
+  `pnp_notificaciones` nueva más la lógica que decide *cuándo* se genera una
+  notificación (¿trigger de Postgres en cada mención/asignación? ¿client-side
+  al detectar el cambio?) — ninguna de las dos partes existe hoy. Es
+  infraestructura de backend real para un solo ítem de una lista larga; mejor
+  como su propio hito con el diseño del trigger acordado de antemano.
+- **`supabase_setup.sql` con tablas para etiquetas/presets/plantillas
+  compartidas**: hoy `Etiqueta` (Fase 8.1) y `PlantillaPendiente` (Fase 8.6)
+  son puramente locales (`localStorage`), by design — sincronizarlas es una
+  extensión real del alcance de esas fases, no de "colaboración". Se
+  revisita si aparece la necesidad concreta de compartir etiquetas/plantillas
+  entre miembros de un espacio.
+- Menciones (11.2) y recordatorios (11.3) sí se implementaron completos
+  porque son enteramente locales — no tocan el esquema compartido ni inventan
+  semántica de producto nueva.
+
+### Cierre del bloque Fase 11
+
+Con 11.1-11.3 implementadas (todo lo que era seguro de resolver sin tocar el
+esquema de datos compartido en vivo) y el resto diferido con su razón
+documentada, el bloque de colaboración multi-usuario queda cerrado hasta que
+se confirme el diseño de los ítems restantes. Verificación acumulada:
+129/129 tests, `tsc --noEmit` y `npm run build` limpios en cada hito.
 
 ### Fase 12 — Limpieza final y exportación (antes Fase 6, planificado)
 

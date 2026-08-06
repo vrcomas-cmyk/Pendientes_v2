@@ -1,16 +1,16 @@
 # Graph Report - pendientes-pro  (2026-08-06)
 
 ## Corpus Check
-- 119 files · ~86,802 words
+- 121 files · ~88,683 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 903 nodes · 1534 edges · 114 communities (60 shown, 54 thin omitted)
-- Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 8 edges (avg confidence: 0.69)
+- 914 nodes · 1441 edges · 116 communities (63 shown, 53 thin omitted)
+- Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 9 edges (avg confidence: 0.7)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `2b57f5e0`
+- Built from commit: `31bb9019`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -86,6 +86,8 @@
 - graphify reference: incremental update and cluster-only
 - tailwind-merge
 - alert.tsx
+- OtherViews.tsx
+- uid
 - @parcel/config-default
 - parcel-resolver-tspaths
 - postcss
@@ -122,41 +124,41 @@
 - @vitest/coverage-v8
 
 ## God Nodes (most connected - your core abstractions)
-1. `useApp()` - 61 edges
-2. `cn()` - 31 edges
-3. `[Unreleased]` - 29 edges
+1. `[Unreleased]` - 34 edges
+2. `useApp()` - 31 edges
+3. `cn()` - 31 edges
 4. `hoyISO()` - 27 edges
 5. `compilerOptions` - 24 edges
-6. `activo()` - 21 edges
-7. `CalendarioView()` - 20 edges
-8. `uid()` - 17 edges
-9. `Pendiente` - 16 edges
-10. `compilerOptions` - 16 edges
+6. `activo()` - 23 edges
+7. `uid()` - 17 edges
+8. `compilerOptions` - 16 edges
+9. `vencido()` - 15 edges
+10. `PWA Development Skill` - 15 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `pendienteCompletado()` --calls--> `uid()`  [EXTRACTED]
   tests/app-utils.test.ts → src/lib/app-utils.ts
+- `KanbanRapidoWidget()` --indirect_call--> `activo()`  [INFERRED]
+  src/components/widgets/KanbanRapidoWidget.tsx → src/lib/app-utils.ts
 - `CalendarioView()` --indirect_call--> `activo()`  [INFERRED]
   src/views/CalendarioView.tsx → src/lib/app-utils.ts
-- `SyncCtx` --references--> `ColumnaKanban`  [EXTRACTED]
-  src/sync.tsx → src/types.ts
-- `CommandShortcut()` --calls--> `cn()`  [EXTRACTED]
-  src/components/ui/command.tsx → src/lib/utils.ts
-- `ContextMenuShortcut()` --calls--> `cn()`  [EXTRACTED]
-  src/components/ui/context-menu.tsx → src/lib/utils.ts
+- `DashboardView()` --indirect_call--> `activo()`  [INFERRED]
+  src/views/OtherViews.tsx → src/lib/app-utils.ts
+- `TodayView()` --indirect_call--> `activo()`  [INFERRED]
+  src/views/OtherViews.tsx → src/lib/app-utils.ts
 
 ## Import Cycles
 - None detected.
 
-## Communities (114 total, 54 thin omitted)
+## Communities (116 total, 53 thin omitted)
 
 ### Community 0 - "App.tsx"
 Cohesion: 0.06
-Nodes (66): AjustesDialog(), ColumnaHeader(), MenuContextoPendiente(), NuevoEspacioDialog(), PaletaComandos(), Vista, FilaSubtarea(), formatearMin() (+58 more)
+Nodes (59): AjustesDialog(), ColumnaHeader(), MenuContextoPendiente(), NuevoEspacioDialog(), PaletaComandos(), Vista, KanbanRapidoWidget(), NotaRapidaWidget() (+51 more)
 
 ### Community 1 - "sync.tsx"
-Cohesion: 0.18
-Nodes (9): Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator, CommandShortcut() (+1 more)
+Cohesion: 0.20
+Nodes (8): Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator, CommandShortcut()
 
 ### Community 2 - "command.tsx"
 Cohesion: 0.09
@@ -167,12 +169,12 @@ Cohesion: 0.06
 Nodes (31): DOM, ES2023, ./src/*, vite/client, vitest/globals, compilerOptions, allowImportingTsExtensions, baseUrl (+23 more)
 
 ### Community 4 - "use-toast.ts"
-Cohesion: 0.06
-Nodes (35): [0.1.0-pre.1] — 2026-08-05 — Fase 1: Base técnica, Añadido, Añadido (2.1 — Papelera real), Cambiado, Cambiado (2.1), Changelog, Cierre del bloque Fase 8, Cierre del bloque Fase 9 (+27 more)
+Cohesion: 0.05
+Nodes (40): [0.1.0-pre.1] — 2026-08-05 — Fase 1: Base técnica, Añadido, Añadido (2.1 — Papelera real), Cambiado, Cambiado (2.1), Changelog, Cierre del bloque Fase 10, Cierre del bloque Fase 8 (+32 more)
 
 ### Community 5 - "cn"
-Cohesion: 0.11
-Nodes (16): Badge(), BadgeProps, badgeVariants, DropdownMenuShortcut(), Label, labelVariants, PopoverContent, Progress (+8 more)
+Cohesion: 0.10
+Nodes (19): Alert, AlertDescription, AlertTitle, alertVariants, Badge(), BadgeProps, badgeVariants, Label (+11 more)
 
 ### Community 6 - "compilerOptions"
 Cohesion: 0.10
@@ -195,8 +197,8 @@ Cohesion: 0.29
 Nodes (7): autoprefixer, globals, devDependencies, autoprefixer, globals, @testing-library/react, @testing-library/react
 
 ### Community 12 - "@hookform/resolvers"
-Cohesion: 0.08
-Nodes (54): PendienteCuerpo(), COLOR_PRIORIDAD, PreviaParseo(), TaskRow(), KanbanRapidoWidget(), ProximaTareaWidget(), actividadPorDia(), activo() (+46 more)
+Cohesion: 0.17
+Nodes (23): actividadPorDia(), DIAS_SEMANA, enesimoDiaSemana(), esBullet(), extraerSufijos(), FMT_DIA_LARGO, isoLocal(), isoProximoFinDeSemana() (+15 more)
 
 ### Community 13 - "package.json"
 Cohesion: 0.25
@@ -219,24 +221,24 @@ Cohesion: 0.29
 Nodes (6): Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle
 
 ### Community 24 - "alert.tsx"
-Cohesion: 0.26
-Nodes (12): RFC-4180, ImportarCsvDialog(), NOMBRE_FORMATO, LineaParseada, detectarFormato(), FilaImportada, FormatoCSV, mapearFilas() (+4 more)
+Cohesion: 0.29
+Nodes (11): RFC-4180, ImportarCsvDialog(), NOMBRE_FORMATO, detectarFormato(), FilaImportada, FormatoCSV, mapearFilas(), normalizarFecha() (+3 more)
 
 ### Community 26 - "badge.tsx"
 Cohesion: 0.50
 Nodes (3): Al terminar, Cómo probar, /probar-como-usuario
 
 ### Community 27 - "tabs.tsx"
-Cohesion: 0.09
-Nodes (28): EspacioDialog(), canjearInvitacion(), codigoAleatorio(), crearInvitacion(), Invitacion, quitarMiembro(), CAMPOS_ESCALARES, contenidoIgual() (+20 more)
+Cohesion: 0.12
+Nodes (21): FMT_MES_LARGO, nombreMes(), altoPx(), CalendarioView(), colorDeCuenta(), COLORES_CUENTA, CUARTOS, DIAS_CORTOS (+13 more)
 
 ### Community 28 - "Pendientes + Notas Pro — PWA modular"
 Cohesion: 0.22
 Nodes (8): Base de datos, Compilar para producción, Cómo actualizar a TODOS los dispositivos, Desarrollo, Desplegar (una sola vez), Estructura (modular, para escalar fácil), Notas de sincronización, Pendientes + Notas Pro — PWA modular
 
 ### Community 30 - "class-variance-authority"
-Cohesion: 0.26
-Nodes (13): AdjuntosUI(), Miniatura(), eliminarAdjunto(), esImagen(), formatoTamano(), leerComoDataUrl(), subirAdjunto(), urlAdjunto() (+5 more)
+Cohesion: 0.12
+Nodes (20): AdjuntosUI(), Miniatura(), ErrorBoundary, Props, State, Button, ButtonProps, buttonVariants (+12 more)
 
 ### Community 31 - "ListView.tsx"
 Cohesion: 0.40
@@ -263,8 +265,8 @@ Cohesion: 0.25
 Nodes (7): After Launch, Before Launch, Common Mistakes, Core PWA Requirements, Project Structure, PWA Development Checklist, PWA Development Skill
 
 ### Community 38 - "html-inline"
-Cohesion: 0.14
-Nodes (17): conDia(), DIAS, PosponerMenu(), DialogDescription, DialogFooter(), DialogHeader(), DialogOverlay, DialogTitle (+9 more)
+Cohesion: 0.13
+Nodes (19): conDia(), DIAS, PosponerMenu(), DialogContent, DialogDescription, DialogFooter(), DialogHeader(), DialogOverlay (+11 more)
 
 ### Community 41 - "Doctrina del Workspace — Pendientes Pro"
 Cohesion: 0.29
@@ -326,25 +328,37 @@ Nodes (4): Lighthouse Audit, Manual Testing Checklist, Testing PWA, Testing Serv
 Cohesion: 0.67
 Nodes (3): Basic Service Worker, Registration, Service Worker Patterns
 
+### Community 63 - "KanbanDnd.tsx"
+Cohesion: 0.29
+Nodes (6): KanbanDnd(), Props, activo(), ResumenProyectos(), ListaProyecto(), ProyectosView()
+
 ### Community 66 - "App.tsx"
-Cohesion: 0.10
-Nodes (22): Shell(), Vista, VISTAS, VISTAS_VALIDAS, WIDGET_ICONOS, ATAJOS, SINTAXIS, ErrorBoundary (+14 more)
+Cohesion: 0.24
+Nodes (12): formatear(), PomodoroWidget(), WidgetShell(), CONTENIDO, WidgetsLayer(), storage, WIDGET_DEFAULTS, WidgetInstancia (+4 more)
 
 ### Community 67 - "button.tsx"
-Cohesion: 0.33
-Nodes (5): Props, State, Button, ButtonProps, buttonVariants
+Cohesion: 0.10
+Nodes (13): Shell(), Vista, VISTAS, VISTAS_VALIDAS, WIDGET_ICONOS, ATAJOS, SINTAXIS, COLOR_PRIORIDAD (+5 more)
 
 ### Community 68 - "graphify reference: incremental update and cluster-only"
 Cohesion: 0.50
 Nodes (3): For --cluster-only, For --update (incremental re-extraction), graphify reference: incremental update and cluster-only
 
 ### Community 70 - "alert.tsx"
-Cohesion: 0.40
-Nodes (4): Alert, AlertDescription, AlertTitle, alertVariants
+Cohesion: 0.17
+Nodes (16): formatearMin(), PendienteCuerpo(), Props, TimerPendiente(), PendientePeek(), TaskRow(), describirRepeticion(), estaBloqueado() (+8 more)
+
+### Community 71 - "OtherViews.tsx"
+Cohesion: 0.17
+Nodes (14): ProximaTareaWidget(), hoyISO(), isoMasDias(), AgendaGoogleHoy(), DIAS_CORTOS, etiquetaDia(), FranjaSemanal(), HeatmapActividad() (+6 more)
+
+### Community 72 - "uid"
+Cohesion: 0.29
+Nodes (12): Modalidad, TaskModal(), defaultsHorario(), fechaPorPrioridad(), normalizar(), uid(), AppProvider(), normalizarConservandoId() (+4 more)
 
 ### Community 102 - "googleCalendar.ts"
-Cohesion: 0.11
-Nodes (38): CuentasGoogleDialog(), AntesEspejo, DespuesEspejo, sincronizarEspejoGoogle(), sinDuplicarLocal(), columnaDe(), idColumnaCompletado(), actualizarEventoAgenda() (+30 more)
+Cohesion: 0.12
+Nodes (28): CuentasGoogleDialog(), EspacioDialog(), AntesEspejo, DespuesEspejo, sincronizarEspejoGoogle(), canjearInvitacion(), codigoAleatorio(), crearInvitacion() (+20 more)
 
 ### Community 103 - "index.ts"
 Cohesion: 0.26
@@ -355,23 +369,23 @@ Cohesion: 0.17
 Nodes (11): 1. Crear el proyecto y habilitar la API, 2. Configurar la pantalla de consentimiento OAuth, 3. Crear las credenciales OAuth, 4. Dónde pegar cada credencial, 5. Probar la conexión (una cuenta o varias), `access_denied` ("solo los verificadores aprobados pueden acceder"), Conectar Google Calendar (time-blocking / vista Agenda), Las cuentas conectadas dependen de la sesión de sincronización, no del dispositivo (+3 more)
 
 ## Knowledge Gaps
-- **411 isolated node(s):** `Añadido`, `Cambiado`, `Eliminado`, `Refactor`, `Fase 2 — Personal Workspace (reorientación, ver `AUDITORIA.md`)` (+406 more)
+- **418 isolated node(s):** `Añadido`, `Cambiado`, `Eliminado`, `Refactor`, `Fase 2 — Personal Workspace (reorientación, ver `AUDITORIA.md`)` (+413 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **54 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **53 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `useApp()` connect `App.tsx` to `App.tsx`, `html-inline`, `googleCalendar.ts`, `menubar.tsx`, `@hookform/resolvers`, `alert.tsx`, `tabs.tsx`?**
-  _High betweenness centrality (0.041) - this node is a cross-community bridge._
-- **Why does `cn()` connect `cn` to `sync.tsx`, `button.tsx`, `context-menu.tsx`, `alert.tsx`, `html-inline`, `menubar.tsx`, `sheet.tsx`, `card.tsx`?**
+- **Why does `cn()` connect `cn` to `sync.tsx`, `context-menu.tsx`, `html-inline`, `menubar.tsx`, `sheet.tsx`, `card.tsx`, `class-variance-authority`?**
   _High betweenness centrality (0.033) - this node is a cross-community bridge._
-- **Why does `dependencies` connect `cmdk` to `carousel.tsx`, `breadcrumb.tsx`, `date-fns`, `lucide-react`, `next-themes`, `@radix-ui/react-dropdown-menu`, `@radix-ui/react-label`, `package.json`, `@radix-ui/react-popover`, `@radix-ui/react-radio-group`, `@radix-ui/react-scroll-area`, `@radix-ui/react-slot`, `@radix-ui/react-switch`, `@fontsource/space-grotesk`, `react-dom`, `tailwind-merge`, `@radix-ui/react-dialog`, `@radix-ui/react-context-menu`, `@radix-ui/react-tabs`, `@radix-ui/react-toast`, `@supabase/supabase-js`, `cmdk`?**
-  _High betweenness centrality (0.012) - this node is a cross-community bridge._
+- **Why does `useApp()` connect `App.tsx` to `html-inline`, `OtherViews.tsx`, `menubar.tsx`, `alert.tsx`, `tabs.tsx`?**
+  _High betweenness centrality (0.021) - this node is a cross-community bridge._
+- **Why does `hoyISO()` connect `OtherViews.tsx` to `App.tsx`, `button.tsx`, `html-inline`, `alert.tsx`, `uid`, `@hookform/resolvers`, `tabs.tsx`, `class-variance-authority`?**
+  _High betweenness centrality (0.017) - this node is a cross-community bridge._
 - **What connects `Añadido`, `Cambiado`, `Eliminado` to the rest of the system?**
-  _411 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _418 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `App.tsx` be split into smaller, more focused modules?**
-  _Cohesion score 0.057711950970377936 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.05630834086118639 - nodes in this community are weakly interconnected._
 - **Should `command.tsx` be split into smaller, more focused modules?**
   _Cohesion score 0.08695652173913043 - nodes in this community are weakly interconnected._
 - **Should `compilerOptions` be split into smaller, more focused modules?**

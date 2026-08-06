@@ -18,6 +18,7 @@ import EspacioDialog from '@/components/EspacioDialog'
 import NuevoEspacioDialog from '@/components/NuevoEspacioDialog'
 import ImportarCsvDialog from '@/components/ImportarCsvDialog'
 import SkipLink from '@/components/SkipLink'
+import { useRecordatoriosLocales } from '@/hooks/use-recordatorios-locales'
 import WidgetsLayer from '@/components/widgets/WidgetsLayer'
 import { WidgetsProvider, useWidgets } from '@/widgets-store'
 import { WIDGET_DEFAULTS, type WidgetTipo } from '@/lib/widgets'
@@ -238,6 +239,7 @@ function Shell() {
   }
 
   const idCompletado = idColumnaCompletado(app.columnas)
+  useRecordatoriosLocales(pendientes, idCompletado)
   const nVencidos = pendientes.filter(p => vencido(p, idCompletado)).length
   const nAbiertos = pendientes.filter(p => p.estado !== idCompletado).length
   const nInbox = pendientes.filter(p => activo(p) && !p.fechaLimite && p.estado !== idCompletado).length
