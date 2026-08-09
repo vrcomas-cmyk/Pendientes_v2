@@ -1,5 +1,6 @@
 import type { Pendiente } from '@/types'
 import { useApp } from '@/store'
+import { useUI } from '@/ui-store'
 import { idColumnaCompletado } from '@/lib/columnas'
 import {
   ContextMenuContent, ContextMenuItem, ContextMenuSeparator,
@@ -11,7 +12,8 @@ import {
     misma lista de acciones tres veces. El llamador solo pone `<ContextMenu><ContextMenuTrigger
     asChild>{tarjeta}</ContextMenuTrigger><MenuContextoPendiente p={p} /></ContextMenu>`. */
 export default function MenuContextoPendiente({ p }: { p: Pendiente }) {
-  const { columnas, proyectos, toggleCompletar, abrirModal, duplicarPendiente, archivarPendiente, desarchivarPendiente, eliminarPendiente, moverEstado, actualizarPendiente } = useApp()
+  const { columnas, proyectos, toggleCompletar, duplicarPendiente, archivarPendiente, desarchivarPendiente, eliminarPendiente, moverEstado, actualizarPendiente } = useApp()
+  const { abrirModal } = useUI()
   const idCompletado = idColumnaCompletado(columnas)
   const completado = p.estado === idCompletado
 

@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react'
 import { useApp } from '@/store'
+import { useUI } from '@/ui-store'
 import { PROYECTO_COLORES } from '@/types'
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { RotateCcw, Inbox, AlertTriangle } from 'lucide-react'
 
@@ -10,7 +12,8 @@ function fmtFecha(iso: string): string {
 }
 
 export default function PapeleraView() {
-  const { pendientes, notas, eventos, proyectos, restaurarPendiente, restaurarNota, restaurarEvento, vaciarPapelera, abrirModal } = useApp()
+  const { pendientes, notas, eventos, proyectos, restaurarPendiente, restaurarNota, restaurarEvento, vaciarPapelera } = useApp()
+  const { abrirModal } = useUI()
   const [confirmarDlg, setConfirmarDlg] = useState(false)
 
   const borradosPend = useMemo(() => pendientes.filter(p => p.borrado).sort((a, b) => b.modificado.localeCompare(a.modificado)), [pendientes])
@@ -110,7 +113,7 @@ function Seccion({ titulo, children }: { titulo: string; children: React.ReactNo
 
 function Fila({ titulo, sub, dot, onRestaurar, onEditar }: { titulo: string; sub: string; dot?: string; onRestaurar: () => void; onEditar?: () => void }) {
   return (
-    <div className="flex items-center gap-2 rounded-lg border bg-card p-2.5">
+    <Card className="flex items-center gap-2 p-2.5">
       {dot && <span className={'h-2.5 w-2.5 shrink-0 rounded-full ' + dot} />}
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm font-medium">{titulo}</div>
@@ -120,6 +123,6 @@ function Fila({ titulo, sub, dot, onRestaurar, onEditar }: { titulo: string; sub
         <Button size="sm" variant="ghost" onClick={onRestaurar} title="Restaurar"><RotateCcw size={13} /></Button>
         {onEditar && <Button size="sm" variant="ghost" onClick={onEditar} title="Editar">Ver</Button>}
       </div>
-    </div>
+    </Card>
   )
 }

@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, Suspense, lazy } from 'react'
 import { Toaster, toast } from 'sonner'
 import { AppProvider, useApp } from '@/store'
+import { UIProvider, useUI } from '@/ui-store'
 import { columnaDe, idColumnaCompletado } from '@/lib/columnas'
 import { PROYECTO_COLORES } from '@/types'
 import { descargar, hoyISO, vencido, parsearLinea, fechaPorPrioridad, activo, asignarProyecto, normalizarNombreProyecto } from '@/lib/app-utils'
@@ -26,12 +27,6 @@ import { WIDGET_DEFAULTS, type WidgetTipo } from '@/lib/widgets'
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu'
 import AjustesDialog from '@/components/AjustesDialog'
 import { aplicarAcento, leerAcento } from '@/lib/tema'
-import PendientesView from '@/views/PendientesView'
-import NotesView from '@/views/NotesView'
-import ProyectosView from '@/views/ProyectosView'
-import PapeleraView from '@/views/PapeleraView'
-import InboxView from '@/views/InboxView'
-import { TodayView, DashboardView } from '@/views/OtherViews'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -40,20 +35,47 @@ import {
   Plus, Moon, Sun, Download, Upload, FileSpreadsheet, AlertTriangle, User, MoreVertical, LogOut, LogIn, HelpCircle, CalendarClock, Users, Settings2, Trash2, Search, LayoutGrid, Timer, Columns3, PenLine, ArrowRightCircle, FileText,
 } from 'lucide-react'
 
+const TodayView = lazy(() => import('@/views/OtherViews').then(m => ({ default: m.TodayView })))
+const DashboardView = lazy(() => import('@/views/OtherViews').then(m => ({ default: m.DashboardView })))
+const PendientesView = lazy(() => import('@/views/PendientesView'))
+const NotesView = lazy(() => import('@/views/NotesView'))
+const ProyectosView = lazy(() => import('@/views/ProyectosView'))
+const PapeleraView = lazy(() => import('@/views/PapeleraView'))
+const InboxView = lazy(() => import('@/views/InboxView'))
+
 const LS_VISTA = 'pn_vista'
 const VISTAS_VALIDAS = ['hoy', 'inbox', 'pendientes', 'notas', 'proyectos', 'dashboard', 'papelera'] as const
 
 type Vista = 'hoy' | 'inbox' | 'pendientes' | 'notas' | 'proyectos' | 'dashboard' | 'papelera'
 
-const VISTAS: { id: Vista; label: string; corto: string; icon: React.ReactNode }[] = [
+function ViewSkeleton() {
+  return (
+    <div className="animate-pulse space-y-4 p-4">
+      <div className="h-8 bg-muted rounded w-1/4" />
+      <div className="space-y-3">
+        <div className="h-16 bg-muted rounded" />
+        <div className="h-16 bg-muted rounded" />
+        <div className="h-16 bg-muted rounded" />
+      </div>
+    </div>
+  )
+}
+
+// Navegación primaria: los 5 destinos de uso diario (PDS.md §5.3). Dashboard y Papelera
+// son consulta ocasional — bajan a `VISTAS_SISTEMA` (sidebar) / al menú "⋮" (móvil) en vez
+// de competir visualmente con estos 5 en el mismo nivel.
+const VISTAS_PRIMARIAS: { id: Vista; label: string; corto: string; icon: React.ReactNode }[] = [
   { id: 'hoy', label: 'Hoy', corto: 'Hoy', icon: <Star size={18} /> },
   { id: 'inbox', label: 'Inbox', corto: 'Inbox', icon: <InboxIcon size={18} /> },
   { id: 'pendientes', label: 'Pendientes', corto: 'Tareas', icon: <ListTodo size={18} /> },
   { id: 'notas', label: 'Notas', corto: 'Notas', icon: <StickyNote size={18} /> },
   { id: 'proyectos', label: 'Proyectos', corto: 'Proyectos', icon: <Briefcase size={18} /> },
+]
+const VISTAS_SISTEMA: { id: Vista; label: string; corto: string; icon: React.ReactNode }[] = [
   { id: 'dashboard', label: 'Panel', corto: 'Panel', icon: <BarChart3 size={18} /> },
   { id: 'papelera', label: 'Papelera', corto: 'Papelera', icon: <Trash2 size={18} /> },
 ]
+const VISTAS = [...VISTAS_PRIMARIAS, ...VISTAS_SISTEMA]
 
 const WIDGET_ICONOS: Record<WidgetTipo, React.ReactNode> = {
   pomodoro: <Timer size={14} />,
@@ -64,7 +86,9 @@ const WIDGET_ICONOS: Record<WidgetTipo, React.ReactNode> = {
 
 function Shell() {
   const app = useApp()
-  const { pendientes, notas, proyectos, eventos, usuario, setUsuario, crearPendiente, crearNota, abrirModal, reemplazarTodo, notaActualId, setNotaActualId, proyectoAbiertoId, setProyectoAbiertoId, setFiltroFecha, espacios, espacioActualId, setEspacioActualId, filtrosGuardados, setFiltroActivoId } = app
+  const ui = useUI()
+  const { pendientes, notas, proyectos, eventos, usuario, setUsuario, crearPendiente, crearNota, reemplazarTodo, espacios, filtrosGuardados } = app
+  const { abrirModal, notaActualId, setNotaActualId, proyectoAbiertoId, setProyectoAbiertoId, setFiltroFecha, espacioActualId, setEspacioActualId, setFiltroActivoId } = ui
   const sync = useSync()
   const { abrirWidget } = useWidgets()
   const isMobile = useIsMobile()
@@ -72,7 +96,16 @@ function Shell() {
     try { const v = localStorage.getItem(LS_VISTA); if (v && (VISTAS_VALIDAS as readonly string[]).includes(v)) return v as Vista } catch { /* noop */ }
     return 'hoy'
   })
-  const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'))
+  const [dark, setDark] = useState(() => {
+    // El script inline de index.html ya aplicó la clase 'dark' antes del primer paint;
+    // acá solo se lee el mismo criterio (localStorage, o el tema del sistema si nunca se
+    // eligió uno) para que el estado de React arranque de acuerdo con lo que ya se ve.
+    try {
+      const guardado = localStorage.getItem('darkMode')
+      if (guardado !== null) return guardado === 'true'
+    } catch { /* noop */ }
+    return window.matchMedia('(prefers-color-scheme: dark)').matches
+  })
   const [menuAbierto, setMenuAbierto] = useState(false)
   const [nombreDlg, setNombreDlg] = useState(false)
   const [nombreVal, setNombreVal] = useState('')
@@ -257,7 +290,7 @@ function Shell() {
   const nInbox = pendientes.filter(p => activo(p) && !p.fechaLimite && p.estado !== idCompletado).length
 
   const vistaActual = (
-    <>
+    <Suspense fallback={<ViewSkeleton />}>
       {vistaMostrada === 'hoy' && <TodayView />}
       {vistaMostrada === 'inbox' && <InboxView />}
       {vistaMostrada === 'pendientes' && <PendientesView />}
@@ -265,7 +298,7 @@ function Shell() {
       {vistaMostrada === 'proyectos' && <ProyectosView />}
       {vistaMostrada === 'dashboard' && <DashboardView />}
       {vistaMostrada === 'papelera' && <PapeleraView />}
-    </>
+    </Suspense>
   )
 
   const inputImport = <input ref={fileRef} type="file" accept="application/json" className="hidden" onChange={importarJSON} />
@@ -374,10 +407,10 @@ function Shell() {
   if (isMobile) {
     const tituloVista = VISTAS.find(v => v.id === vistaMostrada)?.label || ''
     return (
-      <div className="flex h-screen flex-col overflow-hidden bg-background text-foreground">
+      <div className="flex h-screen flex-col overflow-hidden bg-ambient text-foreground">
         <SkipLink />
         {/* Header compacto */}
-        <header className="relative flex shrink-0 items-center gap-2 border-b bg-card px-3 py-2.5 shadow-sm">
+        <header className="glass relative z-30 flex shrink-0 items-center gap-2 rounded-none px-3 py-2.5" role="banner">
           <span className="text-base font-bold">{tituloVista}</span>
           {nVencidos > 0 && (
             <button onClick={verVencidos}
@@ -393,7 +426,7 @@ function Shell() {
           {menuAbierto && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setMenuAbierto(false)} />
-              <div className="absolute right-2 top-12 z-50 w-56 overflow-hidden rounded-xl border bg-card shadow-xl">
+              <div className="glass absolute right-2 top-12 z-50 w-56 overflow-hidden rounded-xl">
                 <div className="px-3 py-2"><SyncBadge /></div>
                 {sync.modoLocal ? (
                   <button onClick={() => { setMenuAbierto(false); sync.activarSync() }} className="flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-accent"><LogIn size={15} /> Iniciar sesión / sincronizar</button>
@@ -410,6 +443,9 @@ function Shell() {
                     </button>
                   </>
                 )}
+                <div className="border-t" />
+                <button onClick={() => { setMenuAbierto(false); setVista('dashboard') }} className="flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-accent"><BarChart3 size={15} /> Panel</button>
+                <button onClick={() => { setMenuAbierto(false); setVista('papelera') }} className="flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-accent"><Trash2 size={15} /> Papelera</button>
                 <div className="border-t" />
                 <button onClick={() => { setMenuAbierto(false); setAjustesDlg(true) }} className="flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-accent"><Settings2 size={15} /> Ajustes</button>
                 <button onClick={() => { setMenuAbierto(false); abrirNombreDlg() }} className="flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-accent"><User size={15} /> Nombre: {usuario}</button>
@@ -441,9 +477,9 @@ function Shell() {
         </main>
         {fabCaptura}
 
-        {/* Barra inferior de vistas */}
-        <nav className="grid shrink-0 grid-cols-7 border-t bg-card">
-          {VISTAS.map(v => (
+        {/* Barra inferior de vistas — solo los 5 destinos primarios; Panel/Papelera viven en «⋮» */}
+        <nav className="grid shrink-0 grid-cols-5 border-t bg-card">
+          {VISTAS_PRIMARIAS.map(v => (
             <button key={v.id} onClick={() => setVista(v.id)} aria-current={vistaMostrada === v.id ? 'page' : undefined}
               className={'flex flex-col items-center gap-0.5 py-2 text-[10px] ' + (vistaMostrada === v.id ? 'text-primary' : 'text-muted-foreground')}>
               {v.icon}
@@ -462,9 +498,9 @@ function Shell() {
 
   /* ===================== ESCRITORIO ===================== */
   return (
-    <div className="flex h-screen overflow-hidden bg-background text-foreground">
+    <div className="flex h-screen overflow-hidden bg-ambient text-foreground">
       <SkipLink />
-      <nav className="z-30 flex w-60 shrink-0 flex-col overflow-hidden border-r bg-card/80 shadow-soft backdrop-blur-xl">
+      <nav className="glass z-30 m-3.5 flex w-60 shrink-0 flex-col overflow-hidden rounded-2xl" aria-label="Navegación principal">
         <div className="p-2.5">
           <h1 className="px-1.5 pb-2 text-sm font-bold">Pendientes <span className="text-primary">Pro</span></h1>
           <button onClick={() => abrirModal()} title="Nuevo pendiente (N)"
@@ -474,7 +510,7 @@ function Shell() {
           </button>
         </div>
         <div className="flex-1 space-y-0.5 overflow-y-auto overflow-x-hidden px-2 scroll-thin">
-          {VISTAS.map(v => (
+          {VISTAS_PRIMARIAS.map(v => (
             <button key={v.id} onClick={() => setVista(v.id)} aria-current={vistaMostrada === v.id ? 'page' : undefined}
               className={'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ' + (vistaMostrada === v.id ? 'bg-primary text-primary-foreground shadow-sm' : 'hover:bg-accent')}>
               <span className="w-5 shrink-0">{v.icon}</span>
@@ -485,6 +521,17 @@ function Shell() {
               {v.id === 'inbox' && nInbox > 0 && (
                 <span className="whitespace-nowrap rounded-full bg-muted px-1.5 text-[10px] text-muted-foreground">{nInbox}</span>
               )}
+            </button>
+          ))}
+          <div className="my-2 border-t" />
+          {/* Sistema: consulta ocasional (PDS.md §5.3) — no compite visualmente con los 5
+              destinos primarios de uso diario de arriba. */}
+          <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Sistema</div>
+          {VISTAS_SISTEMA.map(v => (
+            <button key={v.id} onClick={() => setVista(v.id)} aria-current={vistaMostrada === v.id ? 'page' : undefined}
+              className={'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ' + (vistaMostrada === v.id ? 'bg-primary text-primary-foreground shadow-sm' : 'hover:bg-accent')}>
+              <span className="w-5 shrink-0">{v.icon}</span>
+              <span className="flex-1 whitespace-nowrap text-left">{v.label}</span>
             </button>
           ))}
           <div className="my-2 border-t" />
@@ -591,7 +638,9 @@ export default function App() {
       <AppProvider>
         <SyncProvider>
           <WidgetsProvider>
-            <Shell />
+            <UIProvider>
+              <Shell />
+            </UIProvider>
           </WidgetsProvider>
         </SyncProvider>
       </AppProvider>

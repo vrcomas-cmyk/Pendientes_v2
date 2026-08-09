@@ -1,9 +1,13 @@
 import { useApp } from '@/store'
+import { useUI } from '@/ui-store'
 import { toast } from 'sonner'
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from '@/components/ui/command'
-import { Star, ListTodo, StickyNote, Briefcase, BarChart3, Plus, AlertTriangle, Moon, Download, FileSpreadsheet, FileText, CheckSquare, Inbox as InboxIcon, Trash2, Bookmark } from 'lucide-react'
+import { Star, ListTodo, StickyNote, Briefcase, BarChart3, Plus, AlertTriangle, Moon, Download, FileSpreadsheet, FileText, CheckSquare, Inbox as InboxIcon, Trash2, Bookmark, ChevronDown } from 'lucide-react'
 
 type Vista = 'hoy' | 'inbox' | 'pendientes' | 'notas' | 'proyectos' | 'dashboard' | 'papelera'
+
+const MAX_VISIBLE_ITEMS = 50
 
 export default function PaletaComandos({
   open, onOpenChange, onIrVista, onAlternarTema, onExportarJSON, onExportarCSV, onVerVencidos,
@@ -16,15 +20,35 @@ export default function PaletaComandos({
   onExportarCSV: () => void
   onVerVencidos: () => void
 }) {
-  const { pendientes, notas, abrirModal, abrirPeek, setNotaActualId, crearNota, plantillas, crearPendienteDesdePlantilla } = useApp()
+  const { pendientes, notas, crearNota, plantillas, crearPendienteDesdePlantilla } = useApp()
+  const { abrirModal, abrirPeek, setNotaActualId } = useUI()
 
-  const ejecutar = (fn: () => void) => { fn(); onOpenChange(false) }
+  const [pendientesVisibles, setPendientesVisibles] = useState(MAX_VISIBLE_ITEMS)
+  const [notasVisibles, setNotasVisibles] = useState(MAX_VISIBLE_ITEMS)
+  const listRef = useRef<HTMLDivElement>(null)
+
+  const ejecutar = useCallback((fn: () => void) => { fn(); onOpenChange(false) }, [onOpenChange])
+
+  // Reset visible counts when dialog closes
+  useEffect(() => {
+    if (!open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setPendientesVisibles(MAX_VISIBLE_ITEMS)
+      setNotasVisibles(MAX_VISIBLE_ITEMS)
+    }
+  }, [open])
+
+  const pendientesFiltrados = useMemo(() => pendientes.slice(0, pendientesVisibles), [pendientes, pendientesVisibles])
+  const notasFiltradas = useMemo(() => notas.slice(0, notasVisibles), [notas, notasVisibles])
+
+  const cargarMasPendientes = () => setPendientesVisibles(v => v + MAX_VISIBLE_ITEMS)
+  const cargarMasNotas = () => setNotasVisibles(v => v + MAX_VISIBLE_ITEMS)
 
   return (
     <CommandDialog open={open} onOpenChange={onOpenChange}>
       <Command>
         <CommandInput placeholder="Buscar pendientes, notas o una acción…" />
-        <CommandList>
+        <CommandList ref={listRef}>
           <CommandEmpty>Sin resultados.</CommandEmpty>
           <CommandGroup heading="Acciones">
             <CommandItem onSelect={() => ejecutar(() => abrirModal())}><Plus /> Nuevo pendiente</CommandItem>
@@ -63,11 +87,16 @@ export default function PaletaComandos({
             <>
               <CommandSeparator />
               <CommandGroup heading="Pendientes">
-                {pendientes.slice(0, 200).map(p => (
+                {pendientesFiltrados.map(p => (
                   <CommandItem key={p.id} value={p.titulo + ' ' + p.id} onSelect={() => ejecutar(() => abrirPeek(p.id))}>
                     <CheckSquare /> {p.titulo}
                   </CommandItem>
                 ))}
+                {pendientesVisibles < pendientes.length && (
+                  <CommandItem onSelect={cargarMasPendientes} className="text-muted-foreground">
+                    <ChevronDown className="mr-2" /> Cargar más ({pendientes.length - pendientesVisibles} restantes)
+                  </CommandItem>
+                )}
               </CommandGroup>
             </>
           )}
@@ -75,11 +104,16 @@ export default function PaletaComandos({
             <>
               <CommandSeparator />
               <CommandGroup heading="Notas">
-                {notas.slice(0, 200).map(n => (
+                {notasFiltradas.map(n => (
                   <CommandItem key={n.id} value={n.titulo + ' ' + n.id} onSelect={() => ejecutar(() => { onIrVista('notas'); setNotaActualId(n.id) })}>
                     <FileText /> {n.titulo}
                   </CommandItem>
                 ))}
+                {notasVisibles < notas.length && (
+                  <CommandItem onSelect={cargarMasNotas} className="text-muted-foreground">
+                    <ChevronDown className="mr-2" /> Cargar más ({notas.length - notasVisibles} restantes)
+                  </CommandItem>
+                )}
               </CommandGroup>
             </>
           )}

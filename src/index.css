@@ -167,3 +167,10 @@ html, body, #root { height: 100%; }
 .text-display-sm { font-family: theme('fontFamily.display'); font-weight: 600; font-size: 1.125rem; line-height: 1.3; letter-spacing: -0.01em; }
 .text-display-md { font-family: theme('fontFamily.display'); font-weight: 700; font-size: 1.5rem; line-height: 1.25; letter-spacing: -0.015em; }
 .text-display-lg { font-family: theme('fontFamily.display'); font-weight: 700; font-size: 2rem; line-height: 1.15; letter-spacing: -0.02em; }
+
+/* Escala tipográfica — nivel Cuerpo y Metadato (PDS.md §6.3). Completa el nivel Display
+   de arriba: Cuerpo es todo lo que se LEE (título de tarea, texto de fila), Metadato es
+   todo lo que se ESCANEA (chips, badges, fechas). Reemplaza los tamaños sueltos
+   (text-xs/text-[10px]/text-[11px]/etc.) que hoy conviven sin una escala común. */
+.text-body { font-size: 0.875rem; font-weight: 500; line-height: 1.55; }
+.text-meta { font-size: 0.6875rem; font-weight: 600; line-height: 1.4; }

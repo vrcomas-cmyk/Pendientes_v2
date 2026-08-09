@@ -11,6 +11,18 @@
     <meta name="apple-mobile-web-app-title" content="Pendientes" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <script>
+      // Aplica la clase 'dark' antes del primer paint, para que el tema elegido (o el del
+      // sistema, si nunca se eligió uno) esté visible desde el arranque — sin este script, la
+      // app siempre arrancaba en claro porque nada aplicaba la clase hasta el primer render.
+      (function () {
+        try {
+          var guardado = localStorage.getItem('darkMode')
+          var oscuro = guardado !== null ? guardado === 'true' : window.matchMedia('(prefers-color-scheme: dark)').matches
+          document.documentElement.classList.toggle('dark', oscuro)
+        } catch (e) { /* noop */ }
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { useApp } from '@/store'
+import { useUI } from '@/ui-store'
 import ListView from '@/views/ListView'
 import { KanbanView } from '@/views/OtherViews'
 import CalendarioView from '@/views/CalendarioView'
+import { Card } from '@/components/ui/card'
 import { List, Columns3, CalendarDays } from 'lucide-react'
 
 type Modo = 'lista' | 'tablero' | 'calendario'
@@ -26,7 +27,7 @@ function leerModoGuardado(): Modo {
 
 export default function PendientesView() {
   const [modo, setModo] = useState<Modo>(leerModoGuardado)
-  const { filtroFecha, setFiltroFecha } = useApp()
+  const { filtroFecha, setFiltroFecha } = useUI()
 
   const cambiar = (m: Modo) => {
     setModo(m)
@@ -36,14 +37,14 @@ export default function PendientesView() {
   return (
     <div className="flex h-full flex-col gap-2">
       {/* Selector de vista (las vistas son opcionales, no módulos separados) */}
-      <div className="flex shrink-0 items-center gap-1 rounded-lg border bg-card p-1 w-fit">
+      <Card className="flex shrink-0 items-center gap-1 p-1 w-fit">
         {MODOS.map(m => (
           <button key={m.id} onClick={() => cambiar(m.id)}
             className={'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium ' + (modo === m.id ? 'bg-primary text-primary-foreground' : 'hover:bg-accent')}>
             {m.icon} {m.label}
           </button>
         ))}
-      </div>
+      </Card>
       <div className="min-h-0 flex-1">
         {modo === 'lista' && <ListView filtroFecha={filtroFecha} setFiltroFecha={setFiltroFecha} />}
         {modo === 'tablero' && <KanbanView />}

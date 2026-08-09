@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useApp } from '@/store'
+import { useUI } from '@/ui-store'
 import { PROYECTO_COLORES, PROYECTO_COLORES_KEYS } from '@/types'
 import { listarCuentasGoogle, type CuentaGoogle } from '@/lib/googleCalendar'
 import { activo } from '@/lib/app-utils'
@@ -9,6 +10,7 @@ import KanbanDnd from '@/components/KanbanDnd'
 import ImportarPlanDialog from '@/components/ImportarPlanDialog'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -17,7 +19,8 @@ import { useIsMobile } from '@/hooks/use-is-mobile'
 import { Plus, Briefcase, ChevronLeft, List, Columns3, Trash2, Upload } from 'lucide-react'
 
 function NuevoProyectoDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
-  const { crearProyecto, actualizarProyecto, espacioActualId } = useApp()
+  const { crearProyecto, actualizarProyecto } = useApp()
+  const { espacioActualId } = useUI()
   const [nombre, setNombre] = useState('')
   const [color, setColor] = useState(PROYECTO_COLORES_KEYS[0])
   const [cuentaId, setCuentaId] = useState<string>('')
@@ -104,7 +107,8 @@ function ListaProyecto({ proyectoId, mostrarArchivados }: { proyectoId: string; 
 }
 
 export default function ProyectosView() {
-  const { proyectos: todosProyectos, pendientes, eliminarProyecto, actualizarProyecto, proyectoAbiertoId: proyectoSelId, setProyectoAbiertoId: setProyectoSelId, columnas, espacios, espacioActualId } = useApp()
+  const { proyectos: todosProyectos, pendientes, eliminarProyecto, actualizarProyecto, columnas, espacios } = useApp()
+  const { espacioActualId, proyectoAbiertoId: proyectoSelId, setProyectoAbiertoId: setProyectoSelId } = useUI()
   const idCompletado = idColumnaCompletado(columnas)
   const isMobile = useIsMobile()
   const [modo, setModo] = useState<'tablero' | 'lista'>('tablero')
@@ -120,7 +124,7 @@ export default function ProyectosView() {
   const proyecto = proyectos.find(p => p.id === proyectoSelId) || null
 
   const panelLista = (
-    <div className="flex h-full flex-col overflow-hidden rounded-xl border bg-card">
+    <Card className="flex h-full flex-col overflow-hidden">
       <div className="flex items-center justify-between border-b p-2">
         <h3 className="px-1 text-xs font-bold text-muted-foreground">Proyectos</h3>
         <Button size="sm" onClick={() => setNuevoDlg(true)}><Plus size={13} className="mr-1" /> Nuevo</Button>
@@ -173,11 +177,11 @@ export default function ProyectosView() {
           </p>
         )}
       </div>
-    </div>
+    </Card>
   )
 
   const panelDetalle = (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border bg-card">
+    <Card className="flex h-full min-h-0 flex-col overflow-hidden">
       {!proyecto ? (
         <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">Selecciona o crea un proyecto</div>
       ) : (
@@ -210,7 +214,7 @@ export default function ProyectosView() {
           <ImportarPlanDialog open={importarDlg} onOpenChange={setImportarDlg} proyectoId={proyecto.id} />
         </>
       )}
-    </div>
+    </Card>
   )
 
   const proyectoAEliminar = eliminarId ? todosProyectos.find(p => p.id === eliminarId) : null

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useApp } from '@/store'
+import { useUI } from '@/ui-store'
 import { useSync } from '@/sync'
 import type { EventoCalendario } from '@/types'
 import { activo, hoyISO, nombreMes } from '@/lib/app-utils'
@@ -9,6 +10,7 @@ import { sincronizarEspejoGoogle, sinDuplicarLocal } from '@/lib/agenda'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem } from '@/components/ui/context-menu'
@@ -59,7 +61,8 @@ const altoPx = (duracionMin: number) => Math.max(16, (duracionMin / 60) * PX_HOR
     Sigue reflejando todo en Google Calendar (vía `sincronizarEspejoGoogle`), pero ahora la fuente
     de verdad para editar/mover es la app: los eventos ya no viven solo en Google. */
 export default function CalendarioView() {
-  const { pendientes: todosPendientes, eventos: todosEventos, proyectos, actualizarPendiente, crearEvento, actualizarEvento, eliminarEvento, abrirPeek, columnas } = useApp()
+  const { pendientes: todosPendientes, eventos: todosEventos, proyectos, actualizarPendiente, crearEvento, actualizarEvento, eliminarEvento, columnas } = useApp()
+  const { abrirPeek } = useUI()
   const idCompletado = idColumnaCompletado(columnas)
   const { modoLocal } = useSync()
   const pendientes = useMemo(() => todosPendientes.filter(activo), [todosPendientes])
@@ -285,14 +288,14 @@ export default function CalendarioView() {
   return (
     <div className="flex h-full flex-col gap-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-1 rounded-lg border bg-card p-1 w-fit">
+        <Card className="flex items-center gap-1 p-1 w-fit">
           {(['dia', 'semana', 'mes'] as ModoCal[]).map(m => (
             <button key={m} onClick={() => cambiarModo(m)}
               className={'rounded-md px-3 py-1 text-xs font-medium capitalize ' + (modoVista === m ? 'bg-primary text-primary-foreground' : 'hover:bg-accent')}>
               {m}
             </button>
           ))}
-        </div>
+        </Card>
         <div className="flex items-center gap-2">
           <Button variant="secondary" size="sm" onClick={() => navegar(-1)}><ChevronLeft size={15} /></Button>
           <Button variant="secondary" size="sm" onClick={() => setFecha(hoyISO())}>Hoy</Button>
@@ -309,7 +312,7 @@ export default function CalendarioView() {
       )}
 
       {modoVista === 'mes' ? (
-        <div className="min-h-0 flex-1 overflow-y-auto rounded-xl border bg-card p-2 scroll-thin">
+        <Card className="min-h-0 flex-1 overflow-y-auto p-2 scroll-thin">
           <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-bold text-muted-foreground">
             {DIAS_CORTOS.map(d => <div key={d}>{d}</div>)}
           </div>
@@ -369,11 +372,11 @@ export default function CalendarioView() {
               )
             })}
           </div>
-        </div>
+        </Card>
       ) : (
         <div className="flex min-h-0 flex-1 gap-2">
           {modoVista === 'dia' && (
-            <div className="w-56 shrink-0 space-y-1.5 overflow-y-auto rounded-xl border bg-card p-2 scroll-thin">
+            <Card className="w-56 shrink-0 space-y-1.5 overflow-y-auto p-2 scroll-thin">
               <h3 className="px-1 text-xs font-bold text-muted-foreground">Sin fecha</h3>
               {backlog.map(p => (
                 <ContextMenu key={p.id}>
@@ -387,9 +390,9 @@ export default function CalendarioView() {
                 </ContextMenu>
               ))}
               {!backlog.length && <p className="px-1 text-xs text-muted-foreground">Nada pendiente sin fecha.</p>}
-            </div>
+            </Card>
           )}
-          <div className="min-h-0 flex-1 overflow-auto rounded-xl border bg-card p-2 scroll-thin">
+          <Card className="min-h-0 flex-1 overflow-auto p-2 scroll-thin">
             <div style={{ minWidth: anchoMinCol ? 48 + diasVisibles.length * anchoMinCol : undefined }}>
               {diasVisibles.some(iso => todoElDiaDe(iso).length > 0) && (
                 <div className="mb-1 flex gap-2 border-b pb-1" style={{ marginLeft: modoVista === 'semana' ? 48 : 0 }}>
@@ -419,7 +422,7 @@ export default function CalendarioView() {
                 </div>
               </div>
             </div>
-          </div>
+          </Card>
         </div>
       )}
 

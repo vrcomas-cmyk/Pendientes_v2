@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { Adjunto, Pendiente, Subtarea } from '@/types'
 import { PROYECTO_COLORES } from '@/types'
 import { useApp } from '@/store'
+import { useUI } from '@/ui-store'
 import { googleCalendarUrl, progresoSub, vencido, describirRepeticion } from '@/lib/app-utils'
 import { columnaDe, colorColumna, idColumnaCompletado } from '@/lib/columnas'
 import { subirAdjunto } from '@/lib/adjuntos'
@@ -128,7 +129,8 @@ export default function PendienteCuerpo({
   destacarOrigenNota = false,
   mostrarCreado = false,
 }: Props) {
-  const { proyectos, columnas, agregarSubtarea, setNotaActualId, agregarComentario, actualizarPendiente, colorDeEtiqueta, personas } = useApp()
+  const { proyectos, columnas, agregarSubtarea, agregarComentario, actualizarPendiente, colorDeEtiqueta, personas } = useApp()
+  const { setNotaActualId } = useUI()
   const idCompletado = idColumnaCompletado(columnas)
   const col = columnaDe(columnas, p.estado)
   const sub = progresoSub(p)

@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { useApp } from '@/store'
+import { useUI } from '@/ui-store'
 import type { Pendiente } from '@/types'
 import { PRIORIDAD_BORDER, PROYECTO_COLORES } from '@/types'
 import { progresoSub, vencido, describirRepeticion, estaBloqueado } from '@/lib/app-utils'
@@ -15,7 +16,8 @@ import { StickyNote, User, Calendar, CheckSquare, Repeat, Users, Archive, Archiv
 const UMBRAL_SWIPE = 0.35 // fracción del ancho para "soltar y archivar"
 
 export default function TaskRow({ p, seleccionado, onClick, modoArchivados }: { p: Pendiente; seleccionado?: boolean; onClick?: () => void; modoArchivados?: boolean }) {
-  const { toggleCompletar, abrirPeek, proyectos, archivarPendiente, desarchivarPendiente, columnas, pendientes } = useApp()
+  const { toggleCompletar, proyectos, archivarPendiente, desarchivarPendiente, columnas, pendientes } = useApp()
+  const { abrirPeek } = useUI()
   const idCompletado = idColumnaCompletado(columnas)
   const bloqueado = estaBloqueado(p, pendientes, idCompletado)
   const col = columnaDe(columnas, p.estado)
@@ -82,7 +84,8 @@ export default function TaskRow({ p, seleccionado, onClick, modoArchivados }: { 
     <div
       onClick={onClickFila}
       className={
-        'group flex cursor-pointer items-start gap-2 rounded-lg border border-l-4 bg-card p-2 hover:bg-accent ' +
+        'group flex cursor-pointer items-start gap-2 rounded-lg border border-l-4 bg-card p-2 ' +
+        'transition-transform duration-150 ease-smooth hover:-translate-y-px hover:shadow-soft-lg ' +
         (PRIORIDAD_BORDER[p.prioridad] || 'border-l-slate-300') +
         (seleccionado ? ' ring-2 ring-primary' : '')
       }
@@ -101,24 +104,31 @@ export default function TaskRow({ p, seleccionado, onClick, modoArchivados }: { 
       />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
-          <span className={'truncate text-xs font-semibold ' + (p.estado === idCompletado ? 'linea-completada' : '')}>{p.titulo}</span>
+          <span className={'truncate text-body font-semibold ' + (p.estado === idCompletado ? 'linea-completada' : '')}>{p.titulo}</span>
           {p.origenNota && <StickyNote size={12} className="shrink-0 text-primary" />}
-          {bloqueado && <span title="Bloqueado por otro pendiente sin completar" className="inline-flex items-center gap-0.5 rounded bg-slate-100 px-1 text-[10px] text-slate-600 dark:bg-slate-800 dark:text-slate-300"><Lock size={9} />bloqueado</span>}
-          {vencido(p, idCompletado) && <span className="rounded bg-red-100 px-1 text-[10px] text-red-700 dark:bg-red-900/40 dark:text-red-300">vencido</span>}
+          {bloqueado && <span title="Bloqueado por otro pendiente sin completar" className="inline-flex items-center gap-0.5 rounded bg-slate-100 px-1 text-meta text-slate-600 dark:bg-slate-800 dark:text-slate-300"><Lock size={9} />bloqueado</span>}
+          {vencido(p, idCompletado) && <span className="rounded bg-red-100 px-1 text-meta text-red-700 dark:bg-red-900/40 dark:text-red-300">vencido</span>}
         </div>
-        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-muted-foreground">
+        {/* Metadata esencial: siempre visible (Card §6.3 — proyecto y fecha son lo que se
+            necesita para escanear la lista sin abrir la fila). El resto (responsable,
+            subtareas, repetición, ponderación, modalidad) es secundario y se revela recién
+            en hover/foco, para que la fila no compita contra sí misma (ver TaskRow.tsx en
+            "Qué se puede hacer hoy" del prototipo). */}
+        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-meta text-muted-foreground">
           <span className={'rounded-full px-1.5 ' + colorColumna(col).badge}>{col.nombre}</span>
           {proyecto ? (
             <span className={'inline-flex items-center gap-1 rounded-full px-1.5 ' + (PROYECTO_COLORES[proyecto.color]?.badge || '')}>
               <span className={'h-1.5 w-1.5 rounded-full ' + (PROYECTO_COLORES[proyecto.color]?.dot || '')} />{proyecto.nombre}
             </span>
           ) : p.proyecto && <span className="rounded-full bg-muted px-1.5">📁 {p.proyecto}</span>}
-          {p.responsable && <span className="inline-flex items-center gap-0.5"><User size={10} />{p.responsable}</span>}
           {p.fechaLimite && <span className="inline-flex items-center gap-0.5"><Calendar size={10} />{p.fechaLimite}</span>}
-          {sub && <span className="inline-flex items-center gap-0.5"><CheckSquare size={10} />{sub.hechas}/{sub.total}</span>}
-          {p.repetir && <span className="inline-flex items-center gap-0.5" title={describirRepeticion(p.repetir)}><Repeat size={10} /></span>}
-          {typeof p.ponderacion === 'number' && <span aria-label={`Vale ${p.ponderacion} por ciento de la calificación`} className="inline-flex items-center gap-0.5 rounded-full bg-indigo-100 px-1.5 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">{p.ponderacion}%</span>}
-          {p.modalidad === 'equipo' && <span className="inline-flex items-center gap-0.5" title="En equipo"><Users size={10} /></span>}
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 opacity-0 transition-opacity duration-150 ease-smooth group-hover:opacity-100 group-focus-within:opacity-100">
+            {p.responsable && <span className="inline-flex items-center gap-0.5"><User size={10} />{p.responsable}</span>}
+            {sub && <span className="inline-flex items-center gap-0.5"><CheckSquare size={10} />{sub.hechas}/{sub.total}</span>}
+            {p.repetir && <span className="inline-flex items-center gap-0.5" title={describirRepeticion(p.repetir)}><Repeat size={10} /></span>}
+            {typeof p.ponderacion === 'number' && <span aria-label={`Vale ${p.ponderacion} por ciento de la calificación`} className="inline-flex items-center gap-0.5 rounded-full bg-indigo-100 px-1.5 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">{p.ponderacion}%</span>}
+            {p.modalidad === 'equipo' && <span className="inline-flex items-center gap-0.5" title="En equipo"><Users size={10} /></span>}
+          </span>
         </div>
       </div>
       <div className="shrink-0 opacity-70 transition-opacity hover:opacity-100 group-hover:opacity-100" onClick={e => e.stopPropagation()}>

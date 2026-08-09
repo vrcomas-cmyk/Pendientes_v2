@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '@/store'
+import { useUI } from '@/ui-store'
 import { PROYECTO_COLORES } from '@/types'
 import { parsearLinea, fechaPorPrioridad } from '@/lib/app-utils'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuLabel } from '@/components/ui/dropdown-menu'
 import { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem, ContextMenuSeparator } from '@/components/ui/context-menu'
@@ -32,7 +34,9 @@ function cursorEn(el: Node) {
 
 export default function NotesView() {
   const app = useApp()
-  const { notas, pendientes, notaActualId, setNotaActualId, crearNota, actualizarNota, agregarComentarioNota, eliminarNota, duplicarNota, crearPendiente, actualizarPendiente, toggleCompletar, abrirPeek, colorDeEtiqueta } = app
+  const ui = useUI()
+  const { notas, pendientes, crearNota, actualizarNota, agregarComentarioNota, eliminarNota, duplicarNota, crearPendiente, actualizarPendiente, toggleCompletar, colorDeEtiqueta } = app
+  const { notaActualId, setNotaActualId, abrirPeek } = ui
   const isMobile = useIsMobile()
   const [filtro, setFiltro] = useState('')
   const [etiquetaVal, setEtiquetaVal] = useState('')
@@ -362,7 +366,7 @@ export default function NotesView() {
   )
 
   const panelLista = (
-    <div className="flex h-full flex-col overflow-hidden rounded-xl border bg-card">
+    <Card className="flex h-full flex-col overflow-hidden">
       <div className="border-b p-2 pb-1">
         <div className="relative">
           <Search size={12} className="absolute left-2 top-2 text-muted-foreground" />
@@ -415,11 +419,11 @@ export default function NotesView() {
         })}
         {!notasFiltradas.length && <p className="p-4 text-center text-xs text-muted-foreground">No hay notas.</p>}
       </div>
-    </div>
+    </Card>
   )
 
   const panelEditor = (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border bg-card">
+    <Card className="flex h-full min-h-0 flex-col overflow-hidden">
       {!nota ? (
         <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">Selecciona o crea una nota ✍️</div>
       ) : (
@@ -535,7 +539,7 @@ export default function NotesView() {
           </div>
         </>
       )}
-    </div>
+    </Card>
   )
 
   const carpetaDialog = (

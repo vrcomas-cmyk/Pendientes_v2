@@ -3,6 +3,7 @@ import { useApp } from '@/store'
 import { activo } from '@/lib/app-utils'
 import { idColumnaCompletado } from '@/lib/columnas'
 import TaskRow from '@/components/TaskRow'
+import { Card } from '@/components/ui/card'
 import { Inbox as InboxIcon } from 'lucide-react'
 
 /** Bandeja de entrada universal (Fase 5): formaliza como vista de primera clase el filtro
@@ -31,9 +32,9 @@ export default function InboxView() {
       <div className="space-y-1.5">
         {items.map(p => <TaskRow key={p.id} p={p} />)}
         {!items.length && (
-          <p className="rounded-xl border bg-card p-6 text-center text-xs text-muted-foreground">
+          <Card className="p-6 text-center text-xs text-muted-foreground">
             Bandeja vacía — todo lo capturado ya tiene fecha o quedó organizado. 🎉
-          </p>
+          </Card>
         )}
       </div>
     </div>

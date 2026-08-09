@@ -8,6 +8,7 @@ import { getConfig, getSupabase, isConfigured, saveConfig } from '@/lib/supabase
 import { mergeNota, mergePendiente, mergeProyecto, mergeEvento, reconciliar, type MapaSync } from '@/lib/sync-merge'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Cloud, CloudOff, RefreshCw, Loader2 } from 'lucide-react'
 
@@ -483,14 +484,14 @@ function AuthScreen({ onLocal }: { onLocal: () => void }) {
 function Pantalla({ titulo, subtitulo, children }: { titulo: string; subtitulo: string; children: ReactNode }) {
   return (
     <div className="flex h-screen items-center justify-center bg-background p-4">
-      <div className="w-full max-w-sm space-y-4 rounded-2xl border bg-card p-6 shadow-lg">
+      <Card className="w-full max-w-sm space-y-4 rounded-2xl p-6 shadow-lg">
         <div className="text-center">
           <div className="mx-auto mb-2 flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary"><Cloud size={22} /></div>
           <h1 className="text-lg font-bold">{titulo}</h1>
           <p className="mt-1 text-xs text-muted-foreground">{subtitulo}</p>
         </div>
         {children}
-      </div>
+      </Card>
     </div>
   )
 }

@@ -1,10 +1,30 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
-import type { Nota, Pendiente, Estado, FiltroFecha, Proyecto, EventoCalendario, ColumnaKanban, Espacio, Etiqueta, FiltroGuardado, Subtarea, PlantillaPendiente } from '@/types'
+import type { Nota, Pendiente, Estado, Proyecto, EventoCalendario, ColumnaKanban, Espacio, Etiqueta, FiltroGuardado, Subtarea, PlantillaPendiente } from '@/types'
 import { PROYECTO_COLORES_KEYS, COLUMNAS_DEFECTO, ESPACIO_ICONOS } from '@/types'
 import { hoyISO, normalizar, storage, uid, describirRepeticion, defaultsHorario, fechaPorPrioridad, proximaInstanciaRepeticion, asignarProyecto, normalizarNombreProyecto } from '@/lib/app-utils'
 
-interface ModalState { open: boolean; editId: string | null; defaults: Partial<Pendiente> }
+const DEBOUNCE_MS = 300
+
+function useDebouncedStorage<T>(key: string, value: T, enabled = true) {
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lastSavedRef = useRef<string>('')
+  useEffect(() => {
+    if (!enabled) return
+    const json = JSON.stringify(value)
+    if (json === lastSavedRef.current) return
+    if (timerRef.current) clearTimeout(timerRef.current)
+    timerRef.current = setTimeout(() => {
+      try {
+        storage.set(key, json)
+        lastSavedRef.current = json
+      } catch (e) {
+        console.warn('localStorage write failed:', e)
+      }
+    }, DEBOUNCE_MS)
+    return () => { if (timerRef.current) clearTimeout(timerRef.current) }
+  }, [key, value, enabled])
+}
 
 interface AppCtx {
   pendientes: Pendiente[]
@@ -40,8 +60,6 @@ interface AppCtx {
   crearEspacio: (nombre: string, icono?: string, color?: string) => Espacio
   actualizarEspacio: (id: string, datos: Partial<Espacio>) => void
   eliminarEspacio: (id: string) => void
-  espacioActualId: string | null
-  setEspacioActualId: (id: string | null) => void
   etiquetas: Etiqueta[]
   crearEtiqueta: (nombre: string, color?: string) => Etiqueta
   actualizarEtiqueta: (id: string, datos: Partial<Etiqueta>) => void
@@ -51,8 +69,6 @@ interface AppCtx {
   crearFiltroGuardado: (nombre: string, criterios: FiltroGuardado['criterios'], atajo?: FiltroGuardado['atajo']) => FiltroGuardado
   actualizarFiltroGuardado: (id: string, datos: Partial<FiltroGuardado>) => void
   eliminarFiltroGuardado: (id: string) => void
-  filtroActivoId: string | null
-  setFiltroActivoId: (id: string | null) => void
   plantillas: PlantillaPendiente[]
   crearPlantilla: (nombre: string, datos: PlantillaPendiente['datos']) => PlantillaPendiente
   eliminarPlantilla: (id: string) => void
@@ -67,18 +83,6 @@ interface AppCtx {
   reemplazarTodo: (p: Pendiente[], n: Nota[], u?: string, pr?: Proyecto[], ev?: EventoCalendario[]) => void
   vaciarPapelera: () => void
   personas: string[]
-  modal: ModalState
-  abrirModal: (editId?: string | null, defaults?: Partial<Pendiente>) => void
-  cerrarModal: () => void
-  peekId: string | null
-  abrirPeek: (id: string) => void
-  cerrarPeek: () => void
-  notaActualId: string | null
-  setNotaActualId: (id: string | null) => void
-  proyectoAbiertoId: string | null
-  setProyectoAbiertoId: (id: string | null) => void
-  filtroFecha: FiltroFecha
-  setFiltroFecha: (f: FiltroFecha) => void
 }
 
 const Ctx = createContext<AppCtx>(null as unknown as AppCtx)
@@ -160,7 +164,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } catch { /* noop */ }
     return []
   })
-  const [filtroActivoId, setFiltroActivoId] = useState<string | null>(null)
   const [plantillas, setPlantillas] = useState<PlantillaPendiente[]>(() => {
     try {
       const raw = storage.get('pn_plantillas')
@@ -169,22 +172,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return []
   })
   const [usuario, setUsuarioState] = useState(() => storage.get('pn_usuario') || 'Yo')
-  const [modal, setModal] = useState<ModalState>({ open: false, editId: null, defaults: {} })
-  const [notaActualId, setNotaActualId] = useState<string | null>(null)
-  const [proyectoAbiertoId, setProyectoAbiertoId] = useState<string | null>(null)
-  const [peekId, setPeekId] = useState<string | null>(null)
-  const [filtroFecha, setFiltroFecha] = useState<FiltroFecha>('todos')
-  const [espacioActualId, setEspacioActualId] = useState<string | null>(null)
 
-  useEffect(() => { storage.set('pn_pendientes', JSON.stringify(pendientes)) }, [pendientes])
-  useEffect(() => { storage.set('pn_notas', JSON.stringify(notas)) }, [notas])
-  useEffect(() => { storage.set('pn_proyectos', JSON.stringify(proyectos)) }, [proyectos])
-  useEffect(() => { storage.set('pn_eventos', JSON.stringify(eventos)) }, [eventos])
-  useEffect(() => { storage.set('pn_columnas_local', JSON.stringify(columnas)) }, [columnas])
-  useEffect(() => { storage.set('pn_espacios', JSON.stringify(espacios)) }, [espacios])
-  useEffect(() => { storage.set('pn_etiquetas', JSON.stringify(etiquetas)) }, [etiquetas])
-  useEffect(() => { storage.set('pn_filtros_guardados', JSON.stringify(filtrosGuardados)) }, [filtrosGuardados])
-  useEffect(() => { storage.set('pn_plantillas', JSON.stringify(plantillas)) }, [plantillas])
+  useDebouncedStorage('pn_pendientes', pendientes)
+  useDebouncedStorage('pn_notas', notas)
+  useDebouncedStorage('pn_proyectos', proyectos)
+  useDebouncedStorage('pn_eventos', eventos)
+  useDebouncedStorage('pn_columnas_local', columnas)
+  useDebouncedStorage('pn_espacios', espacios)
+  useDebouncedStorage('pn_etiquetas', etiquetas)
+  useDebouncedStorage('pn_filtros_guardados', filtrosGuardados)
+  useDebouncedStorage('pn_plantillas', plantillas)
 
   // Purga automática de la papelera (Fase 8): la UI de PapeleraView ya prometía "se purgan a los
   // 30 días" pero nada lo cumplía — esto lo hace real. Corre una sola vez al montar; si el usuario
@@ -421,7 +418,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const crearNota = (): Nota => {
     const n: Nota = { id: uid(), titulo: 'Nueva nota', contenidoHTML: '', creado: new Date().toISOString(), modificado: new Date().toISOString() }
     setNotas(prev => [n, ...prev])
-    setNotaActualId(n.id)
     return n
   }
   const actualizarNota = (id: string, datos: Partial<Nota>) => {
@@ -450,7 +446,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setNotas(prev => prev.map(n => n.id !== id ? n : { ...n, borrado: true, modificado: new Date().toISOString() }))
     // Desvincular pendientes (no se borran)
     setPendientes(prev => prev.map(p => p.origenNota?.notaId === id ? { ...p, origenNota: null, modificado: new Date().toISOString() } : p))
-    if (notaActualId === id) setNotaActualId(null)
     toast('Nota enviada a la papelera (sus pendientes se conservan)', {
       action: {
         label: 'Deshacer',
@@ -499,7 +494,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setEspacios(prev => prev.filter(e => e.id !== id))
     // Desvincular proyectos (no se borran): vuelven al Espacio "General" implícito
     setProyectos(prev => prev.map(p => p.espacioId === id ? { ...p, espacioId: undefined, modificado: new Date().toISOString() } : p))
-    if (espacioActualId === id) setEspacioActualId(null)
     toast('Espacio eliminado (sus proyectos vuelven a General)')
   }
 
@@ -540,7 +534,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
   const eliminarFiltroGuardado = (id: string) => {
     setFiltrosGuardados(prev => prev.filter(f => f.id !== id))
-    if (filtroActivoId === id) setFiltroActivoId(null)
   }
 
   const crearPlantilla = (nombre: string, datos: PlantillaPendiente['datos']): PlantillaPendiente => {
@@ -606,26 +599,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return [...s].sort()
   }, [pendientes, usuario])
 
-  const abrirModal = (editId: string | null = null, defaults: Partial<Pendiente> = {}) => {
-    setPeekId(null)
-    setModal({ open: true, editId, defaults })
-  }
-  const cerrarModal = () => setModal(m => ({ ...m, open: false }))
-  const abrirPeek = (id: string) => setPeekId(id)
-  const cerrarPeek = () => setPeekId(null)
-
   const value: AppCtx = {
     pendientes, notas, usuario, setUsuario,
     crearPendiente, actualizarPendiente, eliminarPendiente, restaurarPendiente, duplicarPendiente, archivarPendiente, desarchivarPendiente, toggleCompletar, toggleSubtarea, agregarSubtarea, agregarSubSubtarea, iniciarTimer, pausarTimer, agregarComentario, moverEstado,
     crearNota, actualizarNota, agregarComentarioNota, eliminarNota, restaurarNota, duplicarNota, proyectos, crearProyecto, actualizarProyecto, eliminarProyecto,
-    espacios, crearEspacio, actualizarEspacio, eliminarEspacio, espacioActualId, setEspacioActualId,
+    espacios, crearEspacio, actualizarEspacio, eliminarEspacio,
     etiquetas, crearEtiqueta, actualizarEtiqueta, eliminarEtiqueta, colorDeEtiqueta,
-    filtrosGuardados, crearFiltroGuardado, actualizarFiltroGuardado, eliminarFiltroGuardado, filtroActivoId, setFiltroActivoId,
+    filtrosGuardados, crearFiltroGuardado, actualizarFiltroGuardado, eliminarFiltroGuardado,
     plantillas, crearPlantilla, eliminarPlantilla, crearPendienteDesdePlantilla,
     eventos, crearEvento, actualizarEvento, eliminarEvento, restaurarEvento, columnas, setColumnas, reemplazarTodo, vaciarPapelera,
-    personas, modal, abrirModal, cerrarModal, peekId, abrirPeek, cerrarPeek, notaActualId, setNotaActualId,
-    proyectoAbiertoId, setProyectoAbiertoId,
-    filtroFecha, setFiltroFecha,
+    personas,
   }
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }

@@ -836,6 +836,76 @@ se confirme el diseño de los ítems restantes. Verificación acumulada:
   entre pasos — no había un usuario final recibiendo cada hito por separado,
   así que un solo bump al cerrar el bloque es más honesto que fingir 20+
   versiones intermedias que nunca se sirvieron.
-- `v9` (actual) — cierre de las Fases 9-12: estadísticas/actividad, ajustes
+- `v9` — cierre de las Fases 9-12: estadísticas/actividad, ajustes
   UX/accesibilidad, exportación ICS/Markdown/HTML, CI, y limpieza final de
   dead code — release `1.0.0`.
+- `v10` — inicio de la evolución visual documentada en `PDS.md`: los
+  tokens `.glass`/`.bg-ambient`/`.text-display-*` (Fase 2, definidos hace
+  tiempo y sin usar) empiezan a aplicarse de verdad en la app real.
+- `v11` (actual) — primitiva `<Card/>` y sidebar de 5 destinos primarios.
+
+### Fase v2.0 (parcial) — Cimientos visuales encendidos (2026-08-08)
+
+Primeras dos fases del roadmap de evolución visual (`PDS.md`, `ROADMAP.md` v2.0):
+arreglar un bug de arranque del tema, y encender en el shell real los tokens que ya
+existían en `index.css`/`tailwind.config.js` desde la Fase 2 pero nunca se habían
+aplicado a ningún componente.
+
+- **Corregido** `index.html`/`App.tsx`: el tema oscuro no sobrevivía a un refresh —
+  nada aplicaba la clase `dark` antes del primer render, así que quien lo había
+  elegido explícitamente arrancaba siempre en claro. Se agrega un script inline en
+  `index.html` que aplica la clase antes del primer paint (leyendo `localStorage` o,
+  si nunca se eligió, `prefers-color-scheme`), y `App.tsx` inicializa su estado con el
+  mismo criterio en vez de leer el DOM vacío.
+- **Cambiado** `App.tsx`: el contenedor raíz del shell (móvil y escritorio) pasa de
+  `bg-background` a `bg-ambient`; el sidebar de escritorio y el header móvil pasan de
+  `border bg-card` a `.glass`.
+- **Añadido** `src/index.css`: utilidades `.text-body` (14px/500) y `.text-meta`
+  (11px/600) — completan la escala tipográfica de 3 niveles junto a `.text-display-*`
+  (`PDS.md` §6.3).
+- **Cambiado** `src/components/TaskRow.tsx`: el título pasa de `text-xs` (12px) a
+  `.text-body`, y la metadata de `text-[10px]` a `.text-meta`. La metadata siempre
+  visible se reduce a columna/proyecto/fecha/estado; responsable, subtareas,
+  repetición, ponderación y modalidad ahora se revelan en hover/foco del contenedor
+  (`group-hover`/`group-focus-within`) en vez de competir todos al mismo peso visual.
+  La fila gana elevación y una leve traslación en hover (`ease-smooth`). El swipe
+  móvil, el menú contextual y todos los handlers quedan intactos — el cambio es sólo
+  de presentación.
+- **Nota de accesibilidad**: en pantallas táctiles (sin hover persistente), la
+  metadata secundaria de una fila queda oculta hasta que se abre esa tarea — el dato
+  sigue siendo alcanzable en 1 toque (Peek), no se pierde, pero no es glanceable
+  inline en la lista como antes. Si esto resulta un problema real de uso, revisar
+  antes de la Fase 3 completa.
+
+### Fase v2.0 (parcial, cont.) — Primitiva `<Card/>` y sidebar de 5 destinos (2026-08-08)
+
+Continúa el roadmap de evolución visual: unifica las 25 superficies que reinventaban a
+mano `rounded-xl/lg/2xl border bg-card`, y baja la navegación primaria de 7 a 5 destinos
+(`PDS.md` §5.3, `ROADMAP.md` v2.0).
+
+- **Añadido** `src/components/ui/card.tsx`: primitiva `<Card/>` (radio 12px, borde,
+  `bg-card`; prop `interactive` agrega elevación + traslación en hover con
+  `ease-smooth`), siguiendo la misma convención shadcn/ui que `badge.tsx`/`button.tsx`.
+- **Cambiado**: migrados a `<Card/>` los contenedores estáticos de `OtherViews.tsx`
+  (hero de Hoy, timeline, heatmap, KPIs del dashboard), `NotesView.tsx` y
+  `ProyectosView.tsx` (paneles de lista/detalle), `ListView.tsx` (panel de detalle),
+  `CalendarioView.tsx` (selector de modo, grilla de mes, columna de backlog, vista
+  semana/día), `PendientesView.tsx` (selector de modo), `PapeleraView.tsx` (fila) e
+  `InboxView.tsx` (estado vacío) y la pantalla de login de `sync.tsx`. El menú "⋮" de
+  `App.tsx` (un overlay, no un contenedor estático) pasa a `.glass` en vez de `<Card/>`,
+  consistente con `PDS.md` §6.6 (blur reservado a overlays/widgets/dock).
+- **Sin cambios deliberados**: `TaskRow.tsx` y las tarjetas del Kanban conservan su
+  propio estilo (borde de color por prioridad) — no son el mismo tipo de superficie que
+  `<Card/>` generaliza. Dos botones de `OtherViews.tsx` (accesos de proyecto/nota
+  recientes en Hoy) tampoco se migraron: son `<button>`, y `<Card/>` es un `<div>` — se
+  dejan con su tratamiento de hover actual en vez de forzar una polimorfía que no
+  estaba en el alcance de este cambio.
+- **Cambiado** `App.tsx`: `VISTAS` se separa en `VISTAS_PRIMARIAS` (Hoy, Inbox,
+  Pendientes, Notas, Proyectos — los 5 de uso diario) y `VISTAS_SISTEMA` (Panel,
+  Papelera — consulta ocasional). El sidebar de escritorio muestra `VISTAS_SISTEMA` en
+  su propio grupo "Sistema"; la barra inferior móvil pasa de `grid-cols-7` a
+  `grid-cols-5` con solo los primarios, y Panel/Papelera se agregan al menú "⋮" móvil
+  (antes no eran alcanzables ahí). `VISTAS_VALIDAS` (atajos de teclado `1..7`,
+  `LS_VISTA`) no se tocó — sigue siendo la lista completa de 7, en el mismo orden.
+- **Verificado**: `npm run test` (147/147), `npm run build` y `npm run lint` en verde;
+  revisión visual en `npm run dev` del sidebar, Pendientes y Papelera en tema oscuro.

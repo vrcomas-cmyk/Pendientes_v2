@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useApp } from '@/store'
+import { useUI } from '@/ui-store'
 import { useSync } from '@/sync'
 import type { EventoCalendario, Pendiente } from '@/types'
 import { PROYECTO_COLORES, PROYECTO_COLORES_KEYS } from '@/types'
@@ -10,6 +11,7 @@ import { sinDuplicarLocal } from '@/lib/agenda'
 import TaskRow from '@/components/TaskRow'
 import ProgressRing from '@/components/ProgressRing'
 import KanbanDnd from '@/components/KanbanDnd'
+import { Card } from '@/components/ui/card'
 import { ChevronDown, StickyNote, X, Clock } from 'lucide-react'
 
 /* ============ HOY ============ */
@@ -105,7 +107,8 @@ function FranjaSemanal({ pendientes, diaSel, onSeleccionar, idCompletado }: { pe
 
 /** Resumen por proyecto: progreso, abiertos y vencidos de un vistazo — clic navega al tablero. */
 function ResumenProyectos() {
-  const { proyectos, pendientes: todosPendientes, setProyectoAbiertoId, columnas } = useApp()
+  const { proyectos, pendientes: todosPendientes, columnas } = useApp()
+  const { setProyectoAbiertoId } = useUI()
   const idCompletado = idColumnaCompletado(columnas)
   const pendientes = useMemo(() => todosPendientes.filter(activo), [todosPendientes])
   if (!proyectos.length) return null
@@ -145,7 +148,8 @@ function ResumenProyectos() {
 
 /** Notas modificadas recientemente — para que Hoy sea de verdad el punto de entrada único. */
 function NotasRecientes() {
-  const { notas, pendientes, setNotaActualId } = useApp()
+  const { notas, pendientes } = useApp()
+  const { setNotaActualId } = useUI()
   const recientes = [...notas].sort((a, b) => b.modificado.localeCompare(a.modificado)).slice(0, 4)
   if (!recientes.length) return null
   return (
@@ -191,7 +195,7 @@ function AgendaGoogleHoy() {
   const visibles = useMemo(() => sinDuplicarLocal(eventosGoogle, pendientes, eventos), [eventosGoogle, pendientes, eventos])
   if (!visibles.length) return null
   return (
-    <div className="rounded-xl border bg-card p-3">
+    <Card className="p-3">
       <h3 className="mb-2 font-display text-sm font-semibold">De Google Calendar hoy</h3>
       <div className="space-y-1">
         {visibles.map(ev => (
@@ -200,7 +204,7 @@ function AgendaGoogleHoy() {
           </div>
         ))}
       </div>
-    </div>
+    </Card>
   )
 }
 
@@ -265,7 +269,7 @@ export function TodayView() {
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       {/* Hero */}
-      <div className="flex items-center gap-4 rounded-2xl border bg-card p-4 sm:p-5">
+      <Card className="flex items-center gap-4 rounded-2xl p-4 sm:p-5">
         <ProgressRing pct={pctHoy} size={64} stroke={6}>
           <span className="font-display text-sm font-bold">{pctHoy}%</span>
         </ProgressRing>
@@ -276,12 +280,12 @@ export function TodayView() {
             {hoyTotal > 0 && ` · ${hoyHechas}/${hoyTotal} completadas`}
           </p>
         </div>
-      </div>
+      </Card>
 
       <FranjaSemanal pendientes={pendientes} diaSel={diaSel} onSeleccionar={setDiaSel} idCompletado={idCompletado} />
 
       {diaSel && (
-        <div className="rounded-xl border bg-card p-3">
+        <Card className="p-3">
           <div className="mb-2 flex items-center justify-between">
             <h3 className="text-xs font-bold text-muted-foreground">{etiquetaDia(diaSel)}</h3>
             <button onClick={() => setDiaSel(null)} className="text-muted-foreground hover:text-foreground"><X size={14} /></button>
@@ -290,7 +294,7 @@ export function TodayView() {
             {deDiaSel.map(p => <TaskRow key={p.id} p={p} />)}
             {!deDiaSel.length && <p className="text-xs text-muted-foreground">Nada agendado ese día.</p>}
           </div>
-        </div>
+        </Card>
       )}
 
       <TimelineHoy pendientesHoy={hoy} />
@@ -338,7 +342,7 @@ function HeatmapActividad({ actividad }: { actividad: Record<string, number> }) 
   const max = Math.max(1, ...Object.values(actividad))
   const h = hoyISO()
   return (
-    <div className="rounded-xl border bg-card p-4">
+    <Card className="p-4">
       <h3 className="mb-3 text-xs font-bold">Actividad (últimas {semanas} semanas)</h3>
       <div className="overflow-x-auto scroll-thin">
         <div className="grid gap-[3px]" style={{ gridTemplateRows: 'repeat(7, 11px)', gridAutoFlow: 'column' }}>
@@ -360,17 +364,17 @@ function HeatmapActividad({ actividad }: { actividad: Record<string, number> }) 
         {NIVELES_OPACIDAD.map(o => <span key={o} className="h-[10px] w-[10px] rounded-sm bg-primary" style={{ opacity: o }} />)}
         Más
       </div>
-    </div>
+    </Card>
   )
 }
 
 /* ============ DASHBOARD ============ */
 function KPI({ label, value, color, destacado }: { label: string; value: number | string; color?: string; destacado?: boolean }) {
   return (
-    <div className={'rounded-xl border bg-card p-3 ' + (destacado ? 'border-2 border-primary/40' : '')}>
+    <Card className={'p-3 ' + (destacado ? 'border-2 border-primary/40' : '')}>
       <div className="text-[11px] text-muted-foreground">{label}</div>
       <div className={'text-2xl font-bold ' + (color || '')}>{value}</div>
-    </div>
+    </Card>
   )
 }
 function Barra({ label, v, max, color }: { label: string; v: number; max: number; color: string }) {
@@ -424,21 +428,21 @@ export function DashboardView() {
       </div>
       <HeatmapActividad actividad={stats.actividad} />
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <div className="rounded-xl border bg-card p-4">
+        <Card className="p-4">
           <h3 className="mb-3 text-xs font-bold">Por columna del tablero</h3>
           <div className="space-y-2">{Object.entries(stats.porColumna).map(([k, v]) => <Barra key={k} label={k} v={v} max={maxC} color="bg-primary" />)}</div>
-        </div>
-        <div className="rounded-xl border bg-card p-4">
+        </Card>
+        <Card className="p-4">
           <h3 className="mb-3 text-xs font-bold">Por prioridad (abiertos)</h3>
           <div className="space-y-2">{Object.entries(stats.porP).map(([k, v]) => <Barra key={k} label={k} v={v} max={maxP} color={colP[k]} />)}</div>
-        </div>
-        <div className="rounded-xl border bg-card p-4">
+        </Card>
+        <Card className="p-4">
           <h3 className="mb-3 text-xs font-bold">Carga por responsable (abiertos)</h3>
           <div className="space-y-2">
             {Object.entries(stats.porR).sort((a, b) => b[1] - a[1]).map(([k, v]) => <Barra key={k} label={k} v={v} max={maxR} color="bg-primary" />)}
             {!Object.keys(stats.porR).length && <p className="text-xs text-muted-foreground">Sin datos.</p>}
           </div>
-        </div>
+        </Card>
       </div>
     </div>
   )

@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import { useApp } from '@/store'
+import { useUI } from '@/ui-store'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
 
 /** Crea una `Nota` real usando `crearNota`/`actualizarNota` del store — no un borrador aparte que
     luego haya que reconciliar; el widget es solo una entrada rápida a la misma entidad de siempre. */
 export default function NotaRapidaWidget() {
-  const { crearNota, actualizarNota, setNotaActualId } = useApp()
+  const { crearNota, actualizarNota } = useApp()
+  const { setNotaActualId } = useUI()
   const [texto, setTexto] = useState('')
 
   const guardar = () => {

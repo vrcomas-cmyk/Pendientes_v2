@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '@/store'
+import { useUI } from '@/ui-store'
 import type { Comentario, Estado, Prioridad, Subtarea, Adjunto } from '@/types'
 type Modalidad = 'individual' | 'equipo'
 import { PROYECTO_COLORES, PROYECTO_COLORES_KEYS } from '@/types'
@@ -19,7 +20,8 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { ChevronDown, ChevronRight, Plus, Trash2, X, StickyNote, BookmarkPlus } from 'lucide-react'
 
 export default function TaskModal() {
-  const { modal, cerrarModal, pendientes, crearPendiente, actualizarPendiente, eliminarPendiente, usuario, personas, proyectos, crearProyecto, columnas, crearPlantilla } = useApp()
+  const { pendientes, crearPendiente, actualizarPendiente, eliminarPendiente, usuario, personas, proyectos, crearProyecto, columnas, crearPlantilla } = useApp()
+  const { modal, cerrarModal } = useUI()
   const idCompletado = idColumnaCompletado(columnas)
   const editando = modal.editId ? pendientes.find(p => p.id === modal.editId) : null
   const [draftId, setDraftId] = useState<string>(() => uid())

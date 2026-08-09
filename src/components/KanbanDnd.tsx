@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import type { Pendiente } from '@/types'
 import { PRIORIDAD_BORDER } from '@/types'
 import { useApp } from '@/store'
+import { useUI } from '@/ui-store'
 import { activo, progresoSub } from '@/lib/app-utils'
 import { colorColumna } from '@/lib/columnas'
 import { useEditorColumnas } from '@/lib/useEditorColumnas'
@@ -32,7 +33,8 @@ interface Props {
  * - Botón "Añadir columna" usa `useEditorColumnas` (compartido en el espacio).
  */
 export default function KanbanDnd({ pendientes, defaultsAlAgregar = {}, minColW = 240 }: Props) {
-  const { moverEstado, abrirModal, abrirPeek, columnas } = useApp()
+  const { moverEstado, columnas } = useApp()
+  const { abrirModal, abrirPeek } = useUI()
   const { agregar } = useEditorColumnas()
   const [dragId, setDragId] = useState<string | null>(null)
   // Fase 10.4 (accesibilidad): equivalente por teclado al drag & drop. El menú contextual de la

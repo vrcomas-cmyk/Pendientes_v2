@@ -1,4 +1,5 @@
 import { useApp } from '@/store'
+import { useUI } from '@/ui-store'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import PosponerMenu from '@/components/PosponerMenu'
@@ -15,7 +16,8 @@ import { Pencil, CheckCircle2 } from 'lucide-react'
  * panel de detalle de la ListView (`TaskDetail`).
  */
 export default function PendientePeek() {
-  const { peekId, cerrarPeek, pendientes, abrirModal, toggleCompletar, columnas } = useApp()
+  const { pendientes, toggleCompletar, columnas } = useApp()
+  const { peekId, cerrarPeek, abrirModal } = useUI()
   const idCompletado = columnas.find(c => c.esCompletado)?.id ?? columnas[columnas.length - 1]?.id ?? 'completado'
   const p = peekId ? pendientes.find(x => x.id === peekId) : null
 

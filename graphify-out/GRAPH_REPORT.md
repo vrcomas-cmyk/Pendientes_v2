@@ -1,16 +1,16 @@
-# Graph Report - pendientes-pro  (2026-08-06)
+# Graph Report - pendientes-pro  (2026-08-07)
 
 ## Corpus Check
-- 115 files · ~92,686 words
+- 131 files · ~126,142 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 886 nodes · 1390 edges · 91 communities (67 shown, 24 thin omitted)
+- 1149 nodes · 1667 edges · 122 communities (98 shown, 24 thin omitted)
 - Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 10 edges (avg confidence: 0.71)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `087d4c20`
+- Built from commit: `21cd88cc`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -67,15 +67,20 @@
 - @radix-ui/react-label
 - package.json
 - Offline Experience
+- 2. Los 12 puntos pedidos
 - @radix-ui/react-progress
 - @radix-ui/react-radio-group
+- Product Principles — Pendientes Pro
 - Performance Optimization
 - @radix-ui/react-separator
 - Web App Manifest
 - @radix-ui/react-slot
+- OtherViews.tsx
 - Testing PWA
 - Service Worker Patterns
+- 1. Crítica brutal de la captura de referencia
 - @fontsource/space-grotesk
+- Cómo leer este documento
 - App.tsx
 - button.tsx
 - graphify reference: incremental update and cluster-only
@@ -83,48 +88,73 @@
 - alert.tsx
 - OtherViews.tsx
 - uid
+- store.tsx
+- App.tsx
+- Engineering Guidelines — Pendientes Pro
+- Product Backlog — Pendientes Pro
+- 9. User Flows completos
+- Design Language — Pendientes Pro
+- Interaction Philosophy — Pendientes Pro
+- describirRepeticion
+- Workspace System — Pendientes Pro
+- Navigation System — Pendientes Pro
 - sw.js
+- 4. Sistema de Widgets
+- Product Vision — Pendientes Pro
 - graphify reference: GitHub clone and cross-repo merge
 - graphify reference: transcribe video and audio
 - @radix-ui/react-dialog
 - CLAUDE.md
 - CLAUDE.md
 - extraction-spec.md
+- Data Philosophy — Pendientes Pro
+- 6. Design System
+- Roadmap — Pendientes Pro
 - @supabase/supabase-js
 - googleCalendar.ts
 - index.ts
 - Conectar Google Calendar (time-blocking / vista Agenda)
+- vencido
+- Decisions Log — Pendientes Pro
+- Product Design Specification — Pendientes Pro v2.0
+- Docs Index — Product Operating System de Pendientes Pro
+- Knowledge Base — Pendientes Pro
 - cmdk
+- 5. Sistema de Layout universal
+- dialog.tsx
 - googleCalendarConfig.ts
+- PendientesView.tsx
+- 0. Tesis del producto y objetivo
+- 7. Sistema de Motion
 
 ## God Nodes (most connected - your core abstractions)
 1. `useApp()` - 45 edges
 2. `[Unreleased]` - 40 edges
 3. `hoyISO()` - 25 edges
 4. `compilerOptions` - 24 edges
-5. `activo()` - 20 edges
-6. `cn()` - 18 edges
-7. `uid()` - 17 edges
-8. `compilerOptions` - 16 edges
-9. `PWA Development Skill` - 15 edges
-10. `AppProvider()` - 13 edges
+5. `Product Principles — Pendientes Pro` - 21 edges
+6. `1. Crítica brutal de la captura de referencia` - 20 edges
+7. `activo()` - 20 edges
+8. `cn()` - 18 edges
+9. `uid()` - 17 edges
+10. `Cómo leer este documento` - 16 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `pendienteCompletado()` --calls--> `uid()`  [EXTRACTED]
   tests/app-utils.test.ts → src/lib/app-utils.ts
 - `WidgetsProvider()` --calls--> `uid()`  [EXTRACTED]
   src/widgets-store.tsx → src/lib/app-utils.ts
+- `KanbanDnd()` --indirect_call--> `activo()`  [INFERRED]
+  src/components/KanbanDnd.tsx → src/lib/app-utils.ts
 - `CalendarioView()` --indirect_call--> `activo()`  [INFERRED]
   src/views/CalendarioView.tsx → src/lib/app-utils.ts
-- `NuevoEspacioDialog()` --calls--> `useApp()`  [EXTRACTED]
-  src/components/NuevoEspacioDialog.tsx → src/store.tsx
-- `FilaSubtarea()` --calls--> `useApp()`  [EXTRACTED]
-  src/components/PendienteCuerpo.tsx → src/store.tsx
+- `DashboardView()` --indirect_call--> `activo()`  [INFERRED]
+  src/views/OtherViews.tsx → src/lib/app-utils.ts
 
 ## Import Cycles
 - None detected.
 
-## Communities (91 total, 24 thin omitted)
+## Communities (122 total, 24 thin omitted)
 
 ### Community 0 - "App.tsx"
 Cohesion: 0.18
@@ -147,8 +177,8 @@ Cohesion: 0.04
 Nodes (46): [0.1.0-pre.1] — 2026-08-05 — Fase 1: Base técnica, Añadido, Añadido (2.1 — Papelera real), Cambiado, Cambiado (2.1), Changelog, Cierre del bloque Fase 10, Cierre del bloque Fase 11 (+38 more)
 
 ### Community 5 - "cn"
-Cohesion: 0.19
-Nodes (10): Badge(), BadgeProps, badgeVariants, Checkbox, DialogHeader(), DropdownMenuShortcut(), Input, Label (+2 more)
+Cohesion: 0.22
+Nodes (9): Badge(), BadgeProps, badgeVariants, Checkbox, DialogFooter(), DropdownMenuShortcut(), Label, labelVariants (+1 more)
 
 ### Community 6 - "compilerOptions"
 Cohesion: 0.10
@@ -159,8 +189,8 @@ Cohesion: 0.12
 Nodes (16): aliases, components, hooks, lib, ui, utils, rsc, $schema (+8 more)
 
 ### Community 9 - "menubar.tsx"
-Cohesion: 0.14
-Nodes (18): adivinarPorEncabezado(), Columna, FilaPreview, ImportarPlanDialog(), OPCIONES_COLUMNA, parsearModalidad(), sugerirPrioridad(), SelectContent (+10 more)
+Cohesion: 0.16
+Nodes (15): adivinarPorEncabezado(), Columna, FilaPreview, ImportarPlanDialog(), OPCIONES_COLUMNA, parsearModalidad(), sugerirPrioridad(), SelectContent (+7 more)
 
 ### Community 10 - "What You Must Do When Invoked"
 Cohesion: 0.08
@@ -171,8 +201,8 @@ Cohesion: 0.04
 Nodes (45): autoprefixer, eslint, @eslint/js, eslint-plugin-react-hooks, eslint-plugin-react-refresh, globals, jsdom, devDependencies (+37 more)
 
 ### Community 12 - "@hookform/resolvers"
-Cohesion: 0.06
-Nodes (80): Shell(), Vista, VISTAS, VISTAS_VALIDAS, WIDGET_ICONOS, ImportarCsvDialog(), NOMBRE_FORMATO, KanbanDnd() (+72 more)
+Cohesion: 0.14
+Nodes (28): PosponerMenu(), actividadPorDia(), DIAS_SEMANA, enesimoDiaSemana(), esBullet(), extraerSufijos(), FMT_DIA_LARGO, googleCalendarUrl() (+20 more)
 
 ### Community 13 - "package.json"
 Cohesion: 0.25
@@ -191,7 +221,7 @@ Cohesion: 0.29
 Nodes (8): ColumnaHeader(), MenuContextoPendiente(), colorColumna(), COLUMNA_ELIMINADA, idColumnaCompletado(), siguienteColor(), useEditorColumnas(), PROYECTO_COLORES_KEYS
 
 ### Community 17 - "table.tsx"
-Cohesion: 0.18
+Cohesion: 0.20
 Nodes (6): ErrorBoundary, Props, State, Button, ButtonProps, buttonVariants
 
 ### Community 18 - "compilerOptions"
@@ -211,8 +241,8 @@ Cohesion: 0.50
 Nodes (6): AjustesDialog(), marcarNotificado(), recordatoriosActivos(), setRecordatoriosActivos(), useRecordatoriosLocales(), yaNotificado()
 
 ### Community 22 - "card.tsx"
-Cohesion: 0.29
-Nodes (9): PaletaComandos(), Vista, NotaRapidaWidget(), useApp(), itemsDelProyecto(), ListaProyecto(), NuevoProyectoDialog(), ProyectosView() (+1 more)
+Cohesion: 0.21
+Nodes (13): PaletaComandos(), Vista, KanbanRapidoWidget(), NotaRapidaWidget(), activo(), useApp(), InboxView(), ResumenProyectos() (+5 more)
 
 ### Community 23 - "toggle-group.tsx"
 Cohesion: 0.40
@@ -231,8 +261,8 @@ Cohesion: 0.50
 Nodes (3): Al terminar, Cómo probar, /probar-como-usuario
 
 ### Community 27 - "tabs.tsx"
-Cohesion: 0.10
-Nodes (21): FMT_MES_LARGO, nombreMes(), altoPx(), CalendarioView(), colorDeCuenta(), COLORES_CUENTA, CUARTOS, DIAS_CORTOS (+13 more)
+Cohesion: 0.18
+Nodes (16): FMT_MES_LARGO, nombreMes(), altoPx(), CalendarioView(), colorDeCuenta(), COLORES_CUENTA, CUARTOS, DIAS_CORTOS (+8 more)
 
 ### Community 28 - "Pendientes + Notas Pro — PWA modular"
 Cohesion: 0.22
@@ -267,8 +297,8 @@ Cohesion: 0.25
 Nodes (7): After Launch, Before Launch, Common Mistakes, Core PWA Requirements, Project Structure, PWA Development Checklist, PWA Development Skill
 
 ### Community 38 - "html-inline"
-Cohesion: 0.16
-Nodes (15): conDia(), DIAS, DialogContent, DialogDescription, DialogFooter(), DialogOverlay, DialogTitle, DropdownMenuCheckboxItem (+7 more)
+Cohesion: 0.20
+Nodes (11): conDia(), DIAS, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioItem, DropdownMenuSeparator (+3 more)
 
 ### Community 41 - "Doctrina del Workspace — Pendientes Pro"
 Cohesion: 0.29
@@ -302,9 +332,17 @@ Nodes (5): Installation, Why Workbox?, Workbox Manual Service Worker, Workbox (R
 Cohesion: 0.50
 Nodes (4): Background Sync (Queue Offline Actions), Offline Detection, Offline Experience, Offline Page
 
+### Community 52 - "2. Los 12 puntos pedidos"
+Cohesion: 0.07
+Nodes (28): 1.10 Lo que sobra, lo que falta, qué se fusiona, qué se vuelve widget, 1.1 Jerarquía visual y prioridad, 1.2 Espacios en blanco y ritmo, 1.3 Carga cognitiva y navegación, 1.4 "Hoy" — el caso más grave, porque es la pantalla que más se usa, 1.5 Densidad de la fila de tarea, 1.6 Superficies redundantes — el mismo dato, presentado distinto según cómo se llegó, 1.7 Toolbar de la Lista — el ejemplo más claro de redundancia funcional (+20 more)
+
 ### Community 53 - "@radix-ui/react-progress"
 Cohesion: 0.50
 Nodes (4): Caching Strategy Cheat Sheet, Manifest Minimum Requirements, Quick Reference, Service Worker Lifecycle
+
+### Community 55 - "Product Principles — Pendientes Pro"
+Cohesion: 0.10
+Nodes (21): 10. Tres niveles tipográficos, nunca más, 11. Toda animación comunica algo, o no existe, 12. Ninguna funcionalidad nueva puede contradecir la simplicidad ya lograda, 13. Todo dato pertenece a una Entidad reconocible, 14. La captura nunca exige clasificación previa, 15. La velocidad de teclado es un ciudadano de primera clase, no un extra, 16. Los estados vacíos enseñan, nunca solo informan, 17. El sistema de widgets es siempre opcional, nunca la única vía (+13 more)
 
 ### Community 56 - "Performance Optimization"
 Cohesion: 0.50
@@ -318,6 +356,10 @@ Nodes (4): Create React App, Framework-Specific Guides, Next.js, Vite (Any Frame
 Cohesion: 0.50
 Nodes (4): Enhanced Manifest (Full Features), Manifest Checklist, Required Fields, Web App Manifest
 
+### Community 60 - "OtherViews.tsx"
+Cohesion: 0.16
+Nodes (14): ProximaTareaWidget(), hoyISO(), isoMasDias(), AgendaGoogleHoy(), DIAS_CORTOS, etiquetaDia(), FranjaSemanal(), HeatmapActividad() (+6 more)
+
 ### Community 61 - "Testing PWA"
 Cohesion: 0.50
 Nodes (4): Lighthouse Audit, Manual Testing Checklist, Testing PWA, Testing Service Worker Updates
@@ -326,13 +368,21 @@ Nodes (4): Lighthouse Audit, Manual Testing Checklist, Testing PWA, Testing Serv
 Cohesion: 0.67
 Nodes (3): Basic Service Worker, Registration, Service Worker Patterns
 
+### Community 63 - "1. Crítica brutal de la captura de referencia"
+Cohesion: 0.10
+Nodes (20): 1.10 Navegación — sobrecargada, 1.11 Componentes — nueve lenguajes de tarjeta en una pantalla, 1.12 Interacciones — la captura muestra un estado que un producto real nunca debe permitir, 1.13 Paneles y distribución — cinco capas de layout simultáneas, 1.14 Flujo de trabajo — cinco caminos para "agregar algo", 1.15 Carga cognitiva — más de 80 elementos de texto legibles en una sola pantalla, 1.16 Consistencia — la nota más baja de todo el análisis, 1.17 Velocidad de uso (+12 more)
+
+### Community 65 - "Cómo leer este documento"
+Cohesion: 0.11
+Nodes (18): Artículo 10 — Ninguna plataforma (mobile/tablet/desktop) se diseña como una ocurrencia tardía, Artículo 11 — El color semántico de estado nunca se reutiliza para otra cosa, Artículo 12 — Toda captura de contenido tiene una vía sin clasificación previa, Artículo 13 — Ninguna migración de datos es silenciosa, Artículo 14 — Ninguna decisión de arquitectura de datos se toma sin registrar alternativas, Artículo 15 — La identidad visual no se diluye para parecerse a un competidor, Artículo 1 — No agregar funcionalidades por moda, Artículo 2 — No incorporar IA si aumenta la complejidad percibida (+10 more)
+
 ### Community 66 - "App.tsx"
 Cohesion: 0.22
 Nodes (13): formatear(), PomodoroWidget(), WidgetShell(), CONTENIDO, WidgetsLayer(), storage, WIDGET_DEFAULTS, WidgetInstancia (+5 more)
 
 ### Community 67 - "button.tsx"
-Cohesion: 0.22
-Nodes (13): RFC-5545, dtstampAhora(), escaparICS(), fechaHoraICS(), generarHTMLImprimible(), generarICS(), generarMarkdown(), pad2() (+5 more)
+Cohesion: 0.23
+Nodes (12): RFC-5545, dtstampAhora(), escaparICS(), fechaHoraICS(), generarHTMLImprimible(), generarICS(), generarMarkdown(), pad2() (+4 more)
 
 ### Community 68 - "graphify reference: incremental update and cluster-only"
 Cohesion: 0.50
@@ -342,9 +392,69 @@ Nodes (3): For --cluster-only, For --update (incremental re-extraction), graphif
 Cohesion: 0.24
 Nodes (10): conMenciones(), FilaSubtarea(), formatearMin(), PendienteCuerpo(), Props, TimerPendiente(), PendientePeek(), Pendiente (+2 more)
 
+### Community 73 - "store.tsx"
+Cohesion: 0.26
+Nodes (15): Modalidad, TaskModal(), asignarProyecto(), defaultsHorario(), normalizar(), uid(), AppCtx, AppProvider() (+7 more)
+
+### Community 74 - "App.tsx"
+Cohesion: 0.23
+Nodes (10): Shell(), Vista, VISTAS, VISTAS_VALIDAS, WIDGET_ICONOS, ImportarCsvDialog(), NOMBRE_FORMATO, descargar() (+2 more)
+
+### Community 76 - "Engineering Guidelines — Pendientes Pro"
+Cohesion: 0.15
+Nodes (12): Accesibilidad, Componentes reutilizables antes que nuevos, Convención de nombres compartida con el resto del sistema, Engineering Guidelines — Pendientes Pro, Escalabilidad, Feature Flags, Modularidad y separación por dominios, No duplicar lógica (+4 more)
+
+### Community 77 - "Product Backlog — Pendientes Pro"
+Cohesion: 0.15
+Nodes (13): Cómo leer este backlog, EPIC 10 — Accesibilidad transversal, EPIC 1 — Regla de exclusividad de overlays, EPIC 2 — Reestructuración del sidebar y navegación primaria, EPIC 3 — Reducción de "Hoy" a su núcleo, EPIC 4 — Sistema de Widgets v2, EPIC 5 — Reparación de integridad de datos (ya completado), EPIC 6 — Sistema tipográfico y de espaciado unificado (+5 more)
+
+### Community 78 - "9. User Flows completos"
+Cohesion: 0.17
+Nodes (12): 9.10 Cambio de espacio, 9.11 Cambio de contexto (mobile ↔ desktop, o interrupción de tarea), 9.1 Nuevo pendiente, 9.2 Nueva nota, 9.3 Nuevo proyecto, 9.4 Nueva checklist (subtareas), 9.5 Mover tarjeta (Kanban), 9.6 Completar tarea (+4 more)
+
+### Community 79 - "Design Language — Pendientes Pro"
+Cohesion: 0.18
+Nodes (11): Design Language — Pendientes Pro, Emociones que el producto busca generar, Espacios, Filosofía de la tipografía, Filosofía del color, Filosofía del movimiento, Jerarquía, Personalidad (+3 more)
+
+### Community 80 - "Interaction Philosophy — Pendientes Pro"
+Cohesion: 0.18
+Nodes (11): Accesibilidad como parte de la interacción, no un añadido posterior, Consistencia de gesto entre dominios distintos, Cómo evaluar una interacción nueva, Feedback inmediato, siempre, Interaction Philosophy — Pendientes Pro, La regla que gobierna todo lo demás: un solo overlay a la vez, Mantener siempre el contexto del usuario, Paneles antes que modales (+3 more)
+
+### Community 81 - "describirRepeticion"
+Cohesion: 0.22
+Nodes (6): COLOR_PRIORIDAD, PreviaParseo(), describirRepeticion(), extraerFecha(), fechaRelativa(), parsearLinea()
+
+### Community 82 - "Workspace System — Pendientes Pro"
+Cohesion: 0.18
+Nodes (11): Cambio de contexto, Contextos, Layouts, Paneles, Persistencia, Personalización, Por qué esto es un diferenciador, no solo una función, Qué es un Workspace en este producto (+3 more)
+
+### Community 83 - "Navigation System — Pendientes Pro"
+Cohesion: 0.22
+Nodes (9): 1. Navegación primaria, 2. Contexto de Espacio, 3. Perspectivas (Smart Views), 4. Navegación de detalle: paneles y breadcrumbs, Búsqueda como atajo transversal a los cuatro niveles, Los cuatro niveles de navegación, Mapa de decisión: ¿dónde vive una función de navegación nueva?, Navigation System — Pendientes Pro (+1 more)
+
+### Community 87 - "4. Sistema de Widgets"
+Cohesion: 0.22
+Nodes (9): 4.1 Principios, 4.2 Anatomía universal del widget, 4.3 Catálogo de tamaños (grid de 4px, todo widget se ajusta a esta rejilla), 4.4 Posicionamiento, 4.5 Comportamientos, 4.6 Estados, 4.7 Acoplamiento (docking), 4.8 Persistencia y visibilidad (+1 more)
+
+### Community 88 - "Product Vision — Pendientes Pro"
+Cohesion: 0.22
+Nodes (9): Cómo debe sentirse usarlo, Horizonte a 10 años, Horizonte a 5 años, La promesa del producto, Product Vision — Pendientes Pro, ¿Qué es Pendientes Pro?, ¿Qué lo hace diferente?, ¿Qué NO pretende ser? (+1 more)
+
+### Community 98 - "Data Philosophy — Pendientes Pro"
+Cohesion: 0.25
+Nodes (8): Data Philosophy — Pendientes Pro, Entidades, La idea central, Por qué esto importa más de lo que parece, Reglas del modelo, Relaciones, Representaciones, Vistas
+
+### Community 99 - "6. Design System"
+Cohesion: 0.25
+Nodes (8): 6.1 Spacing scale, 6.2 Radius, 6.3 Tipografía — 3 niveles, sin excepción, 6.4 Color — capas separadas por función, 6.5 Elevación (sombras), 6.6 Blur (`.glass`), 6.7 Componentes base (especificación, no implementación), 6. Design System
+
+### Community 100 - "Roadmap — Pendientes Pro"
+Cohesion: 0.25
+Nodes (8): Nota sobre el orden de este roadmap, Roadmap — Pendientes Pro, v2.0 — Corrección de fundamentos, v2.1 — Sistema de Widgets v2, v2.2 — Fusión de superficies y velocidad de captura, v2.3 — Accesibilidad transversal y responsive completo, v3.0 — Extensión del modelo: Espacios como contexto real, Perspectivas, Archivos, v4.0 — Personal Operating System
+
 ### Community 102 - "googleCalendar.ts"
 Cohesion: 0.12
-Nodes (28): CuentasGoogleDialog(), EspacioDialog(), AntesEspejo, DespuesEspejo, sincronizarEspejoGoogle(), canjearInvitacion(), codigoAleatorio(), crearInvitacion() (+20 more)
+Nodes (29): CuentasGoogleDialog(), EspacioDialog(), AntesEspejo, DespuesEspejo, sincronizarEspejoGoogle(), canjearInvitacion(), codigoAleatorio(), crearInvitacion() (+21 more)
 
 ### Community 103 - "index.ts"
 Cohesion: 0.26
@@ -354,22 +464,62 @@ Nodes (16): accionCreateEvent(), accionDeleteEvent(), accionDisconnect(), accion
 Cohesion: 0.17
 Nodes (11): 1. Crear el proyecto y habilitar la API, 2. Configurar la pantalla de consentimiento OAuth, 3. Crear las credenciales OAuth, 4. Dónde pegar cada credencial, 5. Probar la conexión (una cuenta o varias), `access_denied` ("solo los verificadores aprobados pueden acceder"), Conectar Google Calendar (time-blocking / vista Agenda), Las cuentas conectadas dependen de la sesión de sincronización, no del dispositivo (+3 more)
 
+### Community 105 - "vencido"
+Cohesion: 0.39
+Nodes (6): KanbanDnd(), Props, TaskRow(), estaBloqueado(), progresoSub(), vencido()
+
+### Community 106 - "Decisions Log — Pendientes Pro"
+Cohesion: 0.29
+Nodes (7): 2026-08-05 — El roadmap se reordena: lo visual primero, lo funcional después, 2026-08-05 — "Espacio" como capa nueva, no un renombre, 2026-08-06 — Adopción del Product Design Specification como base oficial, evolución a Product Operating System, 2026-08-06 — Diagnóstico y reparación de la pertenencia de pendientes a proyecto, 2026-08-06 — La crítica del mockup de referencia se convierte en la regla de exclusividad de overlays, Cómo agregar una entrada nueva, Decisions Log — Pendientes Pro
+
+### Community 107 - "Product Design Specification — Pendientes Pro v2.0"
+Cohesion: 0.29
+Nodes (7): 10. Notas de accesibilidad transversales, 11. Glosario y siguiente paso, 2. Scorecard, 3. Estrategia de evolución — las 10 preguntas, 8. Microinteracciones (100+), Product Design Specification — Pendientes Pro v2.0, Índice
+
+### Community 108 - "Docs Index — Product Operating System de Pendientes Pro"
+Cohesion: 0.33
+Nodes (6): Cómo está organizado el sistema, Docs Index — Product Operating System de Pendientes Pro, Los 14 documentos, Qué leer según lo que necesitás hacer, Regla de integración de este sistema, Terminología compartida (glosario canónico)
+
+### Community 109 - "Knowledge Base — Pendientes Pro"
+Cohesion: 0.33
+Nodes (5): Cómo se mantiene esta base de conocimiento, Knowledge Base — Pendientes Pro, Sobre decisiones de UX específicas, Sobre el historial técnico del proyecto, Sobre el producto
+
+### Community 111 - "5. Sistema de Layout universal"
+Cohesion: 0.33
+Nodes (6): 5.1 Principio rector, 5.2 La rejilla de tres franjas (se conserva de la app real, se disciplina), 5.3 Reestructuración del sidebar (resuelve §1.10, §3.5), 5.4 Regla de exclusividad de overlays (resuelve §1.12, la falla más grave de la captura), 5.5 Breakpoints y colapso, 5. Sistema de Layout universal
+
+### Community 112 - "dialog.tsx"
+Cohesion: 0.33
+Nodes (5): DialogContent, DialogDescription, DialogHeader(), DialogOverlay, DialogTitle
+
+### Community 116 - "PendientesView.tsx"
+Cohesion: 0.40
+Nodes (5): KanbanView(), leerModoGuardado(), Modo, MODOS, PendientesView()
+
+### Community 117 - "0. Tesis del producto y objetivo"
+Cohesion: 0.50
+Nodes (4): 0.1 Qué es hoy, qué tiene que ser, 0.2 El error que este documento existe para prevenir, 0.3 Tesis de identidad propia, 0. Tesis del producto y objetivo
+
+### Community 118 - "7. Sistema de Motion"
+Cohesion: 0.50
+Nodes (4): 7.1 Duraciones, 7.2 Curvas, 7.3 Especificación por gesto, 7. Sistema de Motion
+
 ## Knowledge Gaps
-- **400 isolated node(s):** `Añadido`, `Cambiado`, `Eliminado`, `Refactor`, `Fase 13 — Reparación de integridad: pendientes que se "salían" de su proyecto (2026-08-06)` (+395 more)
+- **621 isolated node(s):** `La idea central`, `Entidades`, `Relaciones`, `Representaciones`, `Vistas` (+616 more)
   These have ≤1 connection - possible missing edges or undocumented components.
 - **24 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `useApp()` connect `card.tsx` to `App.tsx`, `alert.tsx`, `html-inline`, `menubar.tsx`, `@hookform/resolvers`, `buffer`, `sheet.tsx`, `package.json`, `drawer.tsx`, `tabs.tsx`?**
-  _High betweenness centrality (0.031) - this node is a cross-community bridge._
-- **Why does `cn()` connect `cn` to `sync.tsx`, `context-menu.tsx`, `html-inline`, `menubar.tsx`, `table.tsx`?**
-  _High betweenness centrality (0.013) - this node is a cross-community bridge._
-- **Why does `hoyISO()` connect `@hookform/resolvers` to `table.tsx`, `tabs.tsx`, `html-inline`?**
-  _High betweenness centrality (0.011) - this node is a cross-community bridge._
-- **What connects `Añadido`, `Cambiado`, `Eliminado` to the rest of the system?**
-  _400 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **Why does `Product Design Specification — Pendientes Pro v2.0` connect `Product Design Specification — Pendientes Pro v2.0` to `6. Design System`, `DOCS_INDEX.md`, `9. User Flows completos`, `5. Sistema de Layout universal`, `0. Tesis del producto y objetivo`, `7. Sistema de Motion`, `4. Sistema de Widgets`, `1. Crítica brutal de la captura de referencia`?**
+  _High betweenness centrality (0.023) - this node is a cross-community bridge._
+- **Why does `useApp()` connect `card.tsx` to `App.tsx`, `alert.tsx`, `html-inline`, `menubar.tsx`, `App.tsx`, `store.tsx`, `@hookform/resolvers`, `buffer`, `sheet.tsx`, `package.json`, `drawer.tsx`, `PendientesView.tsx`, `OtherViews.tsx`?**
+  _High betweenness centrality (0.020) - this node is a cross-community bridge._
+- **Why does `Product Constitution — Pendientes Pro` connect `Cómo leer este documento` to `DOCS_INDEX.md`?**
+  _High betweenness centrality (0.009) - this node is a cross-community bridge._
+- **What connects `La idea central`, `Entidades`, `Relaciones` to the rest of the system?**
+  _621 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `command.tsx` be split into smaller, more focused modules?**
   _Cohesion score 0.08695652173913043 - nodes in this community are weakly interconnected._
 - **Should `compilerOptions` be split into smaller, more focused modules?**

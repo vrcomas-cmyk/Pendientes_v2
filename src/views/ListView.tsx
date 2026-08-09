@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useApp } from '@/store'
+import { useUI } from '@/ui-store'
 import type { Pendiente } from '@/types'
 import { PROYECTO_COLORES } from '@/types'
 import type { FiltroFecha } from '@/types'
@@ -8,6 +9,7 @@ import { hoyISO, vencido, activo, estaBloqueado } from '@/lib/app-utils'
 import { columnaDe, idColumnaCompletado } from '@/lib/columnas'
 import { useIsMobile } from '@/hooks/use-is-mobile'
 import TaskRow from '@/components/TaskRow'
+import { Card } from '@/components/ui/card'
 import PosponerMenu from '@/components/PosponerMenu'
 import PendienteCuerpo from '@/components/PendienteCuerpo'
 import { Input } from '@/components/ui/input'
@@ -18,7 +20,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Pencil, Trash2, Search, SlidersHorizontal, ChevronLeft, ChevronDown, Bookmark, BookmarkPlus, X } from 'lucide-react'
 
 function TaskDetail({ detalle, onBack, mobile }: { detalle: Pendiente; onBack: () => void; mobile: boolean }) {
-  const { abrirModal, eliminarPendiente, columnas } = useApp()
+  const { eliminarPendiente, columnas } = useApp()
+  const { abrirModal } = useUI()
   const idCompletado = idColumnaCompletado(columnas)
 
   return (
@@ -59,7 +62,8 @@ function cargarFiltros(): FiltrosGuardados {
 }
 
 export default function ListView({ filtroFecha, setFiltroFecha }: { filtroFecha: FiltroFecha; setFiltroFecha: (f: FiltroFecha) => void }) {
-  const { pendientes, personas, proyectos, toggleSubtarea, toggleCompletar, abrirModal, columnas, filtrosGuardados, crearFiltroGuardado, eliminarFiltroGuardado, filtroActivoId, setFiltroActivoId, usuario } = useApp()
+  const { pendientes, personas, proyectos, toggleSubtarea, toggleCompletar, columnas, filtrosGuardados, crearFiltroGuardado, eliminarFiltroGuardado, usuario } = useApp()
+  const { abrirModal, filtroActivoId, setFiltroActivoId } = useUI()
   const idCompletado = idColumnaCompletado(columnas)
   const [gruposColapsados, setGruposColapsados] = useState<Set<string>>(new Set())
   const toggleGrupo = (k: string) => setGruposColapsados(prev => { const s = new Set(prev); if (s.has(k)) s.delete(k); else s.add(k); return s })
@@ -192,7 +196,7 @@ export default function ListView({ filtroFecha, setFiltroFecha }: { filtroFecha:
   }, [isMobile, filtrados, detalleId2, toggleCompletar])
 
   if (isMobile && detalle) {
-    return <div className="h-full rounded-xl border bg-card"><TaskDetail detalle={detalle} mobile onBack={() => setDetalleId(null)} /></div>
+    return <Card className="h-full"><TaskDetail detalle={detalle} mobile onBack={() => setDetalleId(null)} /></Card>
   }
 
   // Subtareas mostradas bajo cada pendiente, diferenciadas
@@ -225,11 +229,11 @@ export default function ListView({ filtroFecha, setFiltroFecha }: { filtroFecha:
 
   const filtrosAvanzados = (
     <div className="flex flex-wrap gap-2">
-      <Select value={fEstado} onValueChange={setFEstado}><SelectTrigger className="h-8 flex-1 text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="todos">Estado: todos</SelectItem>{columnas.map(c => <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>)}</SelectContent></Select>
-      <Select value={fPrioridad} onValueChange={setFPrioridad}><SelectTrigger className="h-8 flex-1 text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="todos">Prioridad: todas</SelectItem><SelectItem value="Alta">Alta</SelectItem><SelectItem value="Media">Media</SelectItem><SelectItem value="Baja">Baja</SelectItem></SelectContent></Select>
-      <Select value={fResp} onValueChange={setFResp}><SelectTrigger className="h-8 flex-1 text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="todos">Responsable: todos</SelectItem>{personas.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent></Select>
-      <Select value={orden} onValueChange={setOrden}><SelectTrigger className="h-8 flex-1 text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="creacion_desc">Recientes</SelectItem><SelectItem value="fecha_asc">Por fecha límite</SelectItem><SelectItem value="prioridad">Por prioridad</SelectItem><SelectItem value="titulo">A–Z</SelectItem></SelectContent></Select>
-      <Select value={grupo} onValueChange={setGrupo}><SelectTrigger className="h-8 flex-1 text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="ninguno">Agrupar: no</SelectItem><SelectItem value="estado">Por estado</SelectItem><SelectItem value="prioridad">Por prioridad</SelectItem><SelectItem value="responsable">Por responsable</SelectItem><SelectItem value="proyecto">Por proyecto</SelectItem></SelectContent></Select>
+      <Select value={fEstado} onValueChange={setFEstado} aria-label="Filtrar por estado"><SelectTrigger className="h-8 flex-1 text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="todos">Estado: todos</SelectItem>{columnas.map(c => <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>)}</SelectContent></Select>
+      <Select value={fPrioridad} onValueChange={setFPrioridad} aria-label="Filtrar por prioridad"><SelectTrigger className="h-8 flex-1 text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="todos">Prioridad: todas</SelectItem><SelectItem value="Alta">Alta</SelectItem><SelectItem value="Media">Media</SelectItem><SelectItem value="Baja">Baja</SelectItem></SelectContent></Select>
+      <Select value={fResp} onValueChange={setFResp} aria-label="Filtrar por responsable"><SelectTrigger className="h-8 flex-1 text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="todos">Responsable: todos</SelectItem>{personas.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent></Select>
+      <Select value={orden} onValueChange={setOrden} aria-label="Ordenar por"><SelectTrigger className="h-8 flex-1 text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="creacion_desc">Recientes</SelectItem><SelectItem value="fecha_asc">Por fecha límite</SelectItem><SelectItem value="prioridad">Por prioridad</SelectItem><SelectItem value="titulo">A–Z</SelectItem></SelectContent></Select>
+      <Select value={grupo} onValueChange={setGrupo} aria-label="Agrupar por"><SelectTrigger className="h-8 flex-1 text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="ninguno">Agrupar: no</SelectItem><SelectItem value="estado">Por estado</SelectItem><SelectItem value="prioridad">Por prioridad</SelectItem><SelectItem value="responsable">Por responsable</SelectItem><SelectItem value="proyecto">Por proyecto</SelectItem></SelectContent></Select>
       <button onClick={() => setVerSub(v => !v)} className={'rounded-md border px-2 text-xs ' + (verSub ? 'border-primary bg-primary/10 text-primary' : '')}>Subtareas</button>
     </div>
   )
@@ -346,9 +350,9 @@ export default function ListView({ filtroFecha, setFiltroFecha }: { filtroFecha:
       {isMobile ? listado : (
         <div className="flex min-h-0 flex-1 gap-3">
           <div className="flex w-2/5 min-w-[260px] max-w-md flex-col">{listado}</div>
-          <div className="min-h-0 flex-1 overflow-hidden rounded-xl border bg-card">
+          <Card className="min-h-0 flex-1 overflow-hidden">
             {detalle ? <TaskDetail detalle={detalle} mobile={false} onBack={() => setDetalleId(null)} /> : <div className="p-8 text-center text-sm text-muted-foreground">Selecciona un pendiente para ver el detalle.</div>}
-          </div>
+          </Card>
         </div>
       )}
     </div>
