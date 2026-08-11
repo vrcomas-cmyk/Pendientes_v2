@@ -73,7 +73,7 @@ const VISTAS_PRIMARIAS: { id: Vista; label: string; corto: string; icon: React.R
 const VISTAS_SISTEMA: { id: Vista; label: string; corto: string; icon: React.ReactNode }[] = [
   { id: 'dashboard', label: 'Panel', corto: 'Panel', icon: <BarChart3 size={18} /> },
   { id: 'papelera', label: 'Papelera', corto: 'Papelera', icon: <Trash2 size={18} /> },
-  { id: 'pendientes', label: 'Pendientes', corto: 'Tareas', icon: <ListTodo size={18} /> },
+  { id: 'pendientes', label: 'Pendientes', corto: 'Pendientes', icon: <ListTodo size={18} /> },
 ]
 const VISTAS = [...VISTAS_PRIMARIAS, ...VISTAS_SISTEMA]
 
@@ -421,7 +421,6 @@ function Shell() {
             </button>
           )}
           <div className="ml-auto flex items-center gap-1">
-            <button onClick={() => setAyudaAbierta(true)} aria-label="Ayuda y atajos" className="rounded-md p-2 hover:bg-accent"><HelpCircle size={16} /></button>
             <button onClick={toggleDark} aria-label="Cambiar tema" className="rounded-md p-2 hover:bg-accent">{dark ? <Sun size={16} /> : <Moon size={16} />}</button>
             <button onClick={() => setMenuAbierto(v => !v)} aria-label="Más opciones" className="rounded-md p-2 hover:bg-accent"><MoreVertical size={16} /></button>
           </div>
@@ -478,6 +477,7 @@ function Shell() {
                 <button onClick={() => { setMenuAbierto(false); setVista('pendientes') }} className="flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-accent"><ListTodo size={15} /> Pendientes</button>
                 <div className="border-t" />
                 <button onClick={() => { setMenuAbierto(false); setAjustesDlg(true) }} className="flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-accent"><Settings2 size={15} /> Ajustes</button>
+                <button onClick={() => { setMenuAbierto(false); setAyudaAbierta(true) }} className="flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-accent"><HelpCircle size={15} /> Ayuda y atajos</button>
                 <button onClick={() => { setMenuAbierto(false); abrirNombreDlg() }} className="flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-accent"><User size={15} /> Nombre: {usuario}</button>
                 <div className="border-t" />
                 <button onClick={() => { setMenuAbierto(false); exportarJSON() }} className="flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-accent"><Download size={15} /> Exportar JSON</button>
@@ -577,9 +577,13 @@ function Shell() {
           </DropdownMenu>
           <div className="my-2 border-t" />
           {/* Sistema: consulta ocasional (PDS.md §5.3) — no compite visualmente con los 5
-              destinos primarios de uso diario de arriba. */}
+              destinos primarios de uso diario de arriba. Solo «Pendientes» queda como fila
+              directa aquí: Panel y Papelera (el resto de `VISTAS_SISTEMA`) viven dentro del
+              menú «Sistema» de más abajo — navegación secundaria de verdad, no una segunda
+              lista permanente. `VISTAS_SISTEMA` completo sigue existiendo para los atajos
+              numéricos (7/8) y la Paleta de Comandos, que no cambian. */}
           <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Sistema</div>
-          {VISTAS_SISTEMA.map(v => (
+          {VISTAS_SISTEMA.filter(v => v.id === 'pendientes').map(v => (
             <button key={v.id} onClick={() => setVista(v.id)} aria-current={vistaMostrada === v.id ? 'page' : undefined}
               className={'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ' + (vistaMostrada === v.id ? 'bg-primary text-primary-foreground shadow-sm' : 'hover:bg-accent')}>
               <span className="w-5 shrink-0">{v.icon}</span>
@@ -596,27 +600,32 @@ function Shell() {
             <span className="flex-1 whitespace-nowrap text-left">Vencidos</span>
             {nVencidos > 0 && <span className="whitespace-nowrap rounded-full bg-red-100 px-1.5 text-[10px] text-red-700 dark:bg-red-900/40 dark:text-red-300">{nVencidos}</span>}
           </button>
-          <button onClick={() => setAjustesDlg(true)}
-            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-accent">
-            <Settings2 size={16} className="w-5 shrink-0 text-muted-foreground" />
-            <span className="flex-1 whitespace-nowrap text-left">Ajustes</span>
-          </button>
-        </div>
-        <div className="space-y-0.5 border-t p-1.5">
-          <button onClick={exportarJSON} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-accent"><Download size={16} className="w-5 shrink-0" /><span className="whitespace-nowrap">Exportar JSON</span></button>
-          <button onClick={exportarCSV} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-accent"><FileSpreadsheet size={16} className="w-5 shrink-0" /><span className="whitespace-nowrap">Exportar CSV</span></button>
+          {/* Sistema: único punto de entrada para Ajustes/Datos/Ayuda (PDS.md §5.3,
+              feature "Agrupación Sistema") — antes eran 3 accesos sueltos (botón Ajustes,
+              bloque completo de exportar/importar, ícono de Ayuda en el header). */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-accent"><FileText size={16} className="w-5 shrink-0" /><span className="whitespace-nowrap">Más formatos…</span></button>
+              <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-accent">
+                <Settings2 size={16} className="w-5 shrink-0 text-muted-foreground" />
+                <span className="flex-1 whitespace-nowrap text-left">Sistema</span>
+              </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" side="right" className="w-48">
-              <DropdownMenuItem onClick={exportarICS}><CalendarClock size={13} className="mr-2" /> Calendario (.ics)</DropdownMenuItem>
-              <DropdownMenuItem onClick={exportarMarkdown}><FileText size={13} className="mr-2" /> Markdown (.md)</DropdownMenuItem>
-              <DropdownMenuItem onClick={exportarHTML}><FileText size={13} className="mr-2" /> HTML imprimible</DropdownMenuItem>
+            <DropdownMenuContent align="start" side="right" className="w-56">
+              <DropdownMenuItem onClick={() => setVista('dashboard')}><BarChart3 size={13} className="mr-2" /> Panel</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setVista('papelera')}><Trash2 size={13} className="mr-2" /> Papelera</DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setAjustesDlg(true)}><Settings2 size={13} className="mr-2" /> Ajustes</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setAyudaAbierta(true)}><HelpCircle size={13} className="mr-2" /> Ayuda y atajos</DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={exportarJSON}><Download size={13} className="mr-2" /> Exportar JSON</DropdownMenuItem>
+              <DropdownMenuItem onClick={exportarCSV}><FileSpreadsheet size={13} className="mr-2" /> Exportar CSV</DropdownMenuItem>
+              <DropdownMenuItem onClick={exportarICS}><CalendarClock size={13} className="mr-2" /> Exportar calendario (.ics)</DropdownMenuItem>
+              <DropdownMenuItem onClick={exportarMarkdown}><FileText size={13} className="mr-2" /> Exportar Markdown</DropdownMenuItem>
+              <DropdownMenuItem onClick={exportarHTML}><FileText size={13} className="mr-2" /> Exportar HTML imprimible</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => fileRef.current?.click()}><Upload size={13} className="mr-2" /> Importar JSON</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setImportarCsvDlg(true)}><Upload size={13} className="mr-2" /> Importar CSV / Todoist</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <button onClick={() => fileRef.current?.click()} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-accent"><Upload size={16} className="w-5 shrink-0" /><span className="whitespace-nowrap">Importar JSON</span></button>
-          <button onClick={() => setImportarCsvDlg(true)} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-accent"><Upload size={16} className="w-5 shrink-0" /><span className="whitespace-nowrap">Importar CSV / Todoist</span></button>
           {inputImport}
         </div>
       </nav>
@@ -630,7 +639,6 @@ function Shell() {
               className="w-full rounded-full border bg-muted/60 px-4 py-1.5 text-xs outline-none focus:ring-2 focus:ring-primary" />
             <PreviaParseo texto={quickTexto} />
           </div>
-          <button onClick={() => setAyudaAbierta(true)} title="Ayuda y atajos (?)" aria-label="Ayuda y atajos" className="rounded-md bg-muted p-1.5"><HelpCircle size={14} /></button>
           <button onClick={toggleDark} title="Modo oscuro" aria-label="Cambiar tema" className="rounded-md bg-muted p-1.5">{dark ? <Sun size={14} /> : <Moon size={14} />}</button>
           <SyncBadge />
           {!sync.modoLocal && (

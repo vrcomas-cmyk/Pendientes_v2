@@ -11,3 +11,6 @@ Formato: `fecha | agente | acción | estado`
 2026-08-10 | Claude Code (fuera de opencode) | H7 «Sincronización de Espacios entre dispositivos» implementado: mergeEspacio + tabla pnp_ctx_espacios (lint/build/209 tests) | ✓ cerrado |
 2026-08-11 | Claude Code (fuera de opencode) | H7b «Fix: migración pendiente de H7 rompía toda la sincronización» — pnp_ctx_espacios aislado en su propio try/catch (lint/build/209 tests) | ✓ cerrado |
 2026-08-11 | Claude Code (fuera de opencode) | Migración H7 aplicada vía MCP Supabase (proyecto real); H7c: supabase_setup.sql actualizado a la función pnp_canjear_invitacion real desplegada | ✓ cerrado |
+2026-08-11 | Claude Code (fuera de opencode) | H8 «Agrupación Sistema»: Ajustes/Datos/Ayuda detrás de un solo menú en escritorio y móvil (lint/build/215 tests); backlog corregido | ✓ cerrado |
+2026-08-11 | Claude Code (fuera de opencode) | H9 «Panel/Papelera a navegación secundaria»: movidas al menú Sistema en escritorio (lint/build/219 tests) | ✓ cerrado |
+2026-08-11 | Claude Code (fuera de opencode) | H10 «Nombrado consistente entre plataformas» (fix corto='Tareas'→'Pendientes') — EPIC 2 completo (lint/build/219 tests) | ✓ cerrado |

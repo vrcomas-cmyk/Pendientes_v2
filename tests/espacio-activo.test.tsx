@@ -106,7 +106,10 @@ describe('E2-F2 — Selector «Espacio activo» + filtro de contexto (TDD, tests
     const nav = await screen.findByRole('navigation', { name: /Navegación principal/i })
     const selector = within(nav).getByRole('button', { name: /Espacio activo: Todos/i })
     const botonEspacios = within(nav).getByRole('button', { name: /^Espacios$/ })
-    const sistema = within(nav).getByText('Sistema', { exact: true })
+    // Dos nodos dicen "Sistema" desde la Agrupación Sistema (EPIC 2): el encabezado de
+    // sección (div, el que interesa acá) y el botón que abre el menú Ajustes/Datos/Ayuda
+    // (span). Se filtra al div para no ambigüar con `getByText`.
+    const sistema = within(nav).getAllByText('Sistema', { exact: true }).find(el => el.tagName === 'DIV')!
     // Orden: ... Espacios → «Espacio activo» → ... → «Sistema»
     expect(botonEspacios.compareDocumentPosition(selector) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(selector.compareDocumentPosition(sistema) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()

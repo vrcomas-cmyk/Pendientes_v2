@@ -53,6 +53,71 @@ sienta las bases para las siguientes fases. El cache del Service Worker sube a `
 
 ## [Unreleased]
 
+### H10 — Epic 2 completo: nombrado consistente entre plataformas (2026-08-11)
+
+Cierra el último ítem del EPIC 2. `VISTAS_SISTEMA` traía un campo `corto` (pensado para
+mostrarse en móvil, igual que ya hacen los 5 destinos primarios) inconsistente con su
+`label` de escritorio en un caso: `pendientes` tenía `label: 'Pendientes'` pero
+`corto: 'Tareas'` — dos nombres distintos para la misma vista. En la práctica `corto` de
+`VISTAS_SISTEMA` no se renderiza en ningún lado hoy (el menú "⋮" móvil y el menú "Sistema"
+de escritorio usan texto propio, ya "Pendientes" en ambos), así que el cambio es
+preventivo: si `corto` llega a usarse (tooltip, overflow de la barra móvil, etc.), ya no
+puede mostrar un nombre distinto al de escritorio.
+
+- **Cambiado** `src/App.tsx`: `VISTAS_SISTEMA` → `{ id: 'pendientes', corto: 'Tareas' }`
+  pasa a `corto: 'Pendientes'`, igual que su `label`. `dashboard`/`papelera` ya coincidían.
+- Sin test dedicado: es una corrección de dato interno sin efecto observable en el DOM hoy
+  (verificado por lectura de código — el resto de la UI ya decía "Pendientes" en todos
+  lados). Pipeline verificado igual: `npm run lint`, `npm run build`, `npm run test`
+  (219/219, sin regresiones).
+- Sin bump de Service Worker: no hay cambio visible en la UI actual.
+- **EPIC 2 — Reestructuración del sidebar y navegación primaria: completo.** Los 5 ítems
+  del backlog (Navegación primaria de 5 ítems, Selector de Espacio activo, Agrupación
+  "Sistema", Panel/Papelera a navegación secundaria, Nombrado consistente) quedan `Hecho`.
+
+### H9 — Epic 2: Panel y Papelera a navegación secundaria (2026-08-11)
+
+En escritorio, "Panel" y "Papelera" eran filas permanentes en el sidebar bajo el
+encabezado "Sistema", igual que "Pendientes" — ocupando espacio fijo pese a ser consulta
+ocasional (PDS §5.3). Ahora viven dentro del menú "Sistema" (el `DropdownMenu` de H8),
+dejando en el sidebar solo "Pendientes" como destino de contenido directo. Móvil ya las
+tenía detrás del menú "⋮" desde H5, así que no necesitó cambios.
+
+- **Cambiado** `src/App.tsx`: la fila permanente del sidebar de escritorio bajo "Sistema"
+  ahora filtra `VISTAS_SISTEMA` a solo `pendientes`; "Panel" y "Papelera" se agregan como
+  ítems al tope del menú "Sistema" existente. `VISTAS_SISTEMA` (el array completo) no
+  cambia — los atajos numéricos `7`/`8` y la Paleta de Comandos siguen igual.
+- **Añadido** `tests/sistema-secundaria.test.tsx` (nuevo, 4 casos): el sidebar ya no tiene
+  filas "Panel"/"Papelera" (solo "Pendientes" directo); el menú "Sistema" abre ambas; los
+  atajos `7`/`8` siguen funcionando.
+- Verificado con `npm run lint`, `npm run build`, `npm run test` (219/219).
+- Service Worker: bump a `v20` (cambio visible al usuario).
+
+### H8 — Epic 2: Agrupación "Sistema" — un solo punto de entrada para Ajustes/Datos/Ayuda (2026-08-11)
+
+Escritorio tenía TRES accesos sueltos compitiendo por espacio permanente en el sidebar:
+el botón "Ajustes", un bloque completo de 5 acciones de exportar/importar, y el ícono de
+Ayuda en el header. Ahora viven detrás de un único menú "Sistema" en el sidebar. Móvil ya
+agrupaba Ajustes/Datos en el menú "⋮"; se sumó Ayuda ahí también, quitándolo del ícono
+suelto del header.
+
+- **Cambiado** `src/App.tsx`: sidebar de escritorio — el botón "Ajustes" y el bloque de
+  exportar/importar (`Exportar JSON/CSV`, `Más formatos…`, `Importar JSON/CSV`) se
+  reemplazan por un único `DropdownMenu` "Sistema" con Ajustes, Ayuda y atajos, y las 7
+  acciones de datos. Eliminado el ícono de Ayuda del header de escritorio. Menú "⋮" móvil:
+  nuevo ítem "Ayuda y atajos" junto a "Ajustes"; eliminado el ícono suelto del header móvil.
+  El atajo de teclado `?` no cambia — sigue abriendo la ayuda directo, sin pasar por el menú.
+- **Añadido** `tests/sistema-agrupado.test.tsx` (nuevo, 6 casos): el sidebar expone un solo
+  punto de entrada "Sistema" (no botones sueltos de Ajustes/Exportar/Ayuda); el menú abre
+  Ajustes, abre Ayuda, y expone las acciones de exportar/importar; el atajo `?` sigue
+  funcionando; el header móvil ya no tiene el ícono de Ayuda suelto.
+- **Corregido** `tests/espacio-activo.test.tsx`: una aserción preexistente buscaba el texto
+  "Sistema" con `getByText` asumiendo una sola coincidencia — con el nuevo botón "Sistema"
+  del sidebar ahora hay dos nodos con ese texto (el encabezado de sección y el botón). Se
+  filtra al `<div>` del encabezado, que es al que la prueba se refería originalmente.
+- Verificado con `npm run lint`, `npm run build`, `npm run test` (215/215).
+- Service Worker: bump a `v19` (cambio visible al usuario).
+
 ### H7c — `supabase_setup.sql` actualizado a la función real desplegada (2026-08-11)
 
 Al aplicar la migración de H7 vía Supabase se descubrió que la base real ya tenía una

@@ -106,3 +106,49 @@ Pipeline obligatorio: `npm run lint` → `npm run build` → `npm run test`.
 - Lección: antes de aplicar una migración "de referencia" contra una base ya viva, comparar
   primero (`list_tables`/`execute_sql` con `pg_get_functiondef`) — el repo puede estar
   desactualizado respecto a lo desplegado, no al revés.
+
+### 2026-08-11 — H8 «Agrupación Sistema» (Epic 2, feature 3) | ✓ cerrado
+- Antes de empezar: corregidas 4 filas del backlog desactualizadas (Epic 1 completo y
+  «Navegación primaria» seguían en «Listo para implementar» pese a estar ya en CHANGELOG
+  como Hecho — desalineación entre el registro y la realidad, quedó al día).
+- F4: sidebar de escritorio — botón «Ajustes» + bloque de 5 acciones de exportar/importar
+  reemplazados por un único `DropdownMenu` «Sistema» (Ajustes, Ayuda y atajos, + datos);
+  ícono de Ayuda del header de escritorio eliminado. Menú «⋮» móvil: «Ayuda y atajos» ahora
+  vive junto a «Ajustes»; ícono suelto del header móvil eliminado. Atajo `?` intacto.
+- F3/F5: `tests/sistema-agrupado.test.tsx` nuevo (6 casos, RED→GREEN). Efecto colateral
+  esperado: una aserción preexistente en `tests/espacio-activo.test.tsx` quedó ambigua
+  (`getByText('Sistema')` — ahora hay 2 nodos con ese texto: el encabezado de sección y el
+  botón nuevo); corregida filtrando al `<div>` original, no era un defecto real.
+- Verificación: lint ✓ · build ✓ · test 215/215 ✓. SW v18→v19; CHANGELOG (H8) y
+  PRODUCT_BACKLOG.md («Agrupación Sistema» → Hecho) actualizados.
+- Siguiente candidato del Epic 2: Panel/Dashboard y Papelera a navegación secundaria
+  (depende de esta feature); luego nombrado consistente entre plataformas.
+
+### 2026-08-11 — H9 «Panel/Papelera a navegación secundaria» (Epic 2, feature 4) | ✓ cerrado
+- F4: sidebar de escritorio filtra `VISTAS_SISTEMA` a solo `pendientes` (fila directa);
+  «Panel» y «Papelera» pasan a ser ítems al tope del menú «Sistema» de H8. `VISTAS_SISTEMA`
+  completo intacto (atajos numéricos 7/8, Paleta de Comandos sin cambios). Móvil ya las
+  tenía tras «⋮» desde H5 — sin cambios ahí.
+- F3/F5: `tests/sistema-secundaria.test.tsx` nuevo (4 casos, RED→GREEN). Nota de proceso:
+  2 aserciones iniciales asumían un heading "Panel" en `DashboardView` que no existe (usa
+  KPIs/Cards, no `<h2>Panel</h2>`) — corregido antes de considerarlas RED válido, usando
+  "Total abiertos" como marcador. No era el ticket, era una suposición errada mía sobre el
+  contenido de la vista; verificar el DOM real antes de escribir la aserción.
+- Verificación: lint ✓ · build ✓ · test 219/219 ✓. SW v19→v20; CHANGELOG (H9) y
+  PRODUCT_BACKLOG.md («Panel/Dashboard y Papelera...» → Hecho) actualizados.
+- Siguiente candidato del Epic 2 (último de la tabla): nombrado consistente entre
+  plataformas — mismo nombre de vista en escritorio y móvil (revisar "Tareas" vs
+  "Pendientes" en `VISTAS_PRIMARIAS`/`VISTAS_SISTEMA`, campo `corto`).
+
+### 2026-08-11 — H10 «Nombrado consistente entre plataformas» — EPIC 2 completo | ✓ cerrado
+- F4: `VISTAS_SISTEMA` en `App.tsx` — `pendientes.corto` pasó de `'Tareas'` a `'Pendientes'`
+  (igual que su `label`; `dashboard`/`papelera` ya coincidían). El campo `corto` de
+  `VISTAS_SISTEMA` no se renderiza en ningún lado hoy (verificado con grep) — corrección
+  preventiva de dato interno, no un bug visible actualmente.
+- Sin test dedicado (nada observable en el DOM); verificado pipeline completo igual.
+- Verificación: lint ✓ · build ✓ · test 219/219 ✓ (sin regresiones). Sin bump de SW.
+  CHANGELOG (H10) y PRODUCT_BACKLOG.md actualizados — **EPIC 2 queda 100% Hecho** (5/5
+  ítems: Navegación primaria de 5, Selector de Espacio activo, Agrupación Sistema,
+  Panel/Papelera secundaria, Nombrado consistente).
+- Siguiente epic sugerido por prioridad P0 del backlog: EPIC 3 (reducción de "Hoy" a su
+  núcleo) o EPIC 6 (sistema tipográfico/espaciado) — ambos P0, sin empezar.
