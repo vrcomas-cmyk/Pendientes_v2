@@ -3,9 +3,9 @@ import { useUI } from '@/ui-store'
 import { toast } from 'sonner'
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from '@/components/ui/command'
-import { Star, ListTodo, StickyNote, Briefcase, BarChart3, Plus, AlertTriangle, Moon, Download, FileSpreadsheet, FileText, CheckSquare, Inbox as InboxIcon, Trash2, Bookmark, ChevronDown } from 'lucide-react'
+import { Star, ListTodo, StickyNote, Briefcase, BarChart3, Plus, AlertTriangle, Moon, Download, FileSpreadsheet, FileText, CheckSquare, Inbox as InboxIcon, Trash2, Bookmark, ChevronDown, LayoutGrid } from 'lucide-react'
 
-type Vista = 'hoy' | 'inbox' | 'pendientes' | 'notas' | 'proyectos' | 'dashboard' | 'papelera'
+type Vista = 'hoy' | 'inbox' | 'proyectos' | 'notas' | 'espacios' | 'pendientes' | 'dashboard' | 'papelera'
 
 const MAX_VISIBLE_ITEMS = 50
 
@@ -80,6 +80,7 @@ export default function PaletaComandos({
             <CommandItem onSelect={() => ejecutar(() => onIrVista('pendientes'))}><ListTodo /> Pendientes</CommandItem>
             <CommandItem onSelect={() => ejecutar(() => onIrVista('notas'))}><StickyNote /> Notas</CommandItem>
             <CommandItem onSelect={() => ejecutar(() => onIrVista('proyectos'))}><Briefcase /> Proyectos</CommandItem>
+            <CommandItem onSelect={() => ejecutar(() => onIrVista('espacios'))}><LayoutGrid /> Espacios</CommandItem>
             <CommandItem onSelect={() => ejecutar(() => onIrVista('dashboard'))}><BarChart3 /> Panel</CommandItem>
             <CommandItem onSelect={() => ejecutar(() => onIrVista('papelera'))}><Trash2 /> Papelera</CommandItem>
           </CommandGroup>

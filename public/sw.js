@@ -1,5 +1,5 @@
 // Sube este numero cada vez que publiques una version nueva -> fuerza actualizacion en todos
-const CACHE = 'pendientes-pro-v11';
+const CACHE = 'pendientes-pro-v18';
 const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/icon-192.png', '/icon-512.png', '/icon-maskable-512.png'];
 
 self.addEventListener('install', (e) => {

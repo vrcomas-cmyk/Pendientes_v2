@@ -28,7 +28,7 @@ la falla más grave detectada en la crítica de producto). Esfuerzo: M. Priorida
 | Registro único de overlay activo | Como sistema, solo un overlay exclusivo puede estar activo a la vez | Alto | S | P0 | Listo para implementar | — |
 | Scrim automático | Como usuario, al abrir un overlay veo el resto de la pantalla atenuado | Alto | XS | P0 | Listo para implementar | Registro único de overlay |
 | Atenuación de widgets bajo overlay | Como usuario, mis widgets flotantes se atenúan (no se ocultan) mientras hay un overlay activo | Medio | S | P0 | Listo para implementar | Registro único de overlay |
-| Confirmación antes de descartar edición en curso | Como usuario, si tengo cambios sin guardar y otro overlay intenta abrirse, se me pregunta antes de perderlos | Alto | S | P0 | Listo para implementar | Registro único de overlay |
+| Confirmación antes de descartar edición en curso | Como usuario, si tengo cambios sin guardar y otro overlay intenta abrirse, se me pregunta antes de perderlos | Alto | S | P0 | Hecho | Registro único de overlay |
 
 ## EPIC 2 — Reestructuración del sidebar y navegación primaria
 
@@ -38,10 +38,11 @@ Prioridad: **P0**.*
 | Feature | Story | Impacto | Esfuerzo | Prioridad | Estado | Dependencias |
 |---|---|---|---|---|---|---|
 | Navegación primaria de 5 ítems | Como usuario, veo solo Hoy/Inbox/Proyectos/Notas/Espacios como destinos de primer nivel | Alto | S | P0 | Listo para implementar | — |
-| Selector de Espacio activo | Como usuario, elijo mi Espacio activo desde un selector colapsable, no una lista fija | Alto | M | P0 | Listo para implementar | Navegación primaria de 5 ítems |
+| Selector de Espacio activo | Como usuario, elijo mi Espacio activo desde un selector colapsable, no una lista fija | Alto | M | P0 | Hecho | Navegación primaria de 5 ítems |
 | Agrupación "Sistema" | Como usuario, Ajustes/Datos/Ayuda viven detrás de un solo punto de entrada | Medio | S | P1 | Listo para implementar | — |
 | Panel/Dashboard y Papelera a navegación secundaria | Como usuario, accedo a consulta ocasional sin que ocupe espacio permanente en el sidebar | Medio | S | P1 | Listo para implementar | Agrupación "Sistema" |
 | Nombrado consistente entre plataformas | Como usuario, veo el mismo nombre de vista en escritorio y móvil | Medio | XS | P1 | Listo para implementar | — |
+| Sincronización de Espacios entre dispositivos | Como usuario, el Espacio que creo en un dispositivo (nombre/icono/color) aparece en mis otros dispositivos, igual que ya pasa con mis pendientes, notas y proyectos | Alto | S | P0 | Hecho | Selector de Espacio activo |
 
 ## EPIC 3 — Reducción de "Hoy" a su núcleo
 

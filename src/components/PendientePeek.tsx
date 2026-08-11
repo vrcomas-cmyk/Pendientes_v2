@@ -17,12 +17,12 @@ import { Pencil, CheckCircle2 } from 'lucide-react'
  */
 export default function PendientePeek() {
   const { pendientes, toggleCompletar, columnas } = useApp()
-  const { peekId, cerrarPeek, abrirModal } = useUI()
+  const { peekId, cerrarPeek, abrirModal, overlay } = useUI()
   const idCompletado = columnas.find(c => c.esCompletado)?.id ?? columnas[columnas.length - 1]?.id ?? 'completado'
   const p = peekId ? pendientes.find(x => x.id === peekId) : null
 
   return (
-    <Dialog open={!!p} onOpenChange={o => { if (!o) cerrarPeek() }}>
+    <Dialog open={overlay === 'peek' && !!p} onOpenChange={o => { if (!o) cerrarPeek() }}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto scroll-thin">
         {p && (
           <>

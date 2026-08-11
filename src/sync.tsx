@@ -2,10 +2,10 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import type { Session } from '@supabase/supabase-js'
 import { toast } from 'sonner'
 import { useApp } from '@/store'
-import type { Nota, Pendiente, Proyecto, EventoCalendario, ColumnaKanban } from '@/types'
+import type { Nota, Pendiente, Proyecto, EventoCalendario, ColumnaKanban, Espacio } from '@/types'
 import { COLUMNAS_DEFECTO } from '@/types'
 import { getConfig, getSupabase, isConfigured, saveConfig } from '@/lib/supabase'
-import { mergeNota, mergePendiente, mergeProyecto, mergeEvento, reconciliar, type MapaSync } from '@/lib/sync-merge'
+import { mergeNota, mergePendiente, mergeProyecto, mergeEvento, mergeEspacio, reconciliar, type MapaSync } from '@/lib/sync-merge'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -41,8 +41,8 @@ const Ctx = createContext<SyncCtx>({
 // eslint-disable-next-line react-refresh/only-export-components -- context hook shared alongside its provider
 export const useSync = () => useContext(Ctx)
 
-interface UltimoSync { pendientes: MapaSync; notas: MapaSync; proyectos: MapaSync; eventos: MapaSync }
-const vacio = (): UltimoSync => ({ pendientes: {}, notas: {}, proyectos: {}, eventos: {} })
+interface UltimoSync { pendientes: MapaSync; notas: MapaSync; proyectos: MapaSync; eventos: MapaSync; espacios: MapaSync }
+const vacio = (): UltimoSync => ({ pendientes: {}, notas: {}, proyectos: {}, eventos: {}, espacios: {} })
 
 /** Ventana (ms) durante la cual un ítem recién subido está protegido de un borrado remoto fantasma por lag de replicación. */
 const GRACIA_SUBIDA = 30000
@@ -91,6 +91,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   const ausenciaN = useRef<Map<string, number>>(new Map())
   const ausenciaPr = useRef<Map<string, number>>(new Map())
   const ausenciaEv = useRef<Map<string, number>>(new Map())
+  const ausenciaEsp = useRef<Map<string, number>>(new Map())
   const pushTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const rtTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   // Si este dispositivo/navegador tiene el almacenamiento local vacío (perfil nuevo, caché
@@ -189,7 +190,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     recalcularPendientes()
     clearTimeout(pushTimer.current)
     pushTimer.current = setTimeout(() => { sincronizar() }, 1000)
-  }, [app.pendientes, app.notas, app.proyectos, app.eventos]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [app.pendientes, app.notas, app.proyectos, app.eventos, app.espacios]) // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ---- online / offline ---- */
   useEffect(() => {
@@ -215,6 +216,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'pnp_notas' }, onRemote)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'pnp_proyectos' }, onRemote)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'pnp_eventos' }, onRemote)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pnp_ctx_espacios' }, onRemote)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pnp_espacios' }, () => { recargarColumnas() })
       .subscribe()
     const intervalo = setInterval(() => { if (navigator.onLine) sincronizar() }, 60000)
@@ -225,7 +227,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 
   function recalcularPendientes() {
     const L = last.current
-    const { pendientes, notas, proyectos, eventos } = appRef.current
+    const { pendientes, notas, proyectos, eventos, espacios } = appRef.current
     const dP = pendientes.filter(p => L.pendientes[p.id] !== p.modificado).length
     const localPids = new Set(pendientes.map(p => p.id))
     const delP = Object.keys(L.pendientes).filter(id => !localPids.has(id)).length
@@ -238,7 +240,10 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     const dEv = eventos.filter(e => L.eventos[e.id] !== e.modificado).length
     const localEvids = new Set(eventos.map(e => e.id))
     const delEv = Object.keys(L.eventos).filter(id => !localEvids.has(id)).length
-    setPorSubir(dP + delP + dN + delN + dPr + delPr + dEv + delEv)
+    const dEsp = espacios.filter(e => L.espacios[e.id] !== e.modificado).length
+    const localEspids = new Set(espacios.map(e => e.id))
+    const delEsp = Object.keys(L.espacios).filter(id => !localEspids.has(id)).length
+    setPorSubir(dP + delP + dN + delN + dPr + delPr + dEv + delEv + dEsp + delEsp)
   }
 
   async function flush() {
@@ -247,7 +252,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     if (!sb) return
     const eid = espacioRef.current
     const L = last.current
-    const { pendientes, notas, proyectos, eventos } = appRef.current
+    const { pendientes, notas, proyectos, eventos, espacios } = appRef.current
     // Defensa: NUNCA borrar de la nube algo subido hace muy poco. Si un ítem
     // recién creado desaparece de la lista local por cualquier carrera de estado,
     // no debe propagarse como borrado. Un borrado real del usuario se aplica igual
@@ -265,7 +270,10 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     const dirtyEv = eventos.filter(e => L.eventos[e.id] !== e.modificado)
     const localEvids = new Set(eventos.map(e => e.id))
     const delEv = Object.keys(L.eventos).filter(id => !localEvids.has(id) && !recienSubido(id))
-    if (!dirtyP.length && !delP.length && !dirtyN.length && !delN.length && !dirtyPr.length && !delPr.length && !dirtyEv.length && !delEv.length) { setEstado('sincronizado'); recalcularPendientes(); return }
+    const dirtyEsp = espacios.filter(e => L.espacios[e.id] !== e.modificado)
+    const localEspids = new Set(espacios.map(e => e.id))
+    const delEsp = Object.keys(L.espacios).filter(id => !localEspids.has(id) && !recienSubido(id))
+    if (!dirtyP.length && !delP.length && !dirtyN.length && !delN.length && !dirtyPr.length && !delPr.length && !dirtyEv.length && !delEv.length && !dirtyEsp.length && !delEsp.length) { setEstado('sincronizado'); recalcularPendientes(); return }
     setEstado('sincronizando')
     const ahora = Date.now()
     try {
@@ -284,6 +292,13 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       if (delPr.length) { const { error } = await sb.from('pnp_proyectos').delete().in('id', delPr); if (error) throw error; delPr.forEach(id => { subidoReciente.current.delete(id) }) }
       if (dirtyEv.length) { const { error } = await sb.from('pnp_eventos').upsert(dirtyEv.map(e => ({ id: e.id, user_id: userId, espacio_id: eid, data: e, updated_at: e.modificado }))); if (error) throw error; dirtyEv.forEach(e => { L.eventos[e.id] = e.modificado; subidoReciente.current.set(e.id, ahora) }) }
       if (delEv.length) { const { error } = await sb.from('pnp_eventos').delete().in('id', delEv); if (error) throw error; delEv.forEach(id => { subidoReciente.current.delete(id) }) }
+      // `pnp_ctx_espacios` en su propio try/catch, igual que en pull(): si la tabla no
+      // existe todavía (migración de H7 no corrida), no debe impedir que pendientes/
+      // notas/proyectos/eventos terminen de subir ni que `guardarLast()` se ejecute.
+      try {
+        if (dirtyEsp.length) { const { error } = await sb.from('pnp_ctx_espacios').upsert(dirtyEsp.map(e => ({ id: e.id, user_id: userId, espacio_id: eid, data: e, updated_at: e.modificado }))); if (error) throw error; dirtyEsp.forEach(e => { L.espacios[e.id] = e.modificado; subidoReciente.current.set(e.id, ahora) }) }
+        if (delEsp.length) { const { error } = await sb.from('pnp_ctx_espacios').delete().in('id', delEsp); if (error) throw error; delEsp.forEach(id => { subidoReciente.current.delete(id) }) }
+      } catch { /* tabla no provisionada aún: se reintenta en el próximo ciclo, sin bloquear el resto */ }
       guardarLast()
       silenciar.current = Date.now() + 2500
       setEstado('sincronizado')
@@ -306,6 +321,19 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         sb.from('pnp_eventos').select('data'),
       ])
       if (ep || en || epr || eev) throw (ep || en || epr || eev)
+      // `pnp_ctx_espacios` se pide APARTE y con su propio try/catch: es una tabla nueva
+      // (H7) que puede no existir todavía si el proyecto de Supabase no corrió la última
+      // versión de `supabase_setup.sql`. Si fallara dentro del `Promise.all` de arriba,
+      // un solo error tumbaría el pull ENTERO — pendientes/notas/proyectos/eventos
+      // dejarían de bajar de la nube por culpa de una tabla que ni siquiera es crítica
+      // todavía. Con esto, sin la tabla, Espacios simplemente no sincroniza (como antes
+      // de H7) y el resto sigue funcionando.
+      let remoteEsp: Espacio[] = []
+      try {
+        const { data: resp, error: eesp } = await sb.from('pnp_ctx_espacios').select('data')
+        if (eesp) throw eesp
+        remoteEsp = (resp || []).map(r => (r as { data: Espacio }).data)
+      } catch { /* tabla no provisionada aún: se reintenta en el próximo ciclo */ }
       // A partir de aquí ya tenemos el estado real de la nube: recién ahora es seguro dejar que
       // el efecto de "subir cambios" empiece a operar (ver comentario en `primerPullListo`).
       primerPullListo.current = true
@@ -321,6 +349,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       const remoteNids = new Set(remoteN.map(n => n.id))
       const remotePrids = new Set(remotePr.map(p => p.id))
       const remoteEvids = new Set(remoteEv.map(e => e.id))
+      const remoteEspids = new Set(remoteEsp.map(e => e.id))
       // Cuenta ausencias remotas consecutivas de ítems conocidos; resetea si reaparecen.
       const contarAusencias = (local: { id: string }[], remoteIds: Set<string>, lastMap: MapaSync, cont: Map<string, number>) => {
         const vivos = new Set(local.map(x => x.id))
@@ -330,32 +359,37 @@ export function SyncProvider({ children }: { children: ReactNode }) {
           else cont.delete(it.id)
         }
       }
-      const { pendientes, notas, proyectos, eventos, reemplazarTodo } = appRef.current
+      const { pendientes, notas, proyectos, eventos, espacios, reemplazarTodo } = appRef.current
       contarAusencias(pendientes, remotePids, L.pendientes, ausenciaP.current)
       contarAusencias(notas, remoteNids, L.notas, ausenciaN.current)
       contarAusencias(proyectos, remotePrids, L.proyectos, ausenciaPr.current)
       contarAusencias(eventos, remoteEvids, L.eventos, ausenciaEv.current)
+      contarAusencias(espacios, remoteEspids, L.espacios, ausenciaEsp.current)
       // Protegido = recién subido (lag) O aún sin confirmar el borrado (menos de 2 ausencias seguidas).
       const protegidoP = (id: string) => (subidoReciente.current.get(id) ?? 0) >= limite || (ausenciaP.current.get(id) ?? 0) < 2
       const protegidoN = (id: string) => (subidoReciente.current.get(id) ?? 0) >= limite || (ausenciaN.current.get(id) ?? 0) < 2
       const protegidoPr = (id: string) => (subidoReciente.current.get(id) ?? 0) >= limite || (ausenciaPr.current.get(id) ?? 0) < 2
       const protegidoEv = (id: string) => (subidoReciente.current.get(id) ?? 0) >= limite || (ausenciaEv.current.get(id) ?? 0) < 2
+      const protegidoEsp = (id: string) => (subidoReciente.current.get(id) ?? 0) >= limite || (ausenciaEsp.current.get(id) ?? 0) < 2
       const resP = reconciliar(pendientes, remoteP, L.pendientes, mergePendiente, protegidoP)
       const resN = reconciliar(notas, remoteN, L.notas, mergeNota, protegidoN)
       const resPr = reconciliar(proyectos, remotePr, L.proyectos, mergeProyecto, protegidoPr)
       const resEv = reconciliar(eventos, remoteEv, L.eventos, mergeEvento, protegidoEv)
+      const resEsp = reconciliar(espacios, remoteEsp, L.espacios, mergeEspacio, protegidoEsp)
       L.pendientes = resP.nextLast
       L.notas = resN.nextLast
       L.proyectos = resPr.nextLast
       L.eventos = resEv.nextLast
+      L.espacios = resEsp.nextLast
       guardarLast()
       // Solo reemplazar el estado si el contenido REALMENTE cambió (evita refrescos que borran lo que escribes)
       const cambioP = !mismaLista(pendientes, resP.resultado)
       const cambioN = !mismaLista(notas, resN.resultado)
       const cambioPr = !mismaLista(proyectos, resPr.resultado)
       const cambioEv = !mismaLista(eventos, resEv.resultado)
-      if (cambioP || cambioN || cambioPr || cambioEv) reemplazarTodo(resP.resultado, resN.resultado, undefined, resPr.resultado, resEv.resultado)
-      const conf = resP.conflictos.length + resN.conflictos.length + resPr.conflictos.length + resEv.conflictos.length
+      const cambioEsp = !mismaLista(espacios, resEsp.resultado)
+      if (cambioP || cambioN || cambioPr || cambioEv || cambioEsp) reemplazarTodo(resP.resultado, resN.resultado, undefined, resPr.resultado, resEv.resultado, resEsp.resultado)
+      const conf = resP.conflictos.length + resN.conflictos.length + resPr.conflictos.length + resEv.conflictos.length + resEsp.conflictos.length
       if (conf > 0) toast.info(`Se combinaron cambios de otro dispositivo en ${conf} elemento(s)`)
       recalcularPendientes()
     } catch {

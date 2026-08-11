@@ -3,7 +3,6 @@ import { Toaster, toast } from 'sonner'
 import { AppProvider, useApp } from '@/store'
 import { UIProvider, useUI } from '@/ui-store'
 import { columnaDe, idColumnaCompletado } from '@/lib/columnas'
-import { PROYECTO_COLORES } from '@/types'
 import { descargar, hoyISO, vencido, parsearLinea, fechaPorPrioridad, activo, asignarProyecto, normalizarNombreProyecto } from '@/lib/app-utils'
 import { generarICS, generarMarkdown, generarHTMLImprimible } from '@/lib/exportar'
 import { useIsMobile } from '@/hooks/use-is-mobile'
@@ -17,14 +16,13 @@ import PaletaComandos from '@/components/PaletaComandos'
 import { manejarCallbackOAuth, listarCuentasGoogle, type CuentaGoogle } from '@/lib/googleCalendar'
 import CuentasGoogleDialog from '@/components/CuentasGoogleDialog'
 import EspacioDialog from '@/components/EspacioDialog'
-import NuevoEspacioDialog from '@/components/NuevoEspacioDialog'
 import ImportarCsvDialog from '@/components/ImportarCsvDialog'
 import SkipLink from '@/components/SkipLink'
 import { useRecordatoriosLocales } from '@/hooks/use-recordatorios-locales'
 import WidgetsLayer from '@/components/widgets/WidgetsLayer'
 import { WidgetsProvider, useWidgets } from '@/widgets-store'
 import { WIDGET_DEFAULTS, type WidgetTipo } from '@/lib/widgets'
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu'
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
 import AjustesDialog from '@/components/AjustesDialog'
 import { aplicarAcento, leerAcento } from '@/lib/tema'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
@@ -32,7 +30,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import {
   Star, ListTodo, BarChart3, StickyNote, Briefcase, Inbox as InboxIcon,
-  Plus, Moon, Sun, Download, Upload, FileSpreadsheet, AlertTriangle, User, MoreVertical, LogOut, LogIn, HelpCircle, CalendarClock, Users, Settings2, Trash2, Search, LayoutGrid, Timer, Columns3, PenLine, ArrowRightCircle, FileText,
+  Plus, Moon, Sun, Download, Upload, FileSpreadsheet, AlertTriangle, User, MoreVertical, LogOut, LogIn, HelpCircle, CalendarClock, Users, Settings2, Trash2, Search, LayoutGrid, Timer, Columns3, PenLine, ArrowRightCircle, FileText, ChevronDown,
 } from 'lucide-react'
 
 const TodayView = lazy(() => import('@/views/OtherViews').then(m => ({ default: m.TodayView })))
@@ -40,13 +38,14 @@ const DashboardView = lazy(() => import('@/views/OtherViews').then(m => ({ defau
 const PendientesView = lazy(() => import('@/views/PendientesView'))
 const NotesView = lazy(() => import('@/views/NotesView'))
 const ProyectosView = lazy(() => import('@/views/ProyectosView'))
+const EspaciosView = lazy(() => import('@/views/EspaciosView'))
 const PapeleraView = lazy(() => import('@/views/PapeleraView'))
 const InboxView = lazy(() => import('@/views/InboxView'))
 
 const LS_VISTA = 'pn_vista'
-const VISTAS_VALIDAS = ['hoy', 'inbox', 'pendientes', 'notas', 'proyectos', 'dashboard', 'papelera'] as const
+const VISTAS_VALIDAS = ['hoy', 'inbox', 'proyectos', 'notas', 'espacios', 'pendientes', 'dashboard', 'papelera'] as const
 
-type Vista = 'hoy' | 'inbox' | 'pendientes' | 'notas' | 'proyectos' | 'dashboard' | 'papelera'
+type Vista = 'hoy' | 'inbox' | 'proyectos' | 'notas' | 'espacios' | 'pendientes' | 'dashboard' | 'papelera'
 
 function ViewSkeleton() {
   return (
@@ -67,13 +66,14 @@ function ViewSkeleton() {
 const VISTAS_PRIMARIAS: { id: Vista; label: string; corto: string; icon: React.ReactNode }[] = [
   { id: 'hoy', label: 'Hoy', corto: 'Hoy', icon: <Star size={18} /> },
   { id: 'inbox', label: 'Inbox', corto: 'Inbox', icon: <InboxIcon size={18} /> },
-  { id: 'pendientes', label: 'Pendientes', corto: 'Tareas', icon: <ListTodo size={18} /> },
-  { id: 'notas', label: 'Notas', corto: 'Notas', icon: <StickyNote size={18} /> },
   { id: 'proyectos', label: 'Proyectos', corto: 'Proyectos', icon: <Briefcase size={18} /> },
+  { id: 'notas', label: 'Notas', corto: 'Notas', icon: <StickyNote size={18} /> },
+  { id: 'espacios', label: 'Espacios', corto: 'Espacios', icon: <LayoutGrid size={18} /> },
 ]
 const VISTAS_SISTEMA: { id: Vista; label: string; corto: string; icon: React.ReactNode }[] = [
   { id: 'dashboard', label: 'Panel', corto: 'Panel', icon: <BarChart3 size={18} /> },
   { id: 'papelera', label: 'Papelera', corto: 'Papelera', icon: <Trash2 size={18} /> },
+  { id: 'pendientes', label: 'Pendientes', corto: 'Tareas', icon: <ListTodo size={18} /> },
 ]
 const VISTAS = [...VISTAS_PRIMARIAS, ...VISTAS_SISTEMA]
 
@@ -87,8 +87,8 @@ const WIDGET_ICONOS: Record<WidgetTipo, React.ReactNode> = {
 function Shell() {
   const app = useApp()
   const ui = useUI()
-  const { pendientes, notas, proyectos, eventos, usuario, setUsuario, crearPendiente, crearNota, reemplazarTodo, espacios, filtrosGuardados } = app
-  const { abrirModal, notaActualId, setNotaActualId, proyectoAbiertoId, setProyectoAbiertoId, setFiltroFecha, espacioActualId, setEspacioActualId, setFiltroActivoId } = ui
+  const { pendientes, notas, proyectos, espacios, eventos, usuario, setUsuario, crearPendiente, crearNota, reemplazarTodo, filtrosGuardados } = app
+  const { abrirModal, paletaAbierta, abrirPaleta, cerrarPaleta, notaActualId, setNotaActualId, proyectoAbiertoId, setProyectoAbiertoId, setFiltroFecha, setFiltroActivoId, espacioActualId, setEspacioActualId } = ui
   const sync = useSync()
   const { abrirWidget } = useWidgets()
   const isMobile = useIsMobile()
@@ -107,15 +107,14 @@ function Shell() {
     return window.matchMedia('(prefers-color-scheme: dark)').matches
   })
   const [menuAbierto, setMenuAbierto] = useState(false)
+  const [espaciosMovilAbierto, setEspaciosMovilAbierto] = useState(false)
   const [nombreDlg, setNombreDlg] = useState(false)
   const [nombreVal, setNombreVal] = useState('')
   const [importDlg, setImportDlg] = useState(false)
   const [ayudaAbierta, setAyudaAbierta] = useState(false)
-  const [paletaAbierta, setPaletaAbierta] = useState(false)
   const [cuentasGoogle, setCuentasGoogle] = useState<CuentaGoogle[]>([])
   const [cuentasGoogleDlg, setCuentasGoogleDlg] = useState(false)
   const [espacioDlg, setEspacioDlg] = useState(false)
-  const [nuevoEspacioDlg, setNuevoEspacioDlg] = useState(false)
   const [importarCsvDlg, setImportarCsvDlg] = useState(false)
   const [ajustesDlg, setAjustesDlg] = useState(false)
   const [quickTexto, setQuickTexto] = useState('')
@@ -129,9 +128,12 @@ function Shell() {
   const confirmarNombre = () => { const n = nombreVal.trim(); if (n) setUsuario(n); setNombreDlg(false) }
 
   const setVista = (v: Vista) => {
-    // Al tocar "Notas"/"Proyectos" en la navegación, siempre mostrar la lista (no un detalle abierto)
-    if (v === 'notas') setNotaActualId(null)
-    if (v === 'proyectos') setProyectoAbiertoId(null)
+    // Al navegar SIEMPRE mostrar la vista elegida (y su lista), no un detalle abierto que
+    // `vistaMostrada` forzaría: con una nota/proyecto abierto, clickear "Pendientes" en la
+    // navegación no tenía ningún efecto (había que pulsar Esc). El detalle se abre por su
+    // cuenta (chip/tarjeta) y Esc o "Volver" siguen cerrando "solo" el detalle sin cambiar vista.
+    setNotaActualId(null)
+    setProyectoAbiertoId(null)
     setVistaState(v)
     try { localStorage.setItem(LS_VISTA, v) } catch { /* noop */ }
   }
@@ -147,7 +149,7 @@ function Shell() {
       const tag = (e.target as HTMLElement).tagName
       const editando = tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable
       if (e.key === '?' && !editando) { e.preventDefault(); setAyudaAbierta(true); return }
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setPaletaAbierta(v => !v); return }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); if (paletaAbierta) cerrarPaleta(); else abrirPaleta(); return }
       if (editando) return
       if (e.key.toLowerCase() === 'n' && e.shiftKey) { e.preventDefault(); crearNota(); return }
       if (e.key.toLowerCase() === 'n') { e.preventDefault(); abrirModal() }
@@ -155,16 +157,16 @@ function Shell() {
       if (e.key === 'Escape') { if (notaActualId) setNotaActualId(null); else if (proyectoAbiertoId) setProyectoAbiertoId(null) }
       if (e.ctrlKey && e.shiftKey && ['1', '2', '3', '4'].includes(e.key)) {
         // Filtros guardados (Fase 8.3): NO son los dígitos sueltos 6-9 que el plan original
-        // reservaba — esos ya los usa la navegación de vistas (hoy son 7, no 5). Ver types.ts.
+        // reservaba — esos ya los usa la navegación de vistas (hoy son 8, no 5). Ver types.ts.
         const filtro = filtrosGuardados.find(f => f.atajo === e.key)
         if (filtro) { e.preventDefault(); setVista('pendientes'); setFiltroActivoId(filtro.id) }
         return
       }
-      if (['1', '2', '3', '4', '5', '6', '7'].includes(e.key)) { e.preventDefault(); setVista(VISTAS_VALIDAS[Number(e.key) - 1] as Vista) }
+      if (['1', '2', '3', '4', '5', '6', '7', '8'].includes(e.key)) { e.preventDefault(); setVista(VISTAS_VALIDAS[Number(e.key) - 1] as Vista) }
     }
     window.addEventListener('keydown', h)
     return () => window.removeEventListener('keydown', h)
-  }, [abrirModal, crearNota, notaActualId, proyectoAbiertoId, filtrosGuardados, setFiltroActivoId]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [abrirModal, crearNota, notaActualId, proyectoAbiertoId, filtrosGuardados, setFiltroActivoId, paletaAbierta, abrirPaleta, cerrarPaleta]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Tema: si el usuario ya eligió explícitamente (toggleDark guardó 'darkMode'), se respeta.
   // Si nunca lo tocó, la app sigue el tema del sistema operativo en vivo.
@@ -296,6 +298,7 @@ function Shell() {
       {vistaMostrada === 'pendientes' && <PendientesView />}
       {vistaMostrada === 'notas' && <NotesView />}
       {vistaMostrada === 'proyectos' && <ProyectosView />}
+      {vistaMostrada === 'espacios' && <EspaciosView onEntrar={() => setVista('proyectos')} />}
       {vistaMostrada === 'dashboard' && <DashboardView />}
       {vistaMostrada === 'papelera' && <PapeleraView />}
     </Suspense>
@@ -317,7 +320,7 @@ function Shell() {
           className="flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-medium transition-colors duration-150 hover:bg-accent">
           <ListTodo size={15} className="text-primary" /> Pendiente
         </button>
-        <button onClick={() => setPaletaAbierta(true)} title="Buscar (Ctrl+K)"
+        <button onClick={() => abrirPaleta()} title="Buscar (Ctrl+K)"
           className="flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-medium transition-colors duration-150 hover:bg-accent">
           <Search size={15} className="text-primary" /> Buscar
         </button>
@@ -395,10 +398,9 @@ function Shell() {
       <AyudaAtajos open={ayudaAbierta} onOpenChange={setAyudaAbierta} />
       <CuentasGoogleDialog open={cuentasGoogleDlg} onOpenChange={setCuentasGoogleDlg} cuentas={cuentasGoogle} onCambio={recargarCuentasGoogle} />
       <EspacioDialog open={espacioDlg} onOpenChange={setEspacioDlg} />
-      <NuevoEspacioDialog open={nuevoEspacioDlg} onOpenChange={setNuevoEspacioDlg} />
       <ImportarCsvDialog open={importarCsvDlg} onOpenChange={setImportarCsvDlg} />
       <AjustesDialog open={ajustesDlg} onOpenChange={setAjustesDlg} dark={dark} toggleDark={toggleDark} onIrTablero={() => { setVista('pendientes') }} />
-      <PaletaComandos open={paletaAbierta} onOpenChange={setPaletaAbierta}
+      <PaletaComandos open={paletaAbierta} onOpenChange={o => (o ? abrirPaleta() : cerrarPaleta())}
         onIrVista={setVista} onAlternarTema={toggleDark} onExportarJSON={exportarJSON} onExportarCSV={exportarCSV} onVerVencidos={verVencidos} />
     </>
   )
@@ -444,8 +446,36 @@ function Shell() {
                   </>
                 )}
                 <div className="border-t" />
+                <button onClick={() => setEspaciosMovilAbierto(v => !v)}
+                  aria-label={espacioActualId ? `Espacio activo: ${(espacios.find(e => e.id === espacioActualId)?.icono || '📋')} ${espacios.find(e => e.id === espacioActualId)?.nombre || 'Todos'}` : 'Espacio activo: Todos'}
+                  className="flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-accent">
+                  <LayoutGrid size={15} />
+                  <span>{espacioActualId ? `Espacio activo: ${(espacios.find(e => e.id === espacioActualId)?.icono || '📋')} ${espacios.find(e => e.id === espacioActualId)?.nombre || 'Todos'}` : 'Espacio activo: Todos'}</span>
+                  <ChevronDown size={12} className={'ml-auto shrink-0 transition-transform ' + (espaciosMovilAbierto ? 'rotate-180' : '')} />
+                </button>
+                {espaciosMovilAbierto && (
+                  <div className="pl-8">
+                    <button onClick={() => { setEspacioActualId(null); setMenuAbierto(false) }}
+                      className={'flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-accent ' + (espacioActualId == null ? 'text-primary font-semibold' : '')}>
+                      <span aria-hidden>📋</span> Todos
+                    </button>
+                    {espacios.map(e => {
+                      const activos = proyectos.filter(p => p.espacioId === e.id && !p.archivado).length
+                      return (
+                        <button key={e.id} onClick={() => { setEspacioActualId(e.id); setMenuAbierto(false) }}
+                          className={'flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-accent ' + (espacioActualId === e.id ? 'text-primary font-semibold' : '')}>
+                          <span aria-hidden>{e.icono}</span>
+                          <span className="flex-1 text-left">{e.nombre}</span>
+                          <span className="ml-auto text-[10px] text-muted-foreground">{activos}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+                <div className="border-t" />
                 <button onClick={() => { setMenuAbierto(false); setVista('dashboard') }} className="flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-accent"><BarChart3 size={15} /> Panel</button>
                 <button onClick={() => { setMenuAbierto(false); setVista('papelera') }} className="flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-accent"><Trash2 size={15} /> Papelera</button>
+                <button onClick={() => { setMenuAbierto(false); setVista('pendientes') }} className="flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-accent"><ListTodo size={15} /> Pendientes</button>
                 <div className="border-t" />
                 <button onClick={() => { setMenuAbierto(false); setAjustesDlg(true) }} className="flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-accent"><Settings2 size={15} /> Ajustes</button>
                 <button onClick={() => { setMenuAbierto(false); abrirNombreDlg() }} className="flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-accent"><User size={15} /> Nombre: {usuario}</button>
@@ -477,7 +507,8 @@ function Shell() {
         </main>
         {fabCaptura}
 
-        {/* Barra inferior de vistas — solo los 5 destinos primarios; Panel/Papelera viven en «⋮» */}
+        {/* Barra inferior de vistas — solo los 5 destinos primarios; Pendientes/Panel/Papelera
+            viven en «⋮» (agrupación Sistema, PDS §5.3) */}
         <nav className="grid shrink-0 grid-cols-5 border-t bg-card">
           {VISTAS_PRIMARIAS.map(v => (
             <button key={v.id} onClick={() => setVista(v.id)} aria-current={vistaMostrada === v.id ? 'page' : undefined}
@@ -515,14 +546,35 @@ function Shell() {
               className={'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ' + (vistaMostrada === v.id ? 'bg-primary text-primary-foreground shadow-sm' : 'hover:bg-accent')}>
               <span className="w-5 shrink-0">{v.icon}</span>
               <span className="flex-1 whitespace-nowrap text-left">{v.label}</span>
-              {v.id === 'pendientes' && nAbiertos > 0 && (
-                <span className="whitespace-nowrap rounded-full bg-muted px-1.5 text-[10px] text-muted-foreground">{nAbiertos}</span>
-              )}
               {v.id === 'inbox' && nInbox > 0 && (
                 <span className="whitespace-nowrap rounded-full bg-muted px-1.5 text-[10px] text-muted-foreground">{nInbox}</span>
               )}
             </button>
           ))}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-accent text-muted-foreground" aria-label={espacioActualId ? `Espacio activo: ${(espacios.find(e => e.id === espacioActualId)?.icono || '📋')} ${espacios.find(e => e.id === espacioActualId)?.nombre || 'Todos'}` : 'Espacio activo: Todos'}>
+                <span>{espacioActualId ? `Espacio activo: ${(espacios.find(e => e.id === espacioActualId)?.icono || '📋')} ${espacios.find(e => e.id === espacioActualId)?.nombre || 'Todos'}` : 'Espacio activo: Todos'}</span>
+                <ChevronDown size={12} className="ml-auto shrink-0" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" side="right" className="w-52">
+              <DropdownMenuItem onClick={() => setEspacioActualId(null)} className="flex items-center gap-2">
+                <span aria-hidden>📋</span> Todos
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              {espacios.map(e => {
+                const activos = proyectos.filter(p => p.espacioId === e.id && !p.archivado).length
+                return (
+                  <DropdownMenuItem key={e.id} onClick={() => setEspacioActualId(e.id)} className="flex items-center gap-2">
+                    <span aria-hidden>{e.icono}</span>
+                    <span className="flex-1 text-left">{e.nombre}</span>
+                    <span className="ml-auto text-[10px] text-muted-foreground">{activos}</span>
+                  </DropdownMenuItem>
+                )
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
           <div className="my-2 border-t" />
           {/* Sistema: consulta ocasional (PDS.md §5.3) — no compite visualmente con los 5
               destinos primarios de uso diario de arriba. */}
@@ -532,6 +584,9 @@ function Shell() {
               className={'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ' + (vistaMostrada === v.id ? 'bg-primary text-primary-foreground shadow-sm' : 'hover:bg-accent')}>
               <span className="w-5 shrink-0">{v.icon}</span>
               <span className="flex-1 whitespace-nowrap text-left">{v.label}</span>
+              {v.id === 'pendientes' && nAbiertos > 0 && (
+                <span className="whitespace-nowrap rounded-full bg-muted px-1.5 text-[10px] text-muted-foreground">{nAbiertos}</span>
+              )}
             </button>
           ))}
           <div className="my-2 border-t" />
@@ -546,31 +601,6 @@ function Shell() {
             <Settings2 size={16} className="w-5 shrink-0 text-muted-foreground" />
             <span className="flex-1 whitespace-nowrap text-left">Ajustes</span>
           </button>
-
-          <div className="my-2 border-t" />
-          <div className="flex items-center justify-between px-3 py-1">
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Espacios</span>
-            <button onClick={() => setNuevoEspacioDlg(true)} title="Nuevo espacio" aria-label="Nuevo espacio"
-              className="rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"><Plus size={13} /></button>
-          </div>
-          <button onClick={() => setEspacioActualId(null)}
-            className={'flex w-full items-center gap-3 rounded-lg px-3 py-1.5 text-sm ' + (espacioActualId === null ? 'bg-accent font-semibold' : 'hover:bg-accent')}>
-            <span className="w-5 shrink-0 text-center">📋</span>
-            <span className="flex-1 whitespace-nowrap text-left">Todos</span>
-          </button>
-          {espacios.map(e => (
-            <button key={e.id} onClick={() => setEspacioActualId(e.id)}
-              className={'flex w-full items-center gap-3 rounded-lg px-3 py-1.5 text-sm ' + (espacioActualId === e.id ? 'bg-accent font-semibold' : 'hover:bg-accent')}>
-              <span className="w-5 shrink-0 text-center">{e.icono}</span>
-              <span className="flex-1 truncate text-left">{e.nombre}</span>
-              <span className={'h-1.5 w-1.5 shrink-0 rounded-full ' + (PROYECTO_COLORES[e.color]?.dot || '')} />
-            </button>
-          ))}
-          {!espacios.length && (
-            <button onClick={() => setNuevoEspacioDlg(true)} className="w-full rounded-lg px-3 py-1.5 text-left text-xs text-muted-foreground hover:bg-accent">
-              + Crea tu primer espacio
-            </button>
-          )}
         </div>
         <div className="space-y-0.5 border-t p-1.5">
           <button onClick={exportarJSON} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-accent"><Download size={16} className="w-5 shrink-0" /><span className="whitespace-nowrap">Exportar JSON</span></button>

@@ -313,8 +313,85 @@ export function parsearLinea(raw: string): LineaParseada | null {
   return { titulo, descripcion, responsable: resps.join(', '), prioridad, fechaLimite: ef.fecha, repetir: rep.regla }
 }
 
+/* ---- H1 — Minuta: viñetas anidadas → subtareas ----
+   Una minuta reutilizable (escuela/trabajo/día a día) es una nota cuyas viñetas de nivel
+   superior (- ) generan pendientes y las viñetas indentadas (2+ espacios) generan sus
+   subtareas. Puro texto → sin acoplar al DOM del editor. */
+
+export interface SubtareaLigera { texto: string; responsable?: string; fechaLimite?: string }
+export interface EntradaMinuta extends Omit<LineaParseada, 'titulo'> {
+  titulo: string
+  subtareas: SubtareaLigera[]
+}
+
+/** Convierte una línea ya parseada en los campos de una Subtarea (texto + responsable + fecha). */
+export function subtareaDeLinea(parsed: LineaParseada): SubtareaLigera {
+  const texto = parsed.descripcion ? `${parsed.titulo}: ${parsed.descripcion}` : parsed.titulo
+  return { texto, responsable: parsed.responsable || undefined, fechaLimite: parsed.fechaLimite }
+}
+
+/** Agrupa el texto de una nota en pendientes (viñetas sin sangría) y sus subtareas (indentadas).
+    La prosa (líneas sin viñeta) se ignora; la profundidad se aplana a un nivel (H1). */
+export function parsearMinuta(texto: string): EntradaMinuta[] {
+  const resultado: EntradaMinuta[] = []
+  let actual: EntradaMinuta | null = null
+  for (const rawLinea of String(texto).split(/\r?\n/)) {
+    const sangria = (rawLinea.match(/^\s*/)?.[0].length) ?? 0
+    const linea = rawLinea.replace(/^\s+/, '')
+    if (!/^[-*+•]\s/.test(linea)) continue
+    const parsed = parsearLinea(linea)
+    if (!parsed) continue
+    const entrada: EntradaMinuta = { ...parsed, subtareas: [] }
+    if (sangria >= 2 && actual) actual.subtareas.push(subtareaDeLinea(parsed))
+    else { actual = entrada; resultado.push(entrada) }
+  }
+  return resultado
+}
+
 export function esBullet(texto: string): boolean {
   return /^\s*[-*+•]\s+\S/.test(texto)
+}
+
+/* ---- H2 — Promoción: subtareas ↔ pendientes ----
+   Parte pura y testeable de A2/A3 (un pendiente con subtareas → proyecto real;
+   una subtarea → pendiente independiente). El store orquesta llamando a estas. */
+
+/** Encuentra una subtarea por id recorriendo `children` en profundidad. */
+export function buscarSubtarea(arr: Subtarea[], sid: string): Subtarea | null {
+  for (const s of arr) {
+    if (s.id === sid) return s
+    if (s.children) {
+      const r = buscarSubtarea(s.children, sid)
+      if (r) return r
+    }
+  }
+  return null
+}
+
+/** Devuelve una copia del árbol de subtareas sin la indicada (inmutable, recursivo). */
+export function quitarSubtarea(arr: Subtarea[], sid: string): Subtarea[] {
+  return arr
+    .filter((s) => s.id !== sid)
+    .map((s) => (s.children ? { ...s, children: quitarSubtarea(s.children, sid) } : s))
+}
+
+/** A2 — convierte las subtareas de un pendiente en Pendientes del proyecto recién creado:
+    cada sub-subtarea (`children`) pasa a ser subtarea del pendiente que la contiene. */
+export function pendientesDesdeSubtareas(
+  p: Pick<Pendiente, 'subtareas' | 'responsable' | 'prioridad' | 'origenNota'>,
+  proyectoId: string | undefined,
+  proyecto: string,
+): Pendiente[] {
+  return p.subtareas.map((sub) => normalizar({
+    titulo: sub.texto,
+    responsable: sub.responsable || p.responsable,
+    fechaLimite: sub.fechaLimite || '',
+    prioridad: p.prioridad,
+    proyectoId,
+    proyecto,
+    origenNota: p.origenNota,
+    subtareas: (sub.children || []).map((c) => ({ ...c })),
+  }))
 }
 
 /* Persistencia segura: localStorage si existe, memoria si no */
@@ -406,6 +483,33 @@ export function googleCalendarUrl(titulo: string, fecha: string, hora?: string, 
     los archivados (estilo Gmail) y los borrados suaves que viven en la Papelera. */
 export function activo(p: Pendiente): boolean {
   return !p.archivado && !p.borrado
+}
+
+/** Filtro de contexto por Espacio (Fase 4 / E2): decide si un pendiente se muestra con el
+    espacio activo. `espacioActualId === null` = «Todos» (nada se filtra). Con un espacio
+    activo, el pendiente aparece SOLO si su `proyectoId` resuelve a un proyecto cuyo
+    `espacioId` coincide con el activo. Los pendientes sin proyecto (sin clasificar) y los
+    proyectos del Espacio "General" implícito (sin `espacioId`) quedan fuera por diseño: ese
+    es justamente el valor del filtro de contexto. `proyectos` es un map id→proyecto ya
+    memoizado por quien llama (cada vista construye el suyo a partir del store). */
+export function enEspacio(
+  p: { proyectoId?: string | null },
+  espacioActualId: string | null,
+  proyectos: Record<string, { espacioId?: string | null }>,
+): boolean {
+  if (espacioActualId == null) return true
+  if (!p.proyectoId) return false
+  const proyecto = proyectos[p.proyectoId]
+  if (!proyecto) return false
+  return proyecto.espacioId === espacioActualId
+}
+
+/** Variante para proyectos (se usa en `ProyectosView`): mismo criterio que `enEspacio` pero
+    sin resolver el map — el propio proyecto ya declara su `espacioId`. `espacioActualId ===
+    null` = «Todos», y un proyecto solo se muestra si pertenece al espacio activo. */
+export function enEspacioProyecto(pr: { espacioId?: string | null }, espacioActualId: string | null): boolean {
+  if (espacioActualId == null) return true
+  return pr.espacioId === espacioActualId
 }
 
 /** Fecha flexible desde texto pegado de Excel: `dd/mm/aaaa`, `dd-mm-aaaa`, `aaaa-mm-dd`,

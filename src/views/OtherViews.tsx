@@ -4,7 +4,7 @@ import { useUI } from '@/ui-store'
 import { useSync } from '@/sync'
 import type { EventoCalendario, Pendiente } from '@/types'
 import { PROYECTO_COLORES, PROYECTO_COLORES_KEYS } from '@/types'
-import { hoyISO, isoMasDias, isoSumarDias, vencido, activo, actividadPorDia, rachaDiaria, medianaTiempoVida, throughputSemanal, nombreDiaSemana } from '@/lib/app-utils'
+import { hoyISO, isoMasDias, isoSumarDias, vencido, activo, enEspacio, actividadPorDia, rachaDiaria, medianaTiempoVida, throughputSemanal, nombreDiaSemana } from '@/lib/app-utils'
 import { idColumnaCompletado } from '@/lib/columnas'
 import { listarEventosDia, type EventoGCal } from '@/lib/googleCalendar'
 import { sinDuplicarLocal } from '@/lib/agenda'
@@ -246,9 +246,20 @@ function TimelineHoy({ pendientesHoy }: { pendientesHoy: Pendiente[] }) {
 }
 
 export function TodayView() {
-  const { pendientes: todosPendientes, columnas } = useApp()
+  const { pendientes: todosPendientes, columnas, proyectos } = useApp()
+  const { espacioActualId } = useUI()
   const idCompletado = idColumnaCompletado(columnas)
-  const pendientes = useMemo(() => todosPendientes.filter(activo), [todosPendientes])
+  // Map id→proyecto para `enEspacio`: memoizado, todas las secciones de Hoy derivan de la
+  // lista `pendientes` de abajo, así el filtro de contexto se hereda en cadena.
+  const proyectosPorId = useMemo(() => {
+    const m: Record<string, { espacioId?: string | null }> = {}
+    for (const pr of proyectos) m[pr.id] = { espacioId: pr.espacioId }
+    return m
+  }, [proyectos])
+  const pendientes = useMemo(
+    () => todosPendientes.filter(p => activo(p) && enEspacio(p, espacioActualId, proyectosPorId)),
+    [todosPendientes, espacioActualId, proyectosPorId],
+  )
   const [diaSel, setDiaSel] = useState<string | null>(null)
   const h = hoyISO()
   const limite7 = isoMasDias(7)

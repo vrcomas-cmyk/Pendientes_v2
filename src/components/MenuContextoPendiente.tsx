@@ -12,7 +12,7 @@ import {
     misma lista de acciones tres veces. El llamador solo pone `<ContextMenu><ContextMenuTrigger
     asChild>{tarjeta}</ContextMenuTrigger><MenuContextoPendiente p={p} /></ContextMenu>`. */
 export default function MenuContextoPendiente({ p }: { p: Pendiente }) {
-  const { columnas, proyectos, toggleCompletar, duplicarPendiente, archivarPendiente, desarchivarPendiente, eliminarPendiente, moverEstado, actualizarPendiente } = useApp()
+  const { columnas, proyectos, toggleCompletar, duplicarPendiente, archivarPendiente, desarchivarPendiente, eliminarPendiente, moverEstado, actualizarPendiente, promoverPendienteAProyecto } = useApp()
   const { abrirModal } = useUI()
   const idCompletado = idColumnaCompletado(columnas)
   const completado = p.estado === idCompletado
@@ -22,6 +22,7 @@ export default function MenuContextoPendiente({ p }: { p: Pendiente }) {
       <ContextMenuItem onClick={() => toggleCompletar(p.id)}>{completado ? 'Reabrir' : 'Completar'}</ContextMenuItem>
       <ContextMenuItem onClick={() => abrirModal(p.id)}>Editar</ContextMenuItem>
       <ContextMenuItem onClick={() => duplicarPendiente(p.id)}>Duplicar</ContextMenuItem>
+      <ContextMenuItem disabled={p.subtareas.length === 0} onClick={() => promoverPendienteAProyecto(p.id)}>Convertir en proyecto</ContextMenuItem>
       <ContextMenuSub>
         <ContextMenuSubTrigger>Mover a columna</ContextMenuSubTrigger>
         <ContextMenuSubContent>

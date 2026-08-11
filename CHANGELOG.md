@@ -53,6 +53,263 @@ sienta las bases para las siguientes fases. El cache del Service Worker sube a `
 
 ## [Unreleased]
 
+### H7c — `supabase_setup.sql` actualizado a la función real desplegada (2026-08-11)
+
+Al aplicar la migración de H7 vía Supabase se descubrió que la base real ya tenía una
+versión de `pnp_canjear_invitacion` más robusta que la del repo — de trabajo anterior no
+reflejado en `supabase_setup.sql`. El archivo del repo quedaba desactualizado respecto a
+producción: quien lo corriera de cero (o lo usara como referencia) habría desplegado una
+función peor que la vigente. `src/lib/espacio.ts` ya estaba escrito contra la versión real
+(solo revisa `error`/`err.message`), así que no hizo falta tocar código de cliente.
+
+- **Cambiado** `supabase_setup.sql`: `pnp_invitaciones` gana columnas `aceptada_por`/
+  `aceptada_en` (marca de canje, en vez de borrar la fila al usarse); `pnp_canjear_invitacion`
+  reescrita para devolver `uuid` (el `espacio_id`) y levantar excepciones con mensaje
+  específico (código inválido / expirado / ya usado / email no coincide / cuenta ya en un
+  espacio) en vez de devolver `boolean` en silencio.
+- Sin cambios de código de cliente ni de tests — es un archivo de referencia SQL, no
+  ejecutado por la suite; la base real de producción ya tenía este esquema antes de esta
+  actualización del repo.
+
+### H7b — Reparación: la migración pendiente de H7 rompía TODA la sincronización (2026-08-11)
+
+El usuario reportó no ver registros anteriores tras H7. Causa: `pull()` pedía
+`pnp_ctx_espacios` dentro del mismo `Promise.all` que las cuatro tablas críticas
+(pendientes/notas/proyectos/eventos) y abortaba TODO el pull si cualquiera fallaba — si el
+proyecto de Supabase todavía no había corrido el `supabase_setup.sql` actualizado (tabla
+`pnp_ctx_espacios` inexistente), el error de esa tabla nueva tumbaba la descarga completa,
+así que nada de lo que ya existía en la nube (de otro dispositivo, o de antes de esta
+sesión) volvía a bajar. `flush()` tenía el mismo problema en la dirección contraria: si
+había Espacios locales sin subir, su error de upsert impedía `guardarLast()` para todo lo
+demás que sí se había subido con éxito.
+
+- **Cambiado** `src/sync.tsx`: la consulta/subida de `pnp_ctx_espacios` en `pull()` y
+  `flush()` ahora vive en su propio `try/catch`, aislada de las cuatro colecciones
+  originales. Si la tabla no existe todavía, Espacios simplemente no sincroniza (igual que
+  antes de H7) y pendientes/notas/proyectos/eventos siguen funcionando con normalidad; se
+  reintenta en el próximo ciclo sin intervención.
+- Verificado con `npm run lint`, `npm run build`, `npm run test` (209/209 — sin tests
+  nuevos: el bug es de fontanería de red, no cubierto por la suite actual de `sync.tsx`).
+- **Recordatorio**: sigue siendo necesario correr `supabase_setup.sql` (idempotente) para
+  que Espacios sincronice — este fix solo evita que su ausencia rompa lo demás mientras
+  tanto.
+
+### H7 — Sincronización de Espacios entre dispositivos (2026-08-10)
+
+Corrige un hallazgo de la revisión de EPIC 2 (H6): los "Espacios" del Personal Workspace
+(Trabajo/Casa/etc.) se creaban y persistían solo en `localStorage` — a diferencia de
+pendientes/notas/proyectos/eventos, nunca viajaban a Supabase. Efecto observado: un Espacio
+creado en el celular y asignado a proyectos sincronizaba esos proyectos a la laptop, pero el
+Espacio en sí no aparecía ahí — el selector no lo listaba y esos proyectos solo eran
+visibles bajo "Todos" en ese dispositivo, nunca filtrables. Nada se perdía de verdad (los
+datos seguían en `localStorage` de origen), pero se sentía como pérdida y quedaba
+inconsistente entre dispositivos de la misma cuenta.
+
+- **Añadido** `mergeEspacio` en `src/lib/sync-merge.ts`: mismo criterio last-write-wins que
+  `mergeProyecto` (conflicto si cambian nombre/icono/color).
+- **Cambiado** `src/sync.tsx`: `espacios` se suma como quinta colección sincronizada —
+  mismo tratamiento que pendientes/notas/proyectos/eventos en `recalcularPendientes`,
+  `flush` (upsert/delete a `pnp_ctx_espacios`), `pull` (select + reconciliar + protección
+  read-after-write) y la suscripción realtime.
+- **Cambiado** `src/store.tsx`: `reemplazarTodo` gana un 6º parámetro opcional `esp?:
+  Espacio[]` (aditivo, no rompe llamadas previas) para que `sync.tsx` pueda aplicar el
+  resultado reconciliado de Espacios igual que ya hace con Proyectos.
+- **Añadido** `supabase_setup.sql`: tabla `pnp_ctx_espacios` (mismo sobre `id/user_id/
+  espacio_id/data/updated_at` que las otras cuatro tablas de dominio), su índice, política
+  RLS y alta en la publicación de realtime. Prefijo `ctx_` para no chocar con `pnp_espacios`
+  (la cuenta compartida) — distinción ya documentada en el código, ahora también en el SQL.
+- **Añadido** `tests/sync-merge.test.ts`: 2 casos para `mergeEspacio`. Total: 209 tests.
+- Verificado con `npm run lint`, `npm run build`, `npm run test` (209/209).
+- Requiere correr `supabase_setup.sql` de nuevo en proyectos ya provisionados (es
+  idempotente) para crear `pnp_ctx_espacios` antes de que la sincronización tome efecto.
+- Sin bump de Service Worker: es un cambio de sincronización de datos, no de assets/UI
+  (nada que cachear cambió).
+
+### H1 — Minuta universal: viñetas anidadas en la nota → subtareas (2026-08-09)
+
+Primer hito del equipo de desarrollo hacia la "minuta reutilizable": una nota ya no genera
+solo pendientes — una viñeta `- Tarea` seguida de viñetas indentadas (`  - Paso`) materializa
+la tarea **y sus subtareas** de una sola vez, con responsable y fecha por subtarea.
+
+- **Añadido** `src/lib/app-utils.ts`: `parsearMinuta(texto)` y `subtareaDeLinea(parsed)` —
+  parser puro que agrupa viñetas de nivel superior como pendientes y las indentadas (2+
+  espacios) como subtareas del pendiente actual (con `@resp` → responsable y `>fecha` →
+  fecha límite). La prosa entre viñetas no interfiere. Testeado de forma aislada del DOM.
+- **Añadido** `store.tsx`: `agregarSubtarea(pid, texto, extra?)` acepta de forma aditiva
+  `responsable` y `fechaLimite` (resto intacto).
+- **Añadido** `NotesView.tsx` "Extraer viñetas": procesa la jerarquía de un vistazo —
+  convierte `-` en pendientes y las líneas indentadas en subtareas; las tareas ya
+  convertidas actúan como pendiente "actual" para anidar debajo.
+- **Añadido** `NotesView.tsx` atajo de teclado: `Enter` sobre una viñeta indentada bajo un
+  pendiente genera una **subtarea** (en vez de un pendiente nuevo).
+- **Añadido** `src/index.css`: `.nota-sub`, espejo visual indentado de la subtarea (sin
+  `data-pid`, por lo que no se re-extrae ni indexa como pendiente).
+- **Añadido** `tests/minuta.test.ts`: 8 tests del parser (agrupación, corte de agrupación,
+  descripción con `:`, tokens `@`/`>`, prosa ignorada, primera línea indentada).
+- Verificado con `npm run lint`, `npm run build`, `npm run test` (155/155).
+- Service Worker: bump a `v12` (funcionalidad visible al usuario).
+
+### H2 — Promoción: subtareas ↔ pendientes/proyectos (2026-08-09)
+
+Cierre del ciclo subtareas: las tareas anidadas ya no están condenadas a vivir dentro de
+un pendiente. Ahora desde una subtarea —o desde un pendiente con subtareas— se promueve a
+una categoría superior en un clic, sin reescribir ni perder responsable, fecha, proyecto
+ni origen.
+
+- **Añadido** `src/lib/app-utils.ts` (parte pura, TDD aislada del DOM):
+  - `buscarSubtarea(arr, sid)` — localiza una subtarea en el árbol (incluye anidadas).
+  - `quitarSubtarea(arr, sid)` — árbol sin la subtarea indicada, inmutable y recursivo.
+  - `pendientesDesdeSubtareas(p, proyectoId, proyecto)` — convierte subtareas en
+    `Pendiente`s del proyecto recién creado, arrastrando `children` como subtareas.
+- **Añadido** `store.tsx`:
+  - `promoverPendienteAProyecto(pid)` (A2): crea el proyecto con el título/color del
+    pendiente, lo asigna a la raíz y materializa cada subtarea como tarea del proyecto.
+    Guarda contra pendientes sin subtareas. Transformación de datos, sin cambios de esquema.
+  - `promoverSubtarea(pid, sid)` (A3): convierte la subtarea en `Pendiente` independiente
+    (mismo proyecto/origen; hereda responsable de su padre cuando no lo tiene) y la retira
+    del árbol del padre. Funciona también con sub-subtareas.
+- **Añadido** UI:
+  - `PendienteCuerpo.tsx` — botón "Convertir en proyecto" junto al header de Subtareas y
+    botón "promover" (`↗`) en cada subtarea anidada.
+  - `MenuContextoPendiente.tsx` — ítem "Convertir en proyecto" (deshabilitado si el
+    pendiente no tiene subtareas).
+- **Añadido** `tests/promover.test.ts`: 8 tests RED→GREEN (búsqueda en profundidad,
+  quitar rama, conversión de subtareas con `children`/responsable heredado, `promoverSubtarea`
+  con sub-subtareas, guarda sin subtareas, proyecto asignado y fuentes conservadas).
+- Verificado con `npm run lint`, `npm run build`, `npm run test` (163/163).
+- Service Worker: bump a `v13` (funcionalidad visible al usuario).
+
+### H2b — Reparación: navegación "muerta" desde una nota/proyecto abierto (2026-08-09)
+
+Hallazgo del QA manual: con una nota abierta (`notaActualId`) o un proyecto abierto
+(`proyectoAbiertoId`), hacer clic en los botones de navegación (Pendientes, Panel, Papelera…)
+no cambiaba de vista — `vistaMostrada` (`App.tsx`) los forzaba a quedarse en Notas/Proyectos.
+La única vía de escape era `Escape` o el botón "Volver" del propio detalle. Afectaba también el
+atejo navegar entre vistas con teclado y el menú.
+
+- **Corregido** `App.tsx` `setVista`: al navegar siempre despeja `notaActualId` y
+  `proyectoAbiertoId` para mostrar la vista elegida (y su lista). Un detalle abierto se sigue
+  abriendo por su cuenta (chip/tarjeta) y `Esc`/`Volver` conservan su comportamiento original.
+  El orden en `PaletaComandos` (navegar → abrir) se preserva.
+- Verificado con Playwright en la app real: Pendientes y Panel alcanzables desde nota abierta,
+  Pendientes alcanzable desde proyecto abierto, sin regresión al abrir notas.
+- Service Worker: bump a `v14`.
+
+### H3 — Epic 1 lote inicial: regla de exclusividad de overlays (2026-08-09)
+
+Primer corte de la PDS §5.4 (Epic 1 del backlog): un solo overlay modal activo a la vez,
+sin excepción. Modal de tarea, peek de detalle y paleta de comandos pasan a compartir una
+única fuente de verdad; abrir uno cierra cualquier otro automáticamente.
+
+- **Añadido** `src/lib/overlay.ts` (reducer puro + `esOverlay`) con 8 tests
+  (`tests/overlay.test.ts`): abrir reemplaza al activo, cerrar solo desactiva si coincide,
+  y `'ninguno'` no se puede reabrir desde una acción `abrir`.
+- **Cambiado** `src/ui-store.tsx`: `overlay` pasa a ser la fuente de verdad; `modal.open`,
+  `paletaAbierta` y el peek derivan de él. La API previa (`abrirModal`, `abrirPeek`) se
+  mantiene — ningún llamador cambió de firma. `Ctrl+K` sigue alternando la paleta.
+- **Cambiado** `PendientePeek.tsx`: su `Dialog` se abre/cierra según `overlay === 'peek'`
+  (antes dependía solo de `peekId`, que podía quedar stale tras abrir otra cosa). El botón
+  "Editar" cierra el peek y abre el modal en un solo acto.
+- **Cambiado** `App.tsx`: se elimina el estado local `paletaAbierta`; paleta y atajo
+  `Ctrl+K` usan el store único.
+- **Cambiado** `WidgetsLayer`/`WidgetShell`: los widgets se atenían (`opacity-50` +
+  `pointer-events-none`) mientras haya cualquier overlay activo (PDS §5.4: el overlay toma
+  el foco completo). Sin animación de más para no molestar.
+- Verificado con Playwright en la app real: Ctrl+K abre/cierra la paleta atenuando los
+  widgets; click en tarea abre el peek como único diálogo; "Editar" reemplaza el peek por
+  el modal (un solo diálogo en DOM); al cerrar, los widgets vuelven a estado normal. Sin
+  errores de consola.
+- Service Worker: bump a `v15`.
+
+### H5 — Epic 2 lote inicial: «Espacios» como 5º destino de navegación primaria (2026-08-10)
+
+Primer corte del PDS §5.3 (Epic 2 del backlog): la navegación primaria pasa a ser
+exactamente **Hoy · Inbox · Proyectos · Notas · Espacios**. «Pendientes» deja de ser
+destino de primer nivel y baja a la agrupación «Sistema» (junto a Panel/Papelera en el
+sidebar de escritorio y al menú ⋮ en móvil) — sigue existiendo, intacto, como tablero
+global. El destino «Espacios» es la primera materialización del concepto de contexto de
+vida del workspace: entrar por Trabajo, Escuela, Casa, etc., en un clic.
+
+- **Añadido** `src/views/EspaciosView.tsx` (nuevo): vista ligera que reusa toda la
+  infraestructura existente — `espacios`/`proyectos` del store, `espacioActualId` de
+  `ui-store`, `NuevoEspacioDialog` y `PROYECTO_COLORES`. Muestra la tarjeta «📋 Todos»
+  y una tarjeta por espacio (icono, nombre, color, nº de proyectos activos) con botón
+  «Nuevo espacio». Clic en un espacio → activa `espacioActualId` y navega a Proyectos
+  filtrado a ese espacio (filtrado preexistente en `ProyectosView`); «Todos» lo limpia.
+- **Cambiado** `src/App.tsx`: `type Vista` y `VISTAS_VALIDAS` a 8 miembros en orden
+  hoy·inbox·proyectos·notas·espacios·pendientes·dashboard·papelera; `VISTAS_PRIMARIAS`
+  reordenada al orden del PDS (Espacios con icono `LayoutGrid`); `pendientes` movida a
+  `VISTAS_SISTEMA` con su badge `nAbiertos` reubicado; atajos numéricos `1-8`
+  (5=Espacios, 6=Pendientes, 7=Panel, 8=Papelera); render lazy de `EspaciosView`;
+  menú ⋮ móvil con ítem «Pendientes»; **eliminado** el bloque «Espacios» duplicado del
+  sidebar (acceso redundante con el nuevo destino primario) y sus imports/estado muertos.
+- **Cambiado** `src/components/PaletaComandos.tsx`: ítem «Espacios» en el grupo «Ir a»
+  (entre Proyectos y Panel) y `type Vista` local ampliado. **Cambiado**
+  `src/components/AyudaAtajos.tsx`: fila `1–8` con el orden nuevo.
+- **Añadido** `tests/navegacion.test.tsx` (nuevo, 5 casos): orden de la navegación
+  primaria, «Pendientes» bajo «Sistema», atajo `5` → Espacios, selección de espacio que
+  navega a Proyectos filtrado y conteo de proyectos por espacio. Total: 190 tests.
+- Verificado con `npm run lint`, `npm run build`, `npm run test` (190/190) y QA
+  Playwright real en la app (21/21 checks, escritorio + móvil, sin errores de consola).
+- Service Worker: bump a `v17`.
+
+### H6 — Epic 2: selector de Espacio activo en móvil (2026-08-10)
+
+Cierra el ítem «Selector de Espacio activo» del EPIC 2: el desktop ya tenía un dropdown
+colapsable en el sidebar (H5), pero en móvil la única forma de cambiar de Espacio era
+navegar a la pestaña «Espacios» completa y perder la vista en la que se estaba. Ahora el
+menú «⋮» de móvil expone el mismo control, sin salir de la pantalla actual.
+
+- **Cambiado** `src/App.tsx`: nueva sección colapsable «Espacio activo: …» en el menú «⋮»
+  móvil (arriba de «Panel»/«Papelera»/«Pendientes»), con el mismo formato de etiqueta y
+  conteo de proyectos activos que el selector de escritorio; al elegir un espacio, el menú
+  se cierra y la vista actual queda refiltrada por `espacioActualId` (sin navegar). Eliminado
+  el import muerto `PROYECTO_COLORES` (huérfano desde H5).
+- **Añadido** `tests/espacio-mobile.test.tsx` (nuevo, 2 casos): la entrada de Espacio activo
+  aparece en el menú móvil y lista «Todos» + cada espacio; elegir un espacio actualiza el
+  filtro y se refleja en el propio punto de entrada.
+- **Corregido** `tests/espacio-activo.test.tsx`: 3 aserciones preexistentes comparaban el
+  aria-label del selector con una regex que no toleraba el icono del espacio (`"Espacio
+  activo: 🏢 Trabajo"` vs `/Espacio activo: Trabajo/i`) — error de la propia aserción, no un
+  defecto; corregidas para tolerar el icono. Las 9 pruebas de ese archivo (selector de
+  escritorio + filtro de contexto en Hoy/Inbox + persistencia `pn_espacio_activo` +
+  guardia ante id inexistente) ya estaban implementadas y ahora quedan verdes.
+- Verificado con `npm run lint`, `npm run build`, `npm run test` (207/207).
+- Service Worker: bump a `v18`.
+
+### H4 — Cierre del Epic 1: confirmación antes de descartar una edición en curso (2026-08-09)
+
+Última pieza de la PDS §5.4 (Epic 1): con un solo overlay activo, la exclusividad podía
+tirar borradores sin aviso — abrir la paleta de comandos o cerrar el modal sobre una tarea
+en edición descartaba los cambios guardados en el flujo previo. Ahora, si queda algo sin
+guardar, se pregunta antes de perderlo: "Seguir editando" restaura el borrador intacto y
+"Descartar" ejecuta la acción pendiente. Un modal limpio sigue cerrando sin preguntar.
+
+- **Añadido** `src/lib/overlay.ts`: nuevo `TipoOverlay='confirmar-cierre'` (solo el cierre
+  del modal puede entrar en él) y regla de `cerrar` sobre él; docstring H4. Extiende el
+  reducer puro sin romper `Cerrar`/`esOverlay`.
+- **Añadido** `src/ui-store.tsx`: `guardiaRef`/`accionPendienteRef` y funciones internas
+  para interceptar un `cerrar` con cambios sin guardar; nueva API `registrarGuardia`,
+  `confirmarDescartes` (`cancelar`/`descartar`) y `cancelarDescartes`. `modal.open` ahora
+  incluye `'confirmar-cierre'` para mantener el form montado bajo la confirmación.
+- **Cambiado** `TaskModal.tsx`: snapshot JSON del form en `baseRef`, `dirtyRef` derivado
+  con `useLayoutEffect`, `sinVerificarRef` en Guardar/Eliminar, `onOpenChange` solo cierra
+  cuando `overlay === 'modal'`, y `ConfirmDialog` de descarte (que pone en pausa la
+  verificación de cierre).
+- **Cambiado** `src/components/ConfirmDialog.tsx`: props aditivas `onCancelar?` y
+  `cerrarTrasConfirmar?` (por defecto `true`); los callers previos permanecen intactos.
+- **Añadido** `tests/overlay.test.ts` (+6, 8→14): cobertura de `'confirmar-cierre'` en
+  abrir/cerrar. **Añadido** `tests/ui-store.test.tsx` (nuevo, 8 casos, harness con
+  `UIProvider`): registrar guardia, confirmar/cancelar desacartes, cierre limpio sin
+  preguntar y acciones pendientes encadenadas. Total: 185 tests.
+- Verificado con Playwright en la app real (criterios CA1-CA6 del ticket EPIC-1-F4):
+  confirmación con texto intacto, "Seguir editando" restaura, "Descartar" ejecuta la acción
+  pendiente (cierra / abre la paleta), modal limpio cierra sin preguntar, Guardar no
+  pregunta y persiste, y sin errores de consola (21/21 checks). Nota: la vista de lista
+  abre el detalle en panel inline (no peek) — comportamiento esperado y verificado.
+- Verificado con `npm run lint`, `npm run build`, `npm run test` (185/185).
+- Service Worker: bump a `v16`.
+
 ### Fase 13 — Reparación de integridad: pendientes que se "salían" de su proyecto (2026-08-06)
 
 Bug reportado por el usuario: un proyecto con varias actividades dejaba algunas fuera

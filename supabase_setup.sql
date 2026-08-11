@@ -18,9 +18,9 @@
 -- ----------------------------------------------------------------------------
 -- pnp_espacios: la unidad de cuenta compartida (sync multi-dispositivo/usuario).
 -- NO confundir con el "Espacio" del Personal Workspace (Fase 4, src/types.ts) —
--- ese es solo una agrupación visual de proyectos, vive enteramente en el
--- cliente (localStorage) y no tiene tabla propia. Ver glosario en
--- .claude/skills/workspace-doctrine/SKILL.md.
+-- ese es una agrupación visual de proyectos (Trabajo/Casa/etc.) que sincroniza
+-- por su cuenta en `pnp_ctx_espacios` (ver más abajo), como cualquier otra
+-- entidad de dominio. Ver glosario en .claude/skills/workspace-doctrine/SKILL.md.
 -- ----------------------------------------------------------------------------
 create table if not exists pnp_espacios (
   id         uuid primary key default gen_random_uuid(),
@@ -49,23 +49,31 @@ create index if not exists idx_espacio_miembros_espacio on pnp_espacio_miembros(
 -- como 'hija'. Solo 'padre' puede crearlas (aplicado por RLS, no por la app).
 -- ----------------------------------------------------------------------------
 create table if not exists pnp_invitaciones (
-  id         uuid primary key default gen_random_uuid(),
-  espacio_id uuid not null references pnp_espacios(id) on delete cascade,
-  codigo     text not null unique default substr(md5(random()::text), 1, 8),
-  email      text,
-  creado_por uuid not null references auth.users(id) on delete cascade,
-  creado     timestamptz not null default now(),
-  expira     timestamptz not null default (now() + interval '7 days')
+  id           uuid primary key default gen_random_uuid(),
+  espacio_id   uuid not null references pnp_espacios(id) on delete cascade,
+  codigo       text not null unique default substr(md5(random()::text), 1, 8),
+  email        text,
+  creado_por   uuid not null references auth.users(id) on delete cascade,
+  creado       timestamptz not null default now(),
+  expira       timestamptz not null default (now() + interval '7 days'),
+  -- Quién canjeó el código y cuándo (en vez de borrar la fila al canjear): permite que
+  -- `pnp_canjear_invitacion` detecte "código ya usado" con un mensaje propio, distinto de
+  -- "código inválido" — src/lib/espacio.ts / EspacioDialog.tsx muestran ese error tal cual.
+  aceptada_por uuid references auth.users(id) on delete set null,
+  aceptada_en  timestamptz
 );
+alter table pnp_invitaciones add column if not exists aceptada_por uuid references auth.users(id) on delete set null;
+alter table pnp_invitaciones add column if not exists aceptada_en timestamptz;
 
 -- ----------------------------------------------------------------------------
--- Entidades de dominio: pnp_pendientes / pnp_notas / pnp_proyectos / pnp_eventos.
--- Las cuatro comparten el mismo sobre genérico — el objeto completo del lado
--- del cliente (Pendiente/Nota/Proyecto/EventoCalendario, ver src/types.ts) va
--- en `data` como jsonb; solo `id`/`espacio_id`/`user_id`/`updated_at` son
--- columnas reales que la app consulta directamente (src/sync.tsx). Reconciliar
--- conflictos (last-write-wins + unión de comentarios/adjuntos/subtareas) es
--- responsabilidad del cliente (src/lib/sync-merge.ts), no de esta base.
+-- Entidades de dominio: pnp_pendientes / pnp_notas / pnp_proyectos / pnp_eventos
+-- / pnp_ctx_espacios. Todas comparten el mismo sobre genérico — el objeto
+-- completo del lado del cliente (Pendiente/Nota/Proyecto/EventoCalendario/
+-- Espacio, ver src/types.ts) va en `data` como jsonb; solo `id`/`espacio_id`/
+-- `user_id`/`updated_at` son columnas reales que la app consulta directamente
+-- (src/sync.tsx). Reconciliar conflictos (last-write-wins + unión de
+-- comentarios/adjuntos/subtareas) es responsabilidad del cliente
+-- (src/lib/sync-merge.ts), no de esta base.
 -- ----------------------------------------------------------------------------
 create table if not exists pnp_pendientes (
   id         uuid primary key,
@@ -103,6 +111,20 @@ create table if not exists pnp_eventos (
 );
 create index if not exists idx_eventos_espacio on pnp_eventos(espacio_id);
 
+-- pnp_ctx_espacios: los "Espacios" del Personal Workspace del usuario (Trabajo/Casa/etc.,
+-- src/types.ts `Espacio`). Mismo sobre genérico que las cuatro tablas de arriba — NO
+-- confundir con `pnp_espacios` (la cuenta compartida): esta tabla vive DENTRO de un
+-- `pnp_espacios.id` como cualquier otra entidad de dominio, prefijo `ctx_` para dejar
+-- la distinción explícita en el nombre.
+create table if not exists pnp_ctx_espacios (
+  id         uuid primary key,
+  user_id    uuid not null references auth.users(id) on delete cascade,
+  espacio_id uuid not null references pnp_espacios(id) on delete cascade,
+  data       jsonb not null,
+  updated_at timestamptz not null default now()
+);
+create index if not exists idx_ctx_espacios_espacio on pnp_ctx_espacios(espacio_id);
+
 -- ----------------------------------------------------------------------------
 -- pnp_google_calendar: tokens OAuth de las cuentas de Google conectadas. Solo
 -- la Edge Function (supabase/functions/google-calendar) la toca, siempre con
@@ -136,6 +158,7 @@ alter table pnp_pendientes        enable row level security;
 alter table pnp_notas             enable row level security;
 alter table pnp_proyectos         enable row level security;
 alter table pnp_eventos           enable row level security;
+alter table pnp_ctx_espacios      enable row level security;
 alter table pnp_google_calendar   enable row level security;
 
 -- Helper: ids de espacio a los que pertenece el usuario autenticado.
@@ -188,6 +211,10 @@ drop policy if exists "miembros CRUD eventos de su espacio" on pnp_eventos;
 create policy "miembros CRUD eventos de su espacio" on pnp_eventos
   for all using (espacio_id in (select pnp_mis_espacios())) with check (espacio_id in (select pnp_mis_espacios()));
 
+drop policy if exists "miembros CRUD ctx_espacios de su espacio" on pnp_ctx_espacios;
+create policy "miembros CRUD ctx_espacios de su espacio" on pnp_ctx_espacios
+  for all using (espacio_id in (select pnp_mis_espacios())) with check (espacio_id in (select pnp_mis_espacios()));
+
 -- pnp_google_calendar: sin políticas para 'authenticated'/'anon' → deny-all por
 -- defecto una vez RLS está activo. Solo la service_role (que ignora RLS) la toca.
 
@@ -218,26 +245,42 @@ end;
 $$;
 
 -- Canjea un código de invitación: une al usuario actual al espacio de la
--- invitación como 'hija'. No falla si el código no existe o ya expiró — solo
--- no hace nada (la app únicamente revisa `error`, no el resultado).
+-- invitación como 'hija'. A diferencia de un simple boolean, levanta una
+-- excepción con mensaje específico por cada motivo de rechazo — src/lib/
+-- espacio.ts / EspacioDialog.tsx solo revisan `error` y muestran
+-- `err.message` tal cual, así que el texto de cada `raise exception` es lo
+-- que el usuario final lee en el toast de error.
 create or replace function pnp_canjear_invitacion(p_codigo text)
-returns boolean
+returns uuid
 language plpgsql security definer
 set search_path = public
 as $$
 declare
-  inv pnp_invitaciones%rowtype;
+  v_inv pnp_invitaciones%rowtype;
+  v_email text;
 begin
-  select * into inv from pnp_invitaciones where codigo = p_codigo and expira > now();
-  if not found then
-    return false;
+  select * into v_inv from pnp_invitaciones where codigo = p_codigo for update;
+  if not found then raise exception 'Código de invitación inválido'; end if;
+  if v_inv.expira < now() then raise exception 'La invitación expiró'; end if;
+  if v_inv.aceptada_por is not null then raise exception 'La invitación ya fue usada'; end if;
+
+  select email into v_email from auth.users where id = auth.uid();
+  if v_inv.email is not null and lower(v_inv.email) <> lower(v_email) then
+    raise exception 'Esta invitación es para otro correo';
+  end if;
+  if exists (select 1 from pnp_espacio_miembros where user_id = auth.uid()) then
+    raise exception 'Esta cuenta ya pertenece a un espacio';
   end if;
 
-  insert into pnp_espacio_miembros (user_id, espacio_id, email, rol)
-    values (auth.uid(), inv.espacio_id, coalesce(auth.jwt() ->> 'email', ''), 'hija')
-    on conflict (user_id, espacio_id) do nothing;
-  delete from pnp_invitaciones where id = inv.id; -- de un solo uso
-  return true;
+  insert into pnp_espacio_miembros (espacio_id, user_id, rol, email)
+  values (v_inv.espacio_id, auth.uid(), 'hija', v_email);
+
+  -- Se marca canjeada en vez de borrarse (a diferencia de la versión anterior de esta
+  -- función): así un segundo intento con el mismo código distingue "ya fue usada" de
+  -- "código inválido", en vez de fundirse en un solo caso de "no encontrado".
+  update pnp_invitaciones set aceptada_por = auth.uid(), aceptada_en = now() where id = v_inv.id;
+
+  return v_inv.espacio_id;
 end;
 $$;
 
@@ -259,6 +302,9 @@ begin
   end if;
   if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and tablename = 'pnp_eventos') then
     alter publication supabase_realtime add table pnp_eventos;
+  end if;
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and tablename = 'pnp_ctx_espacios') then
+    alter publication supabase_realtime add table pnp_ctx_espacios;
   end if;
   if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and tablename = 'pnp_espacios') then
     alter publication supabase_realtime add table pnp_espacios;

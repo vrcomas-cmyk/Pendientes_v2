@@ -155,6 +155,84 @@ las reglas constitucionales que explican *por qué* dice lo que dice.
 
 ---
 
+## 2026-08-10 — «Espacios» se convierte en destino primario y «Pendientes» baja a Sistema
+
+**Decisión**: la navegación primaria pasa a ser exactamente **Hoy · Inbox · Proyectos ·
+Notas · Espacios** (PDS §5.3). «Pendientes» deja de ser un destino de primer nivel y baja
+a la agrupación «Sistema» (sidebar escritorio y menú ⋮ móvil), junto a Panel y Papelera.
+El bloque «Espacios» del sidebar (agrupación de proyectos Fase 4) se elimina en favor de
+una vista `EspaciosView` como destino: el concepto de contexto de vida (Trabajo, Escuela,
+Casa…) se materializa como pantalla desde la que se entra a Proyectos filtrado por
+`espacioActualId`. Los atajos numéricos pasan a `1–8` (5=Espacios, 6=Pendientes).
+
+**Contexto**: el backlog del Epic 2 (PDS §6.7) pide "solo Hoy/Inbox/Proyectos/Notas/
+Espacios como destinos de primer nivel", y el PDS §5.3 lista «Espacios» como 5º destino.
+El código previo tenía un 5º destino «Pendientes» y «Espacios» solo como sección del
+sidebar; además «Pendientes» y «Tareas» (móvil) convivían como nombres distintos del
+mismo destino.
+
+**Alternativas evaluadas**: (a) dejar «Pendientes» como 5º destino y no crear vista de
+Espacios (mínimo cambio, pero incumple PDS §5.3 y el backlog); (b) crear la vista
+`EspaciosView` como promoción a pantalla completa de la sección existente, reusando
+`espacios`, `espacioActualId`, `NuevoEspacioDialog` y el filtrado de `ProyectosView`
+— sin tocar el modelo de datos; (c) renombrar además «Pendientes» a «Tareas» en el mismo
+hito (feature 5 del backlog, se difiere a un hito propio).
+
+**Motivo**: se eligió (b) por ser el corte incremental que cumple el AC del primer ticket
+del Epic 2 sin duplicar lógica ni datos: «Espacios» ya era una entidad persistida
+(Fase 4), el filtrado de contexto ya existía en `ProyectosView`, y el diálogo de alta ya
+estaba resuelto. Eliminar el bloque duplicado del sidebar reduce clics y elimina una
+doble fuente de verdad de navegación (validación: menos clics, menos ventanas, menos
+tiempo). (c) se descarta por ahora para no mezclar dos features en un hito.
+
+**Consecuencias**: el shortcut `3` deja de ser «Pendientes» (ahora `6`) — regresión de
+memoria muscular documentada en `CHANGELOG.md` (H5) y verificada en QA real (21/21). El
+filtrado de contexto multi-vista (filtrar Hoy/Inbox/Notas por el espacio activo,
+feature 2 del backlog) queda como evolución posterior: hoy «Espacios» es un destino que
+lleva a Proyectos filtrado, no un selector global. Modelo de datos intacto (solo
+navegación/UI).
+
+---
+
+## 2026-08-10 — Los Espacios (Personal Workspace) ganan tabla propia en Supabase: `pnp_ctx_espacios`
+
+**Decisión**: sincronizar los "Espacios" del usuario (Trabajo/Casa/etc., `src/types.ts
+Espacio`) en una tabla nueva `pnp_ctx_espacios`, con el mismo sobre `id/user_id/
+espacio_id/data/updated_at` y el mismo mecanismo de reconciliación (`sync-merge.ts`) que
+ya usan pendientes/notas/proyectos/eventos, en vez de dejarlos solo en `localStorage`.
+
+**Contexto**: una revisión pedida por el usuario ("¿por el Espacio se pierden registros
+pasados?") encontró que `src/sync.tsx` nunca subía/bajaba el array `espacios` — cada
+dispositivo tenía su propia copia local, inconsistente con las demás. Los pendientes y
+proyectos sí sincronizaban (incluido su `espacioId`), así que un proyecto asignado a
+"Trabajo" en el celular llegaba a la laptop, pero el objeto Espacio "Trabajo" no: el
+selector de la laptop no lo listaba y ese proyecto solo aparecía bajo "Todos" ahí, nunca
+filtrable. Percibido por el usuario como pérdida de datos, aunque nada se borraba.
+
+**Alternativas evaluadas**: (a) guardar `espacios` dentro del `config` jsonb de
+`pnp_espacios` (la cuenta compartida) en vez de una tabla propia — se descartó porque ese
+campo ya se usa para `columnas` del Kanban y mezclar una colección con forma de lista
+dentro de un jsonb de configuración rompe el patrón de reconciliación por ítem
+(`reconciliar()` opera sobre arrays de entidades con `id`/`modificado`, no sobre blobs);
+(b) tabla nueva con el mismo sobre genérico que las otras cuatro entidades de dominio,
+reusando `mergeProyecto` como plantilla para un `mergeEspacio` nuevo.
+
+**Motivo**: se eligió (b) por consistencia arquitectónica — es exactamente el patrón ya
+validado por pendientes/notas/proyectos/eventos, sin inventar un mecanismo nuevo de
+reconciliación ni tocar el modelo de datos del cliente (`Espacio` no cambia). Nombre de
+tabla `pnp_ctx_espacios` (no `pnp_espacios_personales` ni reusar `pnp_espacios`) para
+dejar la distinción con la cuenta compartida explícita también en el esquema SQL, no solo
+en comentarios de código.
+
+**Consecuencias**: proyectos ya provisionados en Supabase deben re-ejecutar
+`supabase_setup.sql` (idempotente) para que `pnp_ctx_espacios` exista antes de que la
+sincronización de Espacios tenga efecto — hasta entonces, el comportamiento previo
+(Espacios solo locales) continúa sin romperse, simplemente sin sincronizar. Ningún dato
+existente se migra ni se toca: los Espacios ya creados en cada dispositivo se suben en la
+primera sincronización posterior a la actualización, igual que cualquier alta pendiente.
+
+---
+
 ## Cómo agregar una entrada nueva
 
 Toda decisión que afecte modelo de datos, arquitectura de navegación, un principio o

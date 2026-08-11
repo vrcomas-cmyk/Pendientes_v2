@@ -4,7 +4,7 @@ const ATAJOS: [string, string][] = [
   ['N', 'Nuevo pendiente'],
   ['Shift+N', 'Nueva nota'],
   ['/', 'Enfocar la captura rápida'],
-  ['1 – 7', 'Ir a Hoy / Inbox / Pendientes / Notas / Proyectos / Panel / Papelera'],
+  ['1 – 8', 'Ir a Hoy / Inbox / Proyectos / Notas / Espacios / Pendientes / Panel / Papelera'],
   ['Ctrl+Shift+1 – 4', 'Ir a un filtro guardado (smart list) — se configuran en Pendientes'],
   ['J / K', 'En Pendientes (Lista): moverse a la fila siguiente / anterior'],
   ['X', 'En Pendientes (Lista): completar la fila seleccionada'],

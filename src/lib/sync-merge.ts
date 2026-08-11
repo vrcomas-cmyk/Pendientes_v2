@@ -1,4 +1,4 @@
-import type { Nota, Pendiente, Proyecto, EventoCalendario } from '@/types'
+import type { Nota, Pendiente, Proyecto, EventoCalendario, Espacio } from '@/types'
 
 export interface ItemBase { id: string; modificado: string }
 export type MapaSync = Record<string, string>
@@ -62,6 +62,15 @@ export function mergeProyecto(local: Proyecto, remote: Proyecto): { merged: Proy
 export function mergeEvento(local: EventoCalendario, remote: EventoCalendario): { merged: EventoCalendario; conflicto: boolean } {
   const localNewer = (local.modificado || '') >= (remote.modificado || '')
   const conflicto = local.titulo !== remote.titulo || local.fecha !== remote.fecha || local.hora !== remote.hora || local.duracionMin !== remote.duracionMin
+  return { merged: localNewer ? local : remote, conflicto }
+}
+
+/** Espacio (contexto de vida del Personal Workspace, ej. "Trabajo"/"Casa" — NO confundir con
+    el espacio de cuenta compartida de `sync.tsx`): mismo criterio last-write-wins que
+    `mergeProyecto`, sin colecciones que unir. */
+export function mergeEspacio(local: Espacio, remote: Espacio): { merged: Espacio; conflicto: boolean } {
+  const localNewer = (local.modificado || '') >= (remote.modificado || '')
+  const conflicto = local.nombre !== remote.nombre || local.icono !== remote.icono || local.color !== remote.color
   return { merged: localNewer ? local : remote, conflicto }
 }
 

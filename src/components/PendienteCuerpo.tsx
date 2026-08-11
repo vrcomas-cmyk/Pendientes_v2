@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
 import AdjuntosUI, { Miniatura } from '@/components/AdjuntosUI'
-import { StickyNote, Calendar, CalendarPlus, Send, User, ImagePlus, X, Plus, CornerDownRight, Play, Pause, Timer } from 'lucide-react'
+import { StickyNote, Calendar, CalendarPlus, Send, User, ImagePlus, X, Plus, CornerDownRight, Play, Pause, Timer, FolderUp, ArrowUpRight } from 'lucide-react'
 
 /** Resalta `@nombre` dentro de un comentario ya publicado (Fase 11.2) — puramente visual, no
     dispara nada (no hay push server; ver decisión de alcance en CHANGELOG.md Fase 11). */
@@ -85,7 +85,7 @@ interface Props {
     indentación creciente. `permitirAgregar` solo habilita el "+" de agregar hijo en el nivel
     donde `PendienteCuerpo` lo permite (Peek); TaskDetail sigue siendo de solo lectura. */
 function FilaSubtarea({ s, pid, nivel, permitirAgregar }: { s: Subtarea; pid: string; nivel: number; permitirAgregar: boolean }) {
-  const { toggleSubtarea, agregarSubSubtarea } = useApp()
+  const { toggleSubtarea, agregarSubSubtarea, promoverSubtarea } = useApp()
   const [agregando, setAgregando] = useState(false)
   const [texto, setTexto] = useState('')
   const confirmar = () => { if (texto.trim()) { agregarSubSubtarea(pid, s.id, texto); setTexto(''); setAgregando(false) } }
@@ -107,6 +107,9 @@ function FilaSubtarea({ s, pid, nivel, permitirAgregar }: { s: Subtarea; pid: st
             <CornerDownRight size={13} />
           </button>
         )}
+        <button onClick={() => promoverSubtarea(pid, s.id)} title="Convertir en pendiente independiente" className="shrink-0 text-muted-foreground hover:text-primary">
+          <ArrowUpRight size={13} />
+        </button>
       </div>
       {agregando && (
         <div className="mt-1 flex gap-2" style={{ marginLeft: 16 }}>
@@ -129,7 +132,7 @@ export default function PendienteCuerpo({
   destacarOrigenNota = false,
   mostrarCreado = false,
 }: Props) {
-  const { proyectos, columnas, agregarSubtarea, agregarComentario, actualizarPendiente, colorDeEtiqueta, personas } = useApp()
+  const { proyectos, columnas, agregarSubtarea, agregarComentario, actualizarPendiente, colorDeEtiqueta, personas, promoverPendienteAProyecto } = useApp()
   const { setNotaActualId } = useUI()
   const idCompletado = idColumnaCompletado(columnas)
   const col = columnaDe(columnas, p.estado)
@@ -218,7 +221,14 @@ export default function PendienteCuerpo({
 
       {/* Subtareas */}
       <div>
-        <div className="mb-1.5 text-xs font-bold">Subtareas {sub && <span className="font-normal text-muted-foreground">({sub.hechas}/{sub.total})</span>}</div>
+        <div className="mb-1.5 flex items-center justify-between gap-2">
+          <span className="text-xs font-bold">Subtareas {sub && <span className="font-normal text-muted-foreground">({sub.hechas}/{sub.total})</span>}</span>
+          {p.subtareas.length > 0 && (
+            <button onClick={() => promoverPendienteAProyecto(p.id)} title="Convierte este pendiente (y sus subtareas) en un Proyecto" className="inline-flex items-center gap-1 rounded-md border border-primary/30 bg-primary/5 px-2 py-0.5 text-[10px] font-medium text-primary hover:bg-primary/10">
+              <FolderUp size={11} /> Convertir en proyecto
+            </button>
+          )}
+        </div>
         {sub && <div className="mb-2 h-1.5 w-full rounded-full bg-muted"><div className="h-1.5 rounded-full bg-primary transition-all" style={{ width: sub.pct + '%' }} /></div>}
         <div className="space-y-1">
           {p.subtareas.map(s => <FilaSubtarea key={s.id} s={s} pid={p.id} nivel={0} permitirAgregar={permitirAgregarSubtarea} />)}

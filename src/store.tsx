@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState, type R
 import { toast } from 'sonner'
 import type { Nota, Pendiente, Estado, Proyecto, EventoCalendario, ColumnaKanban, Espacio, Etiqueta, FiltroGuardado, Subtarea, PlantillaPendiente } from '@/types'
 import { PROYECTO_COLORES_KEYS, COLUMNAS_DEFECTO, ESPACIO_ICONOS } from '@/types'
-import { hoyISO, normalizar, storage, uid, describirRepeticion, defaultsHorario, fechaPorPrioridad, proximaInstanciaRepeticion, asignarProyecto, normalizarNombreProyecto } from '@/lib/app-utils'
+import { hoyISO, normalizar, storage, uid, describirRepeticion, defaultsHorario, fechaPorPrioridad, proximaInstanciaRepeticion, asignarProyecto, normalizarNombreProyecto, buscarSubtarea, quitarSubtarea, pendientesDesdeSubtareas } from '@/lib/app-utils'
 
 const DEBOUNCE_MS = 300
 
@@ -40,8 +40,10 @@ interface AppCtx {
   desarchivarPendiente: (id: string) => void
   toggleCompletar: (id: string) => void
   toggleSubtarea: (pid: string, sid: string) => void
-  agregarSubtarea: (pid: string, texto: string) => void
+  agregarSubtarea: (pid: string, texto: string, extra?: { responsable?: string; fechaLimite?: string }) => void
   agregarSubSubtarea: (pid: string, padreId: string, texto: string) => void
+  promoverPendienteAProyecto: (pid: string) => Proyecto | null
+  promoverSubtarea: (pid: string, sid: string) => Pendiente | null
   iniciarTimer: (pid: string) => void
   pausarTimer: (pid: string) => void
   agregarComentario: (pid: string, texto: string, adjuntos?: import('@/types').Adjunto[]) => void
@@ -80,7 +82,7 @@ interface AppCtx {
   restaurarEvento: (id: string) => void
   columnas: ColumnaKanban[]
   setColumnas: (cols: ColumnaKanban[]) => void
-  reemplazarTodo: (p: Pendiente[], n: Nota[], u?: string, pr?: Proyecto[], ev?: EventoCalendario[]) => void
+  reemplazarTodo: (p: Pendiente[], n: Nota[], u?: string, pr?: Proyecto[], ev?: EventoCalendario[], esp?: Espacio[]) => void
   vaciarPapelera: () => void
   personas: string[]
 }
@@ -371,12 +373,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }))
   }
 
-  const agregarSubtarea = (pid: string, texto: string) => {
+  const agregarSubtarea = (pid: string, texto: string, extra?: { responsable?: string; fechaLimite?: string }) => {
     const t = texto.trim()
     if (!t) return
     setPendientes(prev => prev.map(p => p.id !== pid ? p : {
       ...p,
-      subtareas: [...p.subtareas, { id: uid(), texto: t, completada: false, responsable: '', fechaLimite: '' }],
+      subtareas: [...p.subtareas, { id: uid(), texto: t, completada: false, responsable: extra?.responsable ?? '', fechaLimite: extra?.fechaLimite ?? '' }],
       modificado: new Date().toISOString(),
     }))
   }
@@ -414,6 +416,50 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   const moverEstado = (id: string, estado: Estado) => actualizarPendiente(id, { estado })
+
+  // H2 — A2 «Promover a proyecto»: un pendiente con subtareas se convierte en un Proyecto real.
+  // Crea el proyecto con el título/color del pendiente, lo asigna al pendiente raíz y convierte
+  // cada subtarea (y sus hijos recursivos) en Pendientes dentro del proyecto, conservando
+  // responsable, fecha, prioridad y origenNota. Transformación de datos, sin cambios de esquema.
+  const promoverPendienteAProyecto = (pid: string): Proyecto | null => {
+    const p = pendientes.find(x => x.id === pid && !x.borrado)
+    if (!p || p.subtareas.length === 0) {
+      toast('Este pendiente no tiene subtareas para convertir')
+      return null
+    }
+    const color = p.prioridad === 'Alta' ? 'rojo' : p.prioridad === 'Baja' ? 'esmeralda' : 'ambar'
+    const proy = crearProyecto(p.titulo, color)
+    const asignado = asignarProyecto(proy.id, proyectos.concat(proy), p.proyecto)
+    const nuevos = pendientesDesdeSubtareas(p, asignado.proyectoId, asignado.proyecto)
+    setPendientes(prev => [
+      ...nuevos,
+      ...prev.map(x => x.id !== pid ? x : { ...x, subtareas: [], ...asignado, modificado: new Date().toISOString() }),
+    ])
+    toast.success(`«${p.titulo}» ahora es el proyecto "${proy.nombre}" con ${nuevos.length} tarea(s)`)
+    return proy
+  }
+
+  // H2 — A3 «Promover subtarea»: una subtarea (incluye las anidadas) pasa a ser un Pendiente
+  // independiente, del mismo proyecto y con el mismo origen; se retira del padre.
+  const promoverSubtarea = (pid: string, sid: string): Pendiente | null => {
+    const p = pendientes.find(x => x.id === pid)
+    if (!p) return null
+    const sub = buscarSubtarea(p.subtareas, sid)
+    if (!sub) return null
+    const nuevo = crearPendiente({
+      titulo: sub.texto,
+      responsable: sub.responsable || p.responsable,
+      fechaLimite: sub.fechaLimite,
+      prioridad: p.prioridad,
+      proyectoId: p.proyectoId,
+      proyecto: p.proyecto || '',
+      origenNota: p.origenNota,
+      subtareas: (sub.children || []).map(c => ({ ...c })),
+    })
+    actualizarPendiente(pid, { subtareas: quitarSubtarea(p.subtareas, sid) })
+    toast.success(`Subtarea «${sub.texto}» ahora es un pendiente independiente`)
+    return nuevo
+  }
 
   const crearNota = (): Nota => {
     const n: Nota = { id: uid(), titulo: 'Nueva nota', contenidoHTML: '', creado: new Date().toISOString(), modificado: new Date().toISOString() }
@@ -585,12 +631,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setEventos(prev => prev.map(e => e.id !== id ? e : { ...e, ...datos, modificado: new Date().toISOString() }))
   }
 
-  const reemplazarTodo = (p: Pendiente[], n: Nota[], u?: string, pr?: Proyecto[], ev?: EventoCalendario[]) => {
+  const reemplazarTodo = (p: Pendiente[], n: Nota[], u?: string, pr?: Proyecto[], ev?: EventoCalendario[], esp?: Espacio[]) => {
     setPendientes(p.map(normalizarConservandoId))
     setNotas(n)
     if (u) setUsuario(u)
     if (pr) setProyectos(pr)
     if (ev) setEventos(ev.map(normalizarEventoConservandoId))
+    if (esp) setEspacios(esp)
   }
 
   const personas = useMemo(() => {
@@ -601,7 +648,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const value: AppCtx = {
     pendientes, notas, usuario, setUsuario,
-    crearPendiente, actualizarPendiente, eliminarPendiente, restaurarPendiente, duplicarPendiente, archivarPendiente, desarchivarPendiente, toggleCompletar, toggleSubtarea, agregarSubtarea, agregarSubSubtarea, iniciarTimer, pausarTimer, agregarComentario, moverEstado,
+    crearPendiente, actualizarPendiente, eliminarPendiente, restaurarPendiente, duplicarPendiente, archivarPendiente, desarchivarPendiente, toggleCompletar, toggleSubtarea, agregarSubtarea, agregarSubSubtarea, promoverPendienteAProyecto, promoverSubtarea, iniciarTimer, pausarTimer, agregarComentario, moverEstado,
     crearNota, actualizarNota, agregarComentarioNota, eliminarNota, restaurarNota, duplicarNota, proyectos, crearProyecto, actualizarProyecto, eliminarProyecto,
     espacios, crearEspacio, actualizarEspacio, eliminarEspacio,
     etiquetas, crearEtiqueta, actualizarEtiqueta, eliminarEtiqueta, colorDeEtiqueta,

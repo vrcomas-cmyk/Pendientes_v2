@@ -5,11 +5,12 @@ import {
   mergeNota,
   mergeProyecto,
   mergeEvento,
+  mergeEspacio,
   contenidoIgual,
   reconciliar,
   type MapaSync,
 } from "@/lib/sync-merge";
-import type { Pendiente, Nota, Proyecto, EventoCalendario } from "@/types";
+import type { Pendiente, Nota, Proyecto, EventoCalendario, Espacio } from "@/types";
 
 function pendientePatch(p: Partial<Pendiente> & { id: string }): Pendiente {
   return {
@@ -171,6 +172,22 @@ describe("mergeEvento", () => {
     const r = mergeEvento(local, remote);
     expect(r.merged.titulo).toBe("L");
     expect(r.conflicto).toBe(true);
+  });
+});
+
+describe("mergeEspacio", () => {
+  it("gana el más reciente; conflicto si nombre/icono/color cambian", () => {
+    const local: Espacio = { id: "esp1", nombre: "Trabajo", icono: "🏢", color: "azul", creado: "", modificado: "2026-01-02" };
+    const remote: Espacio = { id: "esp1", nombre: "Oficina", icono: "🏢", color: "rojo", creado: "", modificado: "2026-01-01" };
+    const r = mergeEspacio(local, remote);
+    expect(r.merged.nombre).toBe("Trabajo");
+    expect(r.conflicto).toBe(true);
+  });
+  it("sin conflicto si son iguales salvo `modificado`", () => {
+    const local: Espacio = { id: "esp1", nombre: "Trabajo", icono: "🏢", color: "azul", creado: "", modificado: "2026-01-02" };
+    const remote: Espacio = { id: "esp1", nombre: "Trabajo", icono: "🏢", color: "azul", creado: "", modificado: "2026-01-01" };
+    const r = mergeEspacio(local, remote);
+    expect(r.conflicto).toBe(false);
   });
 });
 

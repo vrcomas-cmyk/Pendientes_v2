@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '@/store'
 import { useUI } from '@/ui-store'
+import ConfirmDialog from '@/components/ConfirmDialog'
 import type { Comentario, Estado, Prioridad, Subtarea, Adjunto } from '@/types'
 type Modalidad = 'individual' | 'equipo'
 import { PROYECTO_COLORES, PROYECTO_COLORES_KEYS } from '@/types'
@@ -21,7 +22,7 @@ import { ChevronDown, ChevronRight, Plus, Trash2, X, StickyNote, BookmarkPlus } 
 
 export default function TaskModal() {
   const { pendientes, crearPendiente, actualizarPendiente, eliminarPendiente, usuario, personas, proyectos, crearProyecto, columnas, crearPlantilla } = useApp()
-  const { modal, cerrarModal } = useUI()
+  const { modal, cerrarModal, overlay, registrarGuardia, confirmarDescartes, cancelarDescartes } = useUI()
   const idCompletado = idColumnaCompletado(columnas)
   const editando = modal.editId ? pendientes.find(p => p.id === modal.editId) : null
   const [draftId, setDraftId] = useState<string>(() => uid())
@@ -49,6 +50,35 @@ export default function TaskModal() {
   const [subNueva, setSubNueva] = useState('')
   const [comNuevo, setComNuevo] = useState('')
   const [avanzado, setAvanzado] = useState(false)
+
+  type ValoresFormulario = {
+    titulo: string; solicitante: string; responsable: string; descripcion: string
+    prioridad: Prioridad; estado: Estado; fechaLimite: string; hora: string
+    proyectoId: string; repetir: string; etiquetas: string; ponderacion: string
+    modalidad: Modalidad | ''; bloqueadoPor: string[]
+    subtareas: Subtarea[]; comentarios: Comentario[]; adjuntos: Adjunto[]
+  }
+  const snapshotDe = (v: ValoresFormulario) => JSON.stringify([
+    v.titulo, v.solicitante, v.responsable, v.descripcion, v.prioridad, v.estado,
+    v.fechaLimite, v.hora, v.proyectoId, v.repetir, v.etiquetas, v.ponderacion,
+    v.modalidad, v.bloqueadoPor, v.subtareas, v.comentarios, v.adjuntos,
+  ])
+  const baseRef = useRef('')
+  const dirtyRef = useRef(false)
+  const sinVerificarRef = useRef(false)
+
+  useLayoutEffect(() => {
+    dirtyRef.current = baseRef.current !== '' && snapshotDe({
+      titulo, solicitante, responsable, descripcion, prioridad, estado, fechaLimite,
+      hora, proyectoId, repetir, etiquetas, ponderacion, modalidad, bloqueadoPor,
+      subtareas, comentarios, adjuntos,
+    }) !== baseRef.current
+  })
+
+  useEffect(() => {
+    registrarGuardia(() => dirtyRef.current && !sinVerificarRef.current)
+    return () => registrarGuardia(null)
+  }, [registrarGuardia])
 
   useEffect(() => {
     if (!modal.open) return
@@ -78,6 +108,27 @@ export default function TaskModal() {
     setAdjuntos(JSON.parse(JSON.stringify(editando?.adjuntos ?? d.adjuntos ?? [])))
     setAvanzado(false)
     setSubNueva(''); setComNuevo('')
+    baseRef.current = snapshotDe({
+      titulo: editando?.titulo ?? d.titulo ?? '',
+      solicitante: editando?.solicitante ?? d.solicitante ?? '',
+      responsable: editando?.responsable ?? d.responsable ?? (editando ? '' : usuario),
+      descripcion: editando?.descripcion ?? d.descripcion ?? '',
+      prioridad: prioInicial,
+      estado: editando?.estado ?? d.estado ?? 'pendiente',
+      fechaLimite: fechaInicial || fechaPorPrioridad(prioInicial),
+      hora: editando?.hora ?? d.hora ?? '',
+      proyectoId: editando?.proyectoId ?? d.proyectoId ?? '',
+      repetir: editando?.repetir ?? d.repetir ?? '',
+      etiquetas: (editando?.etiquetas ?? d.etiquetas ?? []).join(', '),
+      ponderacion: (editando?.ponderacion ?? d.ponderacion) != null ? String(editando?.ponderacion ?? d.ponderacion) : '',
+      modalidad: editando?.modalidad ?? d.modalidad ?? '',
+      bloqueadoPor: editando?.bloqueadoPor ?? [],
+      subtareas: JSON.parse(JSON.stringify(editando?.subtareas ?? d.subtareas ?? [])),
+      comentarios: JSON.parse(JSON.stringify(editando?.comentarios ?? d.comentarios ?? [])),
+      adjuntos: JSON.parse(JSON.stringify(editando?.adjuntos ?? d.adjuntos ?? [])),
+    })
+    dirtyRef.current = false
+    sinVerificarRef.current = false
   }, [modal.open]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const agregarSub = () => {
@@ -126,6 +177,7 @@ export default function TaskModal() {
     const id = editando?.id || draftId
     if (editando) actualizarPendiente(editando.id, datos)
     else crearPendiente({ ...datos, id: draftId })
+    sinVerificarRef.current = true
     cerrarModal()
     toast.success('Guardado')
 
@@ -160,7 +212,8 @@ export default function TaskModal() {
   }
 
   return (
-    <Dialog open={modal.open} onOpenChange={o => { if (!o) cerrarModal() }}>
+    <>
+      <Dialog open={modal.open} onOpenChange={o => { if (!o && overlay === 'modal') cerrarModal() }}>
       <DialogContent className="max-w-xl max-h-[92vh] overflow-y-auto scroll-thin"
         onKeyDown={e => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); guardar() } }}>
         <DialogHeader><DialogTitle>{editando ? 'Editar pendiente' : 'Nuevo pendiente'}</DialogTitle></DialogHeader>
@@ -376,7 +429,7 @@ export default function TaskModal() {
 
         <DialogFooter className="flex items-center sm:justify-between">
           {editando ? (
-            <Button variant="ghost" size="sm" className="text-destructive" onClick={() => { eliminarPendiente(editando.id); cerrarModal() }}>
+            <Button variant="ghost" size="sm" className="text-destructive" onClick={() => { eliminarPendiente(editando.id); sinVerificarRef.current = true; cerrarModal() }}>
               <Trash2 size={14} className="mr-1" /> Eliminar
             </Button>
           ) : <span />}
@@ -386,6 +439,19 @@ export default function TaskModal() {
           </div>
         </DialogFooter>
       </DialogContent>
-    </Dialog>
+      </Dialog>
+      {overlay === 'confirmar-cierre' && (
+        <ConfirmDialog
+          open
+          onOpenChange={o => { if (!o) cancelarDescartes() }}
+          onCancelar={cancelarDescartes}
+          cerrarTrasConfirmar={false}
+          onConfirmar={confirmarDescartes}
+          titulo={editando ? 'Descartar cambios?' : 'Descartar este pendiente?'}
+          descripcion="Hay cambios sin guardar en este pendiente. Si descartas, se perderán."
+          textoConfirmar="Descartar"
+        />
+      )}
+    </>
   )
 }

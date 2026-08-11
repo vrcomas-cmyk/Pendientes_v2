@@ -3,7 +3,7 @@ import { toast } from 'sonner'
 import { useApp } from '@/store'
 import { useUI } from '@/ui-store'
 import { PROYECTO_COLORES } from '@/types'
-import { parsearLinea, fechaPorPrioridad } from '@/lib/app-utils'
+import { parsearLinea, subtareaDeLinea, fechaPorPrioridad } from '@/lib/app-utils'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -35,7 +35,7 @@ function cursorEn(el: Node) {
 export default function NotesView() {
   const app = useApp()
   const ui = useUI()
-  const { notas, pendientes, crearNota, actualizarNota, agregarComentarioNota, eliminarNota, duplicarNota, crearPendiente, actualizarPendiente, toggleCompletar, colorDeEtiqueta } = app
+  const { notas, pendientes, crearNota, actualizarNota, agregarComentarioNota, eliminarNota, duplicarNota, crearPendiente, actualizarPendiente, agregarSubtarea, toggleCompletar, colorDeEtiqueta } = app
   const { notaActualId, setNotaActualId, abrirPeek } = ui
   const isMobile = useIsMobile()
   const [filtro, setFiltro] = useState('')
@@ -170,6 +170,23 @@ export default function NotesView() {
     return node
   }
 
+  /* H1 — retorna el `.nota-task[data-pid]` más cercano ya convertido que preceda al nodo,
+     deteniéndose si entre ellos hay contenido no vacío que rompe la cadena. */
+  function hermanoAnteriorTarea(node: Node): HTMLElement | null {
+    let s: ChildNode | null = node.previousSibling
+    while (s) {
+      if (s.nodeType === Node.ELEMENT_NODE) {
+        const el = s as HTMLElement
+        if (el.dataset.pid) return el
+        if (!el.classList.contains('nota-task-draft') && (el.textContent || '').trim()) return null
+      } else if (s.textContent && (s.textContent as string).trim()) {
+        return null
+      }
+      s = s.previousSibling
+    }
+    return null
+  }
+
   function formatear(cmd: string, valor?: string) {
     document.execCommand(cmd, false, valor)
     editorRef.current?.focus()
@@ -197,6 +214,25 @@ export default function NotesView() {
     const texto = node.textContent || ''
     if (!RE_BULLET.test(texto)) return
     e.preventDefault()
+    // H1 — viñeta indentada bajo un pendiente ya convertido → SUBTAREA del padre
+    const sangria = (texto.match(/^\s*/)?.[0].length) ?? 0
+    const padre = sangria >= 2 ? hermanoAnteriorTarea(node) : null
+    if (padre?.dataset.pid) {
+      const parsed = parsearLinea(texto)
+      if (parsed) {
+        const sub = subtareaDeLinea(parsed)
+        agregarSubtarea(padre.dataset.pid, sub.texto, { responsable: sub.responsable, fechaLimite: sub.fechaLimite })
+        const div = document.createElement('div')
+        div.textContent = texto.replace(strip, '')
+        div.className = 'nota-sub'
+        ;(node as ChildNode).replaceWith(div)
+        const nueva = document.createElement('div'); nueva.innerHTML = '<br>'
+        div.after(nueva); cursorEn(nueva)
+        guardarAhora()
+        toast.success('Subtarea añadida: ' + sub.texto)
+        return
+      }
+    }
     const res = commitTarea(node as HTMLElement)
     if (res) {
       const nueva = document.createElement('div'); nueva.innerHTML = '<br>'
@@ -221,19 +257,40 @@ export default function NotesView() {
     programarGuardado()
   }
 
-  /* Extraer viñetas: convierte todos los «- » pendientes de la nota */
+  /* Extraer viñetas: pendientes para «- » de nivel superior y subtareas para las indentadas.
+     Reconoce tareas ya convertidas (.nota-task) como el pendiente «actual» para anidar debajo. */
   function extraerTodas() {
     const ed = editorRef.current
     if (!ed || !nota) return
-    let creados = 0
+    let creados = 0, subs = 0
+    let padre: { pid: string } | null = null
     Array.from(ed.childNodes).forEach(b => {
-      if (b.nodeType === Node.TEXT_NODE && RE_BULLET.test(b.textContent || '')) { if (commitTarea(b as Text)) creados++ }
-      else if (b.nodeType === Node.ELEMENT_NODE) {
-        const el = b as HTMLElement
-        if (!el.dataset.pid && !el.querySelector('img,table') && RE_BULLET.test(el.textContent || '')) { if (commitTarea(el)) creados++ }
+      const esEl = b.nodeType === Node.ELEMENT_NODE
+      const el = esEl ? b as HTMLElement : null
+      if (el) {
+        if (el.dataset.pid) { padre = { pid: el.dataset.pid }; return }
+        if (el.classList.contains('nota-sub')) return
+        if (!el.dataset.pid && el.querySelector('img,table')) return
       }
+      const raw = b.textContent || ''
+      if (!RE_BULLET.test(raw)) { padre = null; return }
+      const parsed = parsearLinea(raw)
+      if (!parsed) return
+      const sangria = (raw.match(/^\s*/)?.[0].length) ?? 0
+      if (sangria >= 2 && padre) {
+        const sub = subtareaDeLinea(parsed)
+        agregarSubtarea(padre.pid, sub.texto, { responsable: sub.responsable, fechaLimite: sub.fechaLimite })
+        const div = document.createElement('div')
+        div.textContent = raw.replace(strip, '')
+        div.className = 'nota-sub'
+        ;(b as ChildNode).replaceWith(div)
+        subs++
+        return
+      }
+      const res = commitTarea(b as HTMLElement | Text)
+      if (res) { creados++; padre = { pid: res.div.dataset.pid! } }
     })
-    if (creados) { guardarAhora(); toast.success(`${creados} pendiente(s) creados`) }
+    if (creados || subs) { guardarAhora(); toast.success(`${creados} pendiente(s) y ${subs} subtarea(s) creados`) }
     else toast('No se encontraron líneas con «- » sin convertir')
   }
 

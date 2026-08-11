@@ -126,6 +126,12 @@ html, body, #root { height: 100%; }
   font-size: 11px; line-height: 14px; text-align: center;
 }
 .nota-task.done { text-decoration: line-through; opacity: .6; }
+/* H1 — viñeta indentada ya materializada como SUBTAREA del pendiente previo (no tiene data-pid:
+   no se vuelve a extraer, es el espejo visual del dato que vive en la subtarea). */
+.nota-sub {
+  margin-left: 30px; padding: 4px 12px; border-left: 1.5px solid hsl(var(--border));
+  border-radius: 6px; color: hsl(var(--muted-foreground)); line-height: 1.5;
+}
 /* mientras escribes «- » y aún no confirmas con Enter */
 .nota-task-draft {
   border-left: 3px dashed hsl(var(--primary) / .6); padding-left: 10px;

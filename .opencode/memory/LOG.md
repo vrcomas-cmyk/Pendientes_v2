@@ -1,0 +1,13 @@
+# LOG — Bitácora del Equipo de Desarrollo
+
+Formato: `fecha | agente | acción | estado`
+
+## Historial
+2026-08-09 | sistema | Creación del equipo: 7 agentes, memoria por rol, loop F0→F8, comandos /sprint /equipo /memoria | ✓ hecho |
+2026-08-09 | team+especialistas | H1 «Minuta: viñetas anidadas → subtareas» implementado y verificado (lint/build/155 tests) | ✓ cerrado |
+2026-08-09 | team+especialistas | H4 «Confirmación antes de descartar una edición» implementado y verificado (lint/build/185 tests + QA Playwright 21/21); Epic 1 completo | ✓ cerrado |
+2026-08-10 | team+especialistas | H5 «Espacios como 5º destino primario, Pendientes a Sistema» implementado (lint/build/190 tests + QA Playwright 21/21); Epic 2 lote inicial | ✓ cerrado |
+2026-08-10 | Claude Code (fuera de opencode) | H6 «Selector de Espacio activo en móvil» implementado + 3 aserciones preexistentes corregidas (lint/build/207 tests) | ✓ cerrado |
+2026-08-10 | Claude Code (fuera de opencode) | H7 «Sincronización de Espacios entre dispositivos» implementado: mergeEspacio + tabla pnp_ctx_espacios (lint/build/209 tests) | ✓ cerrado |
+2026-08-11 | Claude Code (fuera de opencode) | H7b «Fix: migración pendiente de H7 rompía toda la sincronización» — pnp_ctx_espacios aislado en su propio try/catch (lint/build/209 tests) | ✓ cerrado |
+2026-08-11 | Claude Code (fuera de opencode) | Migración H7 aplicada vía MCP Supabase (proyecto real); H7c: supabase_setup.sql actualizado a la función pnp_canjear_invitacion real desplegada | ✓ cerrado |

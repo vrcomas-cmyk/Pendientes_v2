@@ -6,7 +6,7 @@ import { ChevronDown, ChevronUp, X, GripHorizontal } from 'lucide-react'
 /** Caja "glass" común a todos los widgets: arrastrable desde el header, redimensionable desde la
     esquina inferior derecha, colapsable, con botón de cerrar. Los widgets concretos (Pomodoro,
     Kanban rápido...) solo aportan el contenido — nunca reimplementan drag/resize. */
-export default function WidgetShell({ w, zIndex, children }: { w: WidgetInstancia; zIndex: number; children: ReactNode }) {
+export default function WidgetShell({ w, zIndex, children, pausado }: { w: WidgetInstancia; zIndex: number; children: ReactNode; pausado?: boolean }) {
   const { moverWidget, redimensionarWidget, cerrarWidget, toggleColapsado, traerAlFrente } = useWidgets()
   const def = WIDGET_DEFAULTS[w.tipo]
   const arrastre = useRef<{ x: number; y: number; wx: number; wy: number } | null>(null)
@@ -43,7 +43,7 @@ export default function WidgetShell({ w, zIndex, children }: { w: WidgetInstanci
 
   return (
     <div
-      className="glass fixed flex flex-col overflow-hidden rounded-2xl shadow-glass"
+      className={'glass fixed flex flex-col overflow-hidden rounded-2xl shadow-glass ' + (pausado ? 'opacity-50 pointer-events-none transition-opacity duration-150' : '')}
       style={{ left: w.x, top: w.y, width: w.w, height: w.colapsado ? 'auto' : w.h, zIndex }}
       onPointerDown={() => traerAlFrente(w.id)}
     >

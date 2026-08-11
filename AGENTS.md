@@ -76,6 +76,14 @@ En UI llamar al primero "cuenta compartida" o "sincronización". En código, evi
 Grafo de conocimiento en `graphify-out/`. Tras cambios: `graphify update .` (solo AST, sin costo API).
 Para consultas: `graphify query "..."`, `graphify path "A" "B"`, `graphify explain "concepto"`.
 
+## Equipo de desarrollo (agentes opencode)
+El proyecto incluye un equipo de agentes con memoria propia para desarrollo completo (plan, tests, código, QA, docs):
+- **Orquestador**: `team` (agente primario) — ejecuta el loop F0→F8. Delegación vía `task`.
+- **Especialistas** (en `.opencode/agent/`): `producto`, `planificador`, `tester`, `desarrollador`, `revisor`, `documentador`.
+- **Memoria por rol**: `.opencode/memory/<agente>.md` + bitácora compartida `LOG.md`.
+- **Comandos**: `/sprint "objetivo"` (loop completo), `/equipo` (roster), `/memoria <agente>` (memoria).
+- Protocolo común en `.opencode/instructions/team.md`; config en `opencode.json`.
+
 ## Knip
 Detección de código no usado: `npx knip` (config en `knip.json`)
 
