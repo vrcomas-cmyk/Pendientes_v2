@@ -8,6 +8,7 @@ import {
   mergeEspacio,
   contenidoIgual,
   reconciliar,
+  ausenciasSospechosas,
   type MapaSync,
 } from "@/lib/sync-merge";
 import type { Pendiente, Nota, Proyecto, EventoCalendario, Espacio } from "@/types";
@@ -274,5 +275,45 @@ describe("reconciliar", () => {
     const r2 = reconciliar(r1.resultado, remote, r1.nextLast, merge);
     expect(r2.conflictos).toEqual([]);
     expect(r2.resultado.map((p) => p.id)).toEqual(["x1"]);
+  });
+});
+
+// RED (H12): incidente real reportado por el usuario — ~60 pendientes sincronizados
+// desaparecieron de Supabase (RLS/lectura vacía por causa ajena a un borrado real del
+// usuario) y `pull()` los purgó también en local tras 2 ausencias consecutivas, porque
+// nada distinguía "el usuario los borró" de "la lectura remota vino vacía por error".
+// `ausenciasSospechosas` es el circuito de seguridad: si de golpe faltan varios ids que
+// ya estaban sincronizados (conocidos en `last`), es más plausible un fallo de lectura
+// que un borrado masivo real, y `pull()` debe abstenerse de purgar ese ciclo.
+describe("ausenciasSospechosas — circuito de seguridad contra purga masiva (H12)", () => {
+  const conocidos = (ids: string[]): MapaSync =>
+    Object.fromEntries(ids.map((id) => [id, "2026-01-01"]));
+
+  it("pocas ausencias (bajo el umbral) no son sospechosas — borrado normal de 1-2 ítems", () => {
+    const local = [{ id: "a" }, { id: "b" }, { id: "c" }];
+    const last = conocidos(["a", "b", "c"]);
+    // "a" sigue remoto, "b" y "c" ya no (el usuario los borró de verdad en otro dispositivo)
+    expect(ausenciasSospechosas(local, new Set(["a"]), last)).toBe(false);
+  });
+
+  it("muchas ausencias de golpe SÍ son sospechosas — remoto vino vacío por error, no por borrado", () => {
+    const ids = Array.from({ length: 60 }, (_, i) => `p${i}`);
+    const local = ids.map((id) => ({ id }));
+    const last = conocidos(ids);
+    // pull() no trajo NINGÚN id conocido: no es plausible que el usuario borrara 60 a la vez
+    expect(ausenciasSospechosas(local, new Set(), last)).toBe(true);
+  });
+
+  it("ítems nunca sincronizados (no están en `last`) no cuentan como ausencia", () => {
+    const local = [{ id: "nuevo-1" }, { id: "nuevo-2" }, { id: "nuevo-3" }, { id: "nuevo-4" }];
+    const last: MapaSync = {} // ninguno "conocido" todavía (altas locales sin subir)
+    expect(ausenciasSospechosas(local, new Set(), last)).toBe(false);
+  });
+
+  it("respeta un umbral custom", () => {
+    const local = [{ id: "a" }, { id: "b" }];
+    const last = conocidos(["a", "b"]);
+    expect(ausenciasSospechosas(local, new Set(), last, 2)).toBe(true);
+    expect(ausenciasSospechosas(local, new Set(), last, 3)).toBe(false);
   });
 });

@@ -89,6 +89,27 @@ export interface ResultadoReconcilia<T> {
   conflictos: string[]
 }
 
+/** Circuito de seguridad contra purga masiva (H12, incidente real: ~60 pendientes ya
+ * sincronizados desaparecieron de golpe de Supabase por una lectura fallida — no un
+ * borrado real — y `pull()` los purgó también en local tras 2 ausencias consecutivas.
+ * Un borrado legítimo del usuario suele ser de a uno o pocos ítems a la vez; que MUCHOS
+ * ids ya conocidos (sincronizados antes, `last[id] !== undefined`) falten de golpe en la
+ * misma lectura es mucho más probable que sea un fallo (sesión, RLS, tabla vacía por
+ * error) que ~60 borrados simultáneos. `pull()` usa esto para decidir si esa vuelta debe
+ * abstenerse de purgar nada local (ver `protegido` en `reconciliar`). */
+export function ausenciasSospechosas(
+  local: { id: string }[],
+  remoteIds: Set<string>,
+  last: MapaSync,
+  umbral = 5,
+): boolean {
+  let ausentes = 0
+  for (const it of local) {
+    if (last[it.id] !== undefined && !remoteIds.has(it.id)) ausentes++
+  }
+  return ausentes >= umbral
+}
+
 /**
  * Combina el estado local con el de la nube según el último estado sincronizado.
  * Maneja: edición concurrente, altas locales sin subir, y borrados de ambos lados.

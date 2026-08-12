@@ -265,6 +265,41 @@ a la alternativa (a) — se documenta acá para no repetir la discusión.
 
 ---
 
+## 2026-08-12 — Incidente de pérdida de datos: purga masiva por lectura remota vacía, fix de dos capas
+
+**Decisión**: tratar el incidente reportado por el usuario (~60 pendientes desaparecidos)
+con dos correcciones independientes, no una sola: reparar el dato dañado (backfill +
+constraint en Supabase) Y blindar el código cliente contra la clase de fallo que lo causó
+(`ausenciasSospechosas` en `src/lib/sync-merge.ts`), en vez de conformarse con la que
+pareciera "la causa" a primera vista.
+
+**Contexto**: la investigación encontró `espacio_id` nullable en la base real (pese a que
+`supabase_setup.sql` ya declaraba `not null` — mismo patrón de desfase esquema-repo que
+`pnp_canjear_invitacion`, 2026-08-11) y 4 filas huérfanas invisibles por RLS. Pero arreglar
+solo eso no explica por qué ~60 pendientes se perdieron también **localmente**: `pull()` en
+`src/sync.tsx` interpreta "ausente en 2 lecturas remotas seguidas" como borrado real y
+purga en local, sin distinguir de un fallo de lectura.
+
+**Alternativas evaluadas**: (a) arreglar solo el esquema (backfill + `NOT NULL`) y confiar
+en que no vuelva a pasar; (b) arreglar solo el cliente (circuito de seguridad) sin tocar el
+esquema dañado; (c) ambas capas.
+
+**Motivo**: se eligió (c). (a) sola no protege contra la *próxima* causa de una lectura
+remota vacía (sesión caída, RLS mal configurado en una migración futura, error de red
+prolongado) — el cliente seguiría purgando datos reales ante cualquier fallo de lectura
+suficientemente largo. (b) sola deja datos ya dañados sin reparar y permite que se vuelvan
+a crear filas huérfanas por el mismo desfase de esquema. Ninguna de las dos por separado
+cierra el incidente de verdad.
+
+**Consecuencias**: `ausenciasSospechosas` (umbral=5) es deliberadamente conservador —
+prioriza nunca perder datos reales sobre purgar rápido los borrados legítimos; un borrado
+real de un usuario tras 2 ausencias sigue funcionando igual (no pasa de 1-2 ítems a la
+vez). Si en el futuro se necesita borrar muchos ítems remotos de golpe de forma legítima
+(ej. "vaciar todo"), ese flujo debe hacerse como acción explícita del usuario en el
+cliente, no depender de que `pull()` lo infiera de una ausencia masiva.
+
+---
+
 ## Cómo agregar una entrada nueva
 
 Toda decisión que afecte modelo de datos, arquitectura de navegación, un principio o

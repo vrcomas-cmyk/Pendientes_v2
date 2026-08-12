@@ -53,6 +53,33 @@ sienta las bases para las siguientes fases. El cache del Service Worker sube a `
 
 ## [Unreleased]
 
+### H12 — Fix crítico: circuito de seguridad contra purga masiva por lectura remota vacía (2026-08-12)
+
+Incidente real reportado por el usuario: ~60 pendientes sincronizados desaparecieron por
+completo, tanto de Supabase como del dispositivo local. Causa raíz en dos partes:
+
+1. **Esquema real desalineado**: `espacio_id` en `pnp_pendientes`/`pnp_notas`/
+   `pnp_proyectos`/`pnp_eventos` era `nullable` en la base real de producción (aunque el
+   repo ya declaraba `not null`). 4 filas quedaron con `espacio_id = NULL` — invisibles
+   para siempre bajo las políticas RLS actuales, que nunca matchean `NULL`. Reparadas
+   (backfill al `espacio_id` de su dueño) y la columna alineada a `NOT NULL` en las 4
+   tablas vía Supabase MCP, cerrando la vía de entrada del problema.
+2. **`pull()` sin distinguir "borrado real" de "lectura fallida"**: cuando la lectura
+   remota volvió casi vacía (por el problema de (1) u otra causa), `src/sync.tsx` trató
+   cada pendiente ausente como borrado remoto tras 2 ausencias consecutivas y lo purgó
+   también en local — sin ninguna señal de que ~60 ausencias simultáneas de ítems ya
+   sincronizados es estadísticamente un fallo de lectura, no 60 borrados reales.
+
+- **Añadido** `src/lib/sync-merge.ts`: `ausenciasSospechosas(local, remoteIds, last,
+  umbral=5)` — cuenta cuántos ids ya conocidos (`last[id] !== undefined`) faltan de golpe
+  en la lectura remota; `true` si supera el umbral.
+- **Cambiado** `src/sync.tsx`: `pull()` calcula `sospechoso*` por colección ANTES de
+  contar ausencias. Si es sospechoso: no avanza el reloj de ausencias esa vuelta, protege
+  todos los ítems de esa colección de purga, y avisa con un toast — en vez de purgar en
+  silencio. Ausencias normales (1-2 ítems, borrado real del usuario) no se ven afectadas.
+- 233/233 tests (+4 en `tests/sync-merge.test.ts`, `ausenciasSospechosas`).
+- Sin bump de Service Worker: fix interno de sincronización, sin cambio visible en la UI.
+
 ### H11 — Espacio "General" real y seleccionable (2026-08-12)
 
 Hallazgo de una revisión pedida por el usuario ("que ningún registro se pierda"): el sync con

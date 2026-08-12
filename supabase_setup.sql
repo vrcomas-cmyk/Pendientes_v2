@@ -111,6 +111,28 @@ create table if not exists pnp_eventos (
 );
 create index if not exists idx_eventos_espacio on pnp_eventos(espacio_id);
 
+-- H12 (2026-08-12, ver DECISIONS_LOG.md): en instalaciones ya provisionadas antes de que
+-- `espacio_id` se declarara `not null` acá, la columna podía quedar `nullable` en la base
+-- real — cualquier fila que terminara con `espacio_id = NULL` quedaba invisible PARA
+-- SIEMPRE bajo las políticas RLS de abajo (nunca matchean NULL), sin error visible.
+-- Backfill defensivo + constraint, idempotente: si ya hay filas huérfanas de una
+-- instalación vieja, se les asigna el único espacio de su dueño (si tiene más de uno no se
+-- toca — caso ambiguo, requiere decisión manual) antes de poder aplicar `NOT NULL`.
+do $$
+declare
+  t text;
+begin
+  for t in select unnest(array['pnp_pendientes','pnp_notas','pnp_proyectos','pnp_eventos']) loop
+    execute format($sql$
+      update %I x set espacio_id = m.espacio_id
+      from pnp_espacio_miembros m
+      where x.espacio_id is null and x.user_id = m.user_id
+        and (select count(*) from pnp_espacio_miembros where user_id = x.user_id) = 1
+    $sql$, t);
+    execute format('alter table %I alter column espacio_id set not null', t);
+  end loop;
+end $$;
+
 -- pnp_ctx_espacios: los "Espacios" del Personal Workspace del usuario (Trabajo/Casa/etc.,
 -- src/types.ts `Espacio`). Mismo sobre genérico que las cuatro tablas de arriba — NO
 -- confundir con `pnp_espacios` (la cuenta compartida): esta tabla vive DENTRO de un

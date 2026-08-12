@@ -5,7 +5,7 @@ import { useApp } from '@/store'
 import type { Nota, Pendiente, Proyecto, EventoCalendario, ColumnaKanban, Espacio } from '@/types'
 import { COLUMNAS_DEFECTO } from '@/types'
 import { getConfig, getSupabase, isConfigured, saveConfig } from '@/lib/supabase'
-import { mergeNota, mergePendiente, mergeProyecto, mergeEvento, mergeEspacio, reconciliar, type MapaSync } from '@/lib/sync-merge'
+import { mergeNota, mergePendiente, mergeProyecto, mergeEvento, mergeEspacio, reconciliar, ausenciasSospechosas, type MapaSync } from '@/lib/sync-merge'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -360,17 +360,31 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         }
       }
       const { pendientes, notas, proyectos, eventos, espacios, reemplazarTodo } = appRef.current
-      contarAusencias(pendientes, remotePids, L.pendientes, ausenciaP.current)
-      contarAusencias(notas, remoteNids, L.notas, ausenciaN.current)
-      contarAusencias(proyectos, remotePrids, L.proyectos, ausenciaPr.current)
-      contarAusencias(eventos, remoteEvids, L.eventos, ausenciaEv.current)
-      contarAusencias(espacios, remoteEspids, L.espacios, ausenciaEsp.current)
-      // Protegido = recién subido (lag) O aún sin confirmar el borrado (menos de 2 ausencias seguidas).
-      const protegidoP = (id: string) => (subidoReciente.current.get(id) ?? 0) >= limite || (ausenciaP.current.get(id) ?? 0) < 2
-      const protegidoN = (id: string) => (subidoReciente.current.get(id) ?? 0) >= limite || (ausenciaN.current.get(id) ?? 0) < 2
-      const protegidoPr = (id: string) => (subidoReciente.current.get(id) ?? 0) >= limite || (ausenciaPr.current.get(id) ?? 0) < 2
-      const protegidoEv = (id: string) => (subidoReciente.current.get(id) ?? 0) >= limite || (ausenciaEv.current.get(id) ?? 0) < 2
-      const protegidoEsp = (id: string) => (subidoReciente.current.get(id) ?? 0) >= limite || (ausenciaEsp.current.get(id) ?? 0) < 2
+      // Circuito de seguridad (H12, incidente real: ~60 pendientes ya sincronizados
+      // desaparecieron de golpe de Supabase por un fallo de lectura —no un borrado real—
+      // y se purgaron también en local). Si de golpe faltan muchos ids ya conocidos, la
+      // colección entera queda protegida este ciclo: no se cuenta ausencia (no avanza el
+      // reloj de "2 ausencias") ni se purga nada, y se avisa al usuario.
+      const sospechosoP = ausenciasSospechosas(pendientes, remotePids, L.pendientes)
+      const sospechosoN = ausenciasSospechosas(notas, remoteNids, L.notas)
+      const sospechosoPr = ausenciasSospechosas(proyectos, remotePrids, L.proyectos)
+      const sospechosoEv = ausenciasSospechosas(eventos, remoteEvids, L.eventos)
+      const sospechosoEsp = ausenciasSospechosas(espacios, remoteEspids, L.espacios)
+      if (sospechosoP || sospechosoN || sospechosoPr || sospechosoEv || sospechosoEsp) {
+        toast.warning('Sincronización interrumpida: la nube devolvió muchos elementos ausentes de golpe. No se borró nada localmente; se reintentará solo.')
+      }
+      if (!sospechosoP) contarAusencias(pendientes, remotePids, L.pendientes, ausenciaP.current)
+      if (!sospechosoN) contarAusencias(notas, remoteNids, L.notas, ausenciaN.current)
+      if (!sospechosoPr) contarAusencias(proyectos, remotePrids, L.proyectos, ausenciaPr.current)
+      if (!sospechosoEv) contarAusencias(eventos, remoteEvids, L.eventos, ausenciaEv.current)
+      if (!sospechosoEsp) contarAusencias(espacios, remoteEspids, L.espacios, ausenciaEsp.current)
+      // Protegido = recién subido (lag) O aún sin confirmar el borrado (menos de 2 ausencias
+      // seguidas) O ausencias sospechosas de golpe (fallo de lectura, no borrado real).
+      const protegidoP = (id: string) => sospechosoP || (subidoReciente.current.get(id) ?? 0) >= limite || (ausenciaP.current.get(id) ?? 0) < 2
+      const protegidoN = (id: string) => sospechosoN || (subidoReciente.current.get(id) ?? 0) >= limite || (ausenciaN.current.get(id) ?? 0) < 2
+      const protegidoPr = (id: string) => sospechosoPr || (subidoReciente.current.get(id) ?? 0) >= limite || (ausenciaPr.current.get(id) ?? 0) < 2
+      const protegidoEv = (id: string) => sospechosoEv || (subidoReciente.current.get(id) ?? 0) >= limite || (ausenciaEv.current.get(id) ?? 0) < 2
+      const protegidoEsp = (id: string) => sospechosoEsp || (subidoReciente.current.get(id) ?? 0) >= limite || (ausenciaEsp.current.get(id) ?? 0) < 2
       const resP = reconciliar(pendientes, remoteP, L.pendientes, mergePendiente, protegidoP)
       const resN = reconciliar(notas, remoteN, L.notas, mergeNota, protegidoN)
       const resPr = reconciliar(proyectos, remotePr, L.proyectos, mergeProyecto, protegidoPr)
