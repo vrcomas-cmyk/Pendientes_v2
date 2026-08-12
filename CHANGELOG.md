@@ -53,6 +53,35 @@ sienta las bases para las siguientes fases. El cache del Service Worker sube a `
 
 ## [Unreleased]
 
+### H11 — Espacio "General" real y seleccionable (2026-08-12)
+
+Hallazgo de una revisión pedida por el usuario ("que ningún registro se pierda"): el sync con
+Supabase resultó sólido (aislamiento H7b intacto, ventana de gracia + 2 ausencias consecutivas
+antes de aceptar un borrado remoto), pero se encontró un riesgo real de *visibilidad*, no de
+pérdida de datos. `Pendiente`/`Nota` no tienen `espacioId` propio — lo heredan vía
+`proyectoId → proyecto.espacioId`. Un pendiente sin proyecto (todo lo que entra por Inbox o
+captura rápida) o un proyecto sin `espacioId` ("Espacio General" implícito) quedaban ocultos
+por diseño en Hoy e Inbox en cuanto el usuario activaba un Espacio real, sin ningún aviso — la
+causa más probable de la sensación de "se me perdieron pendientes".
+
+- **Añadido** `src/types.ts`: `ESPACIO_GENERAL_ID`/`ESPACIO_GENERAL_ICONO`/`ESPACIO_GENERAL_NOMBRE`
+  — id reservado (`'general'`), no es una fila de `espacios` (no se crea, no se sincroniza, no
+  se puede borrar), pero es un valor real y seleccionable de `espacioActualId`.
+- **Cambiado** `src/lib/app-utils.ts`: `enEspacio()`/`enEspacioProyecto()` tratan
+  `ESPACIO_GENERAL_ID` como "todo lo que no tiene Espacio real" (pendiente sin `proyectoId`,
+  proyecto sin `espacioId`, o `proyectoId` huérfano — se trata como General en vez de ocultarse).
+- **Cambiado** `src/App.tsx`: selector de Espacio activo (escritorio y menú "⋮" móvil) suma la
+  entrada "🗂️ General" entre "Todos" y los espacios reales; nueva `labelEspacioActivo()`
+  compartida entre ambos selectores (elimina 4 duplicados del cálculo inline de la etiqueta).
+- **Cambiado** `src/views/ProyectosView.tsx`: el filtro por espacio pasa a usar
+  `enEspacioProyecto()` (antes comparaba `p.espacioId === espacioActualId` directo, sin
+  contemplar General); crear un proyecto estando en General ya no le asigna `espacioId`.
+- **Cambiado** `src/views/EspaciosView.tsx`: tarjeta "🗂️ General" junto a "Todos", con su propio
+  conteo de proyectos activos sin espacio.
+- 229/229 tests (10 nuevos: 7 unitarios en `tests/enEspacio.test.ts` para
+  `enEspacio`/`enEspacioProyecto`, 3 de UI en `tests/espacio-general.test.tsx`). SW `v20→v21`
+  (nueva opción visible en dos selectores + una vista).
+
 ### H10 — Epic 2 completo: nombrado consistente entre plataformas (2026-08-11)
 
 Cierra el último ítem del EPIC 2. `VISTAS_SISTEMA` traía un campo `corto` (pensado para

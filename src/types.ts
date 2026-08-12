@@ -113,6 +113,16 @@ export interface Espacio {
 
 export const ESPACIO_ICONOS = ['🏢', '🎓', '🏠', '💰', '🏍', '💡', '📚', '🎯', '🛒', '🔧', '❤️', '✈️']
 
+/** Espacio "General" (H11): grupo virtual para todo lo que NO tiene un Espacio real asignado
+    (pendientes sin `proyectoId`, proyectos sin `espacioId`). No es una fila de `espacios` —
+    no se crea, no se sincroniza, no se puede borrar — es un id reservado que el filtro de
+    contexto (`enEspacio`/`enEspacioProyecto` en `app-utils.ts`) y el selector de Espacio activo
+    tratan como su propio destino filtrable. Antes de H11 ese contenido quedaba invisible sin
+    aviso en cuanto se activaba un Espacio real (ver DECISIONS_LOG.md). */
+export const ESPACIO_GENERAL_ID = 'general'
+export const ESPACIO_GENERAL_ICONO = '🗂️'
+export const ESPACIO_GENERAL_NOMBRE = 'General'
+
 export const PROYECTO_COLORES: Record<string, { dot: string; badge: string; border: string; bg: string }> = {
   rojo:      { dot: 'bg-red-500',     badge: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',         border: 'border-l-red-500',     bg: 'bg-red-50 dark:bg-red-900/20' },
   naranja:   { dot: 'bg-orange-500',  badge: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300', border: 'border-l-orange-500', bg: 'bg-orange-50 dark:bg-orange-900/20' },

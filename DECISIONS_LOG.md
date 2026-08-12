@@ -233,6 +233,38 @@ primera sincronización posterior a la actualización, igual que cualquier alta 
 
 ---
 
+## 2026-08-12 — El Espacio "General" se modela como id reservado, no como fila real de `espacios`
+
+**Decisión**: para que los pendientes sin proyecto y los proyectos sin `espacioId` dejen de
+ser invisibles al activar un Espacio real, "General" se implementa como un valor especial de
+`espacioActualId` (`ESPACIO_GENERAL_ID = 'general'`, `src/types.ts`) que el filtro de contexto
+reconoce, en vez de crear una fila real en `espacios`/`pnp_ctx_espacios`.
+
+**Contexto**: revisión pedida por el usuario ("que ningún registro se pierda... que todos los
+pendientes se guarden en un espacio") detectó que `enEspacio()`/`enEspacioProyecto()`
+(`src/lib/app-utils.ts`) ocultaban por diseño, sin aviso, todo lo que no resolvía a un
+`Espacio` real vía `proyecto.espacioId` — la causa más probable de que el usuario sintiera que
+perdía pendientes al usar el selector de Espacio (H6/H7).
+
+**Alternativas evaluadas**: (a) fila real de "General" en `espacios` (y en `pnp_ctx_espacios`
+vía sync), creada por cada usuario o sembrada automáticamente; (b) id reservado tratado
+especialmente por el filtro de contexto, sin fila ni sincronización.
+
+**Motivo**: se eligió (b). Una fila real exige decidir cómo se siembra para cuentas nuevas y
+existentes (migración de datos), cómo se comporta si el usuario la borra o renombra, y cómo
+se replica entre dispositivos sin colisionar con el `id` real que cada cuenta ya podría tener.
+El id reservado no tiene ninguno de esos problemas: es un valor constante en el código, igual
+en todos los dispositivos sin sincronizar nada, y no puede borrarse ni duplicarse por
+construcción. El costo es que el filtro de contexto (`app-utils.ts`) debe conocer el caso
+especial explícitamente — aceptable porque ya era el único lugar con esa responsabilidad.
+
+**Consecuencias**: "General" aparece en los tres selectores (sidebar escritorio, menú "⋮"
+móvil, vista Espacios) sin tocar el esquema de Supabase ni requerir una migración. Si en el
+futuro se necesita que el usuario personalice el nombre/icono de "General", habrá que migrar
+a la alternativa (a) — se documenta acá para no repetir la discusión.
+
+---
+
 ## Cómo agregar una entrada nueva
 
 Toda decisión que afecte modelo de datos, arquitectura de navegación, un principio o

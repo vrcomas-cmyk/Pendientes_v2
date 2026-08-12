@@ -1,4 +1,5 @@
 import { toast } from 'sonner'
+import { ESPACIO_GENERAL_ID } from '@/types'
 import type { Pendiente, Prioridad, Subtarea } from '@/types'
 
 export function uid(): string {
@@ -485,12 +486,13 @@ export function activo(p: Pendiente): boolean {
   return !p.archivado && !p.borrado
 }
 
-/** Filtro de contexto por Espacio (Fase 4 / E2): decide si un pendiente se muestra con el
-    espacio activo. `espacioActualId === null` = «Todos» (nada se filtra). Con un espacio
-    activo, el pendiente aparece SOLO si su `proyectoId` resuelve a un proyecto cuyo
-    `espacioId` coincide con el activo. Los pendientes sin proyecto (sin clasificar) y los
-    proyectos del Espacio "General" implícito (sin `espacioId`) quedan fuera por diseño: ese
-    es justamente el valor del filtro de contexto. `proyectos` es un map id→proyecto ya
+/** Filtro de contexto por Espacio (Fase 4 / E2, extendido en H11): decide si un pendiente se
+    muestra con el espacio activo. `espacioActualId === null` = «Todos» (nada se filtra).
+    `espacioActualId === ESPACIO_GENERAL_ID` = todo lo que NO tiene un Espacio real: pendientes
+    sin `proyectoId`, o cuyo `proyectoId` resuelve a un proyecto sin `espacioId` (o a ningún
+    proyecto — huérfano, se trata como General en vez de ocultarse, ver H11/DECISIONS_LOG.md).
+    Con un espacio real activo, el pendiente aparece SOLO si su `proyectoId` resuelve a un
+    proyecto cuyo `espacioId` coincide con el activo. `proyectos` es un map id→proyecto ya
     memoizado por quien llama (cada vista construye el suyo a partir del store). */
 export function enEspacio(
   p: { proyectoId?: string | null },
@@ -498,6 +500,7 @@ export function enEspacio(
   proyectos: Record<string, { espacioId?: string | null }>,
 ): boolean {
   if (espacioActualId == null) return true
+  if (espacioActualId === ESPACIO_GENERAL_ID) return !p.proyectoId || !proyectos[p.proyectoId]?.espacioId
   if (!p.proyectoId) return false
   const proyecto = proyectos[p.proyectoId]
   if (!proyecto) return false
@@ -506,9 +509,11 @@ export function enEspacio(
 
 /** Variante para proyectos (se usa en `ProyectosView`): mismo criterio que `enEspacio` pero
     sin resolver el map — el propio proyecto ya declara su `espacioId`. `espacioActualId ===
-    null` = «Todos», y un proyecto solo se muestra si pertenece al espacio activo. */
+    null` = «Todos»; `=== ESPACIO_GENERAL_ID` = proyectos sin `espacioId` (H11); si no, un
+    proyecto solo se muestra si pertenece al espacio activo. */
 export function enEspacioProyecto(pr: { espacioId?: string | null }, espacioActualId: string | null): boolean {
   if (espacioActualId == null) return true
+  if (espacioActualId === ESPACIO_GENERAL_ID) return !pr.espacioId
   return pr.espacioId === espacioActualId
 }
 

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useApp } from '@/store'
 import { useUI } from '@/ui-store'
-import { PROYECTO_COLORES } from '@/types'
+import { PROYECTO_COLORES, ESPACIO_GENERAL_ID, ESPACIO_GENERAL_ICONO, ESPACIO_GENERAL_NOMBRE } from '@/types'
 import NuevoEspacioDialog from '@/components/NuevoEspacioDialog'
 import { Button } from '@/components/ui/button'
 import { LayoutGrid, Plus } from 'lucide-react'
@@ -33,6 +33,15 @@ export default function EspaciosView({ onEntrar }: { onEntrar: () => void }) {
             <span className="text-sm font-semibold">Todos</span>
             <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
               <span>{proyectos.filter(p => !p.archivado).length}</span>
+              <span>activos</span>
+            </span>
+          </button>
+          <button type="button" onClick={() => { setEspacioActualId(ESPACIO_GENERAL_ID); onEntrar() }}
+            className="glass flex flex-col items-start gap-2 rounded-2xl bg-card p-4 text-left transition-colors hover:bg-accent">
+            <span aria-hidden className="text-2xl leading-none">{ESPACIO_GENERAL_ICONO}</span>
+            <span className="text-sm font-semibold">{ESPACIO_GENERAL_NOMBRE}</span>
+            <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+              <span>{proyectos.filter(p => !p.espacioId && !p.archivado).length}</span>
               <span>activos</span>
             </span>
           </button>

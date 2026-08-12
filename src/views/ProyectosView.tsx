@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useApp } from '@/store'
 import { useUI } from '@/ui-store'
-import { PROYECTO_COLORES, PROYECTO_COLORES_KEYS } from '@/types'
+import { PROYECTO_COLORES, PROYECTO_COLORES_KEYS, ESPACIO_GENERAL_ID } from '@/types'
 import { listarCuentasGoogle, type CuentaGoogle } from '@/lib/googleCalendar'
-import { activo } from '@/lib/app-utils'
+import { activo, enEspacioProyecto } from '@/lib/app-utils'
 import { idColumnaCompletado } from '@/lib/columnas'
 import TaskRow from '@/components/TaskRow'
 import KanbanDnd from '@/components/KanbanDnd'
@@ -36,9 +36,10 @@ function NuevoProyectoDialog({ open, onOpenChange }: { open: boolean; onOpenChan
     const n = nombre.trim()
     if (!n) return
     const nuevo = crearProyecto(n, color, cuentaId || undefined)
-    // Si el usuario está mirando un espacio filtrado, el proyecto nuevo nace en ese espacio
-    // (menos clics: no obliga a un segundo paso de "mover a espacio").
-    if (espacioActualId) actualizarProyecto(nuevo.id, { espacioId: espacioActualId })
+    // Si el usuario está mirando un espacio real filtrado, el proyecto nuevo nace en ese espacio
+    // (menos clics: no obliga a un segundo paso de "mover a espacio"). "General" (H11) no es un
+    // espacio real — no hay nada que asignar, el proyecto ya nace sin `espacioId`.
+    if (espacioActualId && espacioActualId !== ESPACIO_GENERAL_ID) actualizarProyecto(nuevo.id, { espacioId: espacioActualId })
     onOpenChange(false)
   }
 
@@ -117,9 +118,9 @@ export default function ProyectosView() {
   const [importarDlg, setImportarDlg] = useState(false)
   const [eliminarId, setEliminarId] = useState<string | null>(null)
 
-  // Filtro por Espacio (Fase 4): "Todos" (espacioActualId=null) no filtra nada, para no
-  // cambiar el comportamiento por defecto que ya existía antes de que hubiera Espacios.
-  const proyectos = espacioActualId ? todosProyectos.filter(p => p.espacioId === espacioActualId) : todosProyectos
+  // Filtro por Espacio (Fase 4, extendido en H11): "Todos" (espacioActualId=null) no filtra
+  // nada; "General" agrupa los proyectos sin `espacioId` en vez de dejarlos invisibles.
+  const proyectos = todosProyectos.filter(p => enEspacioProyecto(p, espacioActualId))
 
   const proyecto = proyectos.find(p => p.id === proyectoSelId) || null
 
@@ -173,7 +174,11 @@ export default function ProyectosView() {
         })}
         {!proyectos.length && (
           <p className="p-4 text-center text-xs text-muted-foreground">
-            {espacioActualId ? 'Ningún proyecto en este espacio todavía.' : 'Crea tu primer proyecto para organizar trabajo o estudio en un tablero propio.'}
+            {espacioActualId === ESPACIO_GENERAL_ID
+              ? 'Ningún proyecto sin espacio asignado.'
+              : espacioActualId
+                ? 'Ningún proyecto en este espacio todavía.'
+                : 'Crea tu primer proyecto para organizar trabajo o estudio en un tablero propio.'}
           </p>
         )}
       </div>

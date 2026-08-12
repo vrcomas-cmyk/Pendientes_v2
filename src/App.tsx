@@ -23,6 +23,7 @@ import WidgetsLayer from '@/components/widgets/WidgetsLayer'
 import { WidgetsProvider, useWidgets } from '@/widgets-store'
 import { WIDGET_DEFAULTS, type WidgetTipo } from '@/lib/widgets'
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
+import { ESPACIO_GENERAL_ID, ESPACIO_GENERAL_ICONO, ESPACIO_GENERAL_NOMBRE } from '@/types'
 import AjustesDialog from '@/components/AjustesDialog'
 import { aplicarAcento, leerAcento } from '@/lib/tema'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
@@ -92,6 +93,14 @@ function Shell() {
   const sync = useSync()
   const { abrirWidget } = useWidgets()
   const isMobile = useIsMobile()
+  // Etiqueta compartida por el selector de escritorio y el de móvil (H11): "Todos", "General"
+  // (id reservado, no vive en `espacios`) o el espacio real elegido.
+  const labelEspacioActivo = (id: string | null) => {
+    if (id == null) return 'Espacio activo: Todos'
+    if (id === ESPACIO_GENERAL_ID) return `Espacio activo: ${ESPACIO_GENERAL_ICONO} ${ESPACIO_GENERAL_NOMBRE}`
+    const e = espacios.find(x => x.id === id)
+    return `Espacio activo: ${e?.icono || '📋'} ${e?.nombre || 'Todos'}`
+  }
   const [vista, setVistaState] = useState<Vista>(() => {
     try { const v = localStorage.getItem(LS_VISTA); if (v && (VISTAS_VALIDAS as readonly string[]).includes(v)) return v as Vista } catch { /* noop */ }
     return 'hoy'
@@ -446,10 +455,10 @@ function Shell() {
                 )}
                 <div className="border-t" />
                 <button onClick={() => setEspaciosMovilAbierto(v => !v)}
-                  aria-label={espacioActualId ? `Espacio activo: ${(espacios.find(e => e.id === espacioActualId)?.icono || '📋')} ${espacios.find(e => e.id === espacioActualId)?.nombre || 'Todos'}` : 'Espacio activo: Todos'}
+                  aria-label={labelEspacioActivo(espacioActualId)}
                   className="flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-accent">
                   <LayoutGrid size={15} />
-                  <span>{espacioActualId ? `Espacio activo: ${(espacios.find(e => e.id === espacioActualId)?.icono || '📋')} ${espacios.find(e => e.id === espacioActualId)?.nombre || 'Todos'}` : 'Espacio activo: Todos'}</span>
+                  <span>{labelEspacioActivo(espacioActualId)}</span>
                   <ChevronDown size={12} className={'ml-auto shrink-0 transition-transform ' + (espaciosMovilAbierto ? 'rotate-180' : '')} />
                 </button>
                 {espaciosMovilAbierto && (
@@ -457,6 +466,10 @@ function Shell() {
                     <button onClick={() => { setEspacioActualId(null); setMenuAbierto(false) }}
                       className={'flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-accent ' + (espacioActualId == null ? 'text-primary font-semibold' : '')}>
                       <span aria-hidden>📋</span> Todos
+                    </button>
+                    <button onClick={() => { setEspacioActualId(ESPACIO_GENERAL_ID); setMenuAbierto(false) }}
+                      className={'flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-accent ' + (espacioActualId === ESPACIO_GENERAL_ID ? 'text-primary font-semibold' : '')}>
+                      <span aria-hidden>{ESPACIO_GENERAL_ICONO}</span> {ESPACIO_GENERAL_NOMBRE}
                     </button>
                     {espacios.map(e => {
                       const activos = proyectos.filter(p => p.espacioId === e.id && !p.archivado).length
@@ -553,14 +566,17 @@ function Shell() {
           ))}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-accent text-muted-foreground" aria-label={espacioActualId ? `Espacio activo: ${(espacios.find(e => e.id === espacioActualId)?.icono || '📋')} ${espacios.find(e => e.id === espacioActualId)?.nombre || 'Todos'}` : 'Espacio activo: Todos'}>
-                <span>{espacioActualId ? `Espacio activo: ${(espacios.find(e => e.id === espacioActualId)?.icono || '📋')} ${espacios.find(e => e.id === espacioActualId)?.nombre || 'Todos'}` : 'Espacio activo: Todos'}</span>
+              <button className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-accent text-muted-foreground" aria-label={labelEspacioActivo(espacioActualId)}>
+                <span>{labelEspacioActivo(espacioActualId)}</span>
                 <ChevronDown size={12} className="ml-auto shrink-0" />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" side="right" className="w-52">
               <DropdownMenuItem onClick={() => setEspacioActualId(null)} className="flex items-center gap-2">
                 <span aria-hidden>📋</span> Todos
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setEspacioActualId(ESPACIO_GENERAL_ID)} className="flex items-center gap-2">
+                <span aria-hidden>{ESPACIO_GENERAL_ICONO}</span> {ESPACIO_GENERAL_NOMBRE}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               {espacios.map(e => {

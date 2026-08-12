@@ -14,3 +14,4 @@ Formato: `fecha | agente | acción | estado`
 2026-08-11 | Claude Code (fuera de opencode) | H8 «Agrupación Sistema»: Ajustes/Datos/Ayuda detrás de un solo menú en escritorio y móvil (lint/build/215 tests); backlog corregido | ✓ cerrado |
 2026-08-11 | Claude Code (fuera de opencode) | H9 «Panel/Papelera a navegación secundaria»: movidas al menú Sistema en escritorio (lint/build/219 tests) | ✓ cerrado |
 2026-08-11 | Claude Code (fuera de opencode) | H10 «Nombrado consistente entre plataformas» (fix corto='Tareas'→'Pendientes') — EPIC 2 completo (lint/build/219 tests) | ✓ cerrado |
+2026-08-12 | Claude Code (fuera de opencode) | Auditoría de pérdida de datos pedida por el usuario: sync confirmado sólido; hallazgo real fue de visibilidad (pendientes sin proyecto/proyectos sin espacio invisibles en Hoy/Inbox con Espacio activo). H11 «Espacio "General" real y seleccionable» implementado como fix (lint/build/229 tests) | ✓ cerrado |
