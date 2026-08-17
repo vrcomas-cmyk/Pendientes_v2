@@ -5,10 +5,11 @@ import type { Pendiente } from '@/types'
 import { PROYECTO_COLORES } from '@/types'
 import type { FiltroFecha } from '@/types'
 export type { FiltroFecha } from '@/types'
-import { hoyISO, vencido, activo, estaBloqueado } from '@/lib/app-utils'
+import { hoyISO, vencido, activo, estaBloqueado, enEspacio } from '@/lib/app-utils'
 import { columnaDe, idColumnaCompletado } from '@/lib/columnas'
 import { useIsMobile } from '@/hooks/use-is-mobile'
 import TaskRow from '@/components/TaskRow'
+import BulkActionsBar from '@/components/BulkActionsBar'
 import { Card } from '@/components/ui/card'
 import PosponerMenu from '@/components/PosponerMenu'
 import PendienteCuerpo from '@/components/PendienteCuerpo'
@@ -17,7 +18,7 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { Pencil, Trash2, Search, SlidersHorizontal, ChevronLeft, ChevronDown, Bookmark, BookmarkPlus, X } from 'lucide-react'
+import { Pencil, Trash2, Search, SlidersHorizontal, ChevronLeft, ChevronDown, Bookmark, BookmarkPlus, X, ListChecks } from 'lucide-react'
 
 function TaskDetail({ detalle, onBack, mobile }: { detalle: Pendiente; onBack: () => void; mobile: boolean }) {
   const { eliminarPendiente, columnas } = useApp()
@@ -63,8 +64,17 @@ function cargarFiltros(): FiltrosGuardados {
 
 export default function ListView({ filtroFecha, setFiltroFecha }: { filtroFecha: FiltroFecha; setFiltroFecha: (f: FiltroFecha) => void }) {
   const { pendientes, personas, proyectos, toggleSubtarea, toggleCompletar, columnas, filtrosGuardados, crearFiltroGuardado, eliminarFiltroGuardado, usuario } = useApp()
-  const { abrirModal, filtroActivoId, setFiltroActivoId } = useUI()
+  const { abrirModal, filtroActivoId, setFiltroActivoId, espacioActualId } = useUI()
   const idCompletado = idColumnaCompletado(columnas)
+  // Fix: "Pendientes" era la única vista primaria que no respetaba el Espacio activo (Hoy e
+  // Inbox sí lo hacen vía `enEspacio`, y Proyectos filtra su lista de proyectos vía
+  // `enEspacioProyecto`) — un pendiente de un proyecto fuera del espacio activo aparecía acá
+  // pero el proyecto ni siquiera se veía en Proyectos para poder abrirlo y encontrarlo ahí.
+  const proyectosPorId = useMemo(() => {
+    const m: Record<string, { espacioId?: string | null }> = {}
+    for (const pr of proyectos) m[pr.id] = { espacioId: pr.espacioId }
+    return m
+  }, [proyectos])
   const [gruposColapsados, setGruposColapsados] = useState<Set<string>>(new Set())
   const toggleGrupo = (k: string) => setGruposColapsados(prev => { const s = new Set(prev); if (s.has(k)) s.delete(k); else s.add(k); return s })
   const isMobile = useIsMobile()
@@ -82,6 +92,12 @@ export default function ListView({ filtroFecha, setFiltroFecha }: { filtroFecha:
   const [guardarDlg, setGuardarDlg] = useState(false)
   const [nombreFiltro, setNombreFiltro] = useState('')
   const [atajoFiltro, setAtajoFiltro] = useState<string>('__ninguno')
+  // Fase 2.2 (bulk actions): modo selección independiente del detalle de la derecha — al entrar,
+  // un clic en la fila selecciona en vez de abrir el detalle (ver `itemConSub` más abajo).
+  const [modoSeleccion, setModoSeleccion] = useState(false)
+  const [seleccionIds, setSeleccionIds] = useState<Set<string>>(new Set())
+  const toggleSeleccion = (id: string) => setSeleccionIds(prev => { const s = new Set(prev); if (s.has(id)) s.delete(id); else s.add(id); return s })
+  const salirDeSeleccion = () => { setModoSeleccion(false); setSeleccionIds(new Set()) }
 
   // Un atajo global (Ctrl+Shift+1-4, ver App.tsx) navega aquí y setea `filtroActivoId`: aplicamos
   // sus criterios al estado local de esta vista, que es quien realmente filtra/ordena/agrupa.
@@ -132,6 +148,7 @@ export default function ListView({ filtroFecha, setFiltroFecha }: { filtroFecha:
     const rank = { Alta: 0, Media: 1, Baja: 2 } as Record<string, number>
     return pendientes
       .filter(p => {
+        if (!enEspacio(p, espacioActualId, proyectosPorId)) return false
         if (ql && !(p.titulo + ' ' + p.descripcion + ' ' + p.solicitante + ' ' + p.responsable + ' ' + p.etiquetas.join(' ')).toLowerCase().includes(ql)) return false
         if (fEstado !== 'todos' && p.estado !== fEstado) return false
         if (fPrioridad !== 'todos' && p.prioridad !== fPrioridad) return false
@@ -147,7 +164,7 @@ export default function ListView({ filtroFecha, setFiltroFecha }: { filtroFecha:
         if (orden === 'titulo') return a.titulo.localeCompare(b.titulo)
         return new Date(b.creado).getTime() - new Date(a.creado).getTime()
       })
-  }, [pendientes, q, fEstado, fPrioridad, fResp, orden, filtroFecha, mostrarArchivados, soloDisponibles, idCompletado]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [pendientes, q, fEstado, fPrioridad, fResp, orden, filtroFecha, mostrarArchivados, soloDisponibles, idCompletado, espacioActualId, proyectosPorId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const grupos = useMemo(() => {
     if (grupo === 'ninguno') return null
@@ -217,7 +234,9 @@ export default function ListView({ filtroFecha, setFiltroFecha }: { filtroFecha:
 
   const itemConSub = (p: Pendiente) => (
     <div key={p.id} className="space-y-0.5">
-      <TaskRow p={p} seleccionado={p.id === detalleId} onClick={() => setDetalleId(p.id)} modoArchivados={mostrarArchivados} />
+      <TaskRow p={p} seleccionado={p.id === detalleId} modoArchivados={mostrarArchivados}
+        onClick={modoSeleccion ? () => toggleSeleccion(p.id) : () => setDetalleId(p.id)}
+        bulkMode={modoSeleccion} bulkChecked={seleccionIds.has(p.id)} onBulkToggle={() => toggleSeleccion(p.id)} />
       {subtareasDe(p)}
     </div>
   )
@@ -281,6 +300,10 @@ export default function ListView({ filtroFecha, setFiltroFecha }: { filtroFecha:
           <Button size="sm" variant={filtrosAbiertos || hayFiltrosActivos ? 'default' : 'secondary'} className="relative h-8 shrink-0 md:hidden" onClick={() => setFiltrosAbiertos(v => !v)}>
             <SlidersHorizontal size={14} />
             {hayFiltrosActivos && <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-red-500" />}
+          </Button>
+          <Button size="sm" variant={modoSeleccion ? 'default' : 'secondary'} className="h-8 shrink-0" title="Seleccionar varios"
+            onClick={() => (modoSeleccion ? salirDeSeleccion() : setModoSeleccion(true))}>
+            <ListChecks size={14} />
           </Button>
         </div>
         <div className="flex items-center justify-between text-[11px] text-muted-foreground">
@@ -355,6 +378,7 @@ export default function ListView({ filtroFecha, setFiltroFecha }: { filtroFecha:
           </Card>
         </div>
       )}
+      {modoSeleccion && <BulkActionsBar ids={[...seleccionIds]} onLimpiar={salirDeSeleccion} />}
     </div>
   )
 }

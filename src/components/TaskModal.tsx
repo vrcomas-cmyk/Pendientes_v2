@@ -18,10 +18,10 @@ import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
-import { ChevronDown, ChevronRight, Plus, Trash2, X, StickyNote, BookmarkPlus } from 'lucide-react'
+import { Plus, Trash2, X, StickyNote, BookmarkPlus } from 'lucide-react'
 
 export default function TaskModal() {
-  const { pendientes, crearPendiente, actualizarPendiente, eliminarPendiente, usuario, personas, proyectos, crearProyecto, columnas, crearPlantilla } = useApp()
+  const { pendientes, crearPendiente, actualizarPendiente, eliminarPendiente, usuario, personas, proyectos, crearProyecto, columnas, crearPlantilla, contactos, crearContacto } = useApp()
   const { modal, cerrarModal, overlay, registrarGuardia, confirmarDescartes, cancelarDescartes } = useUI()
   const idCompletado = idColumnaCompletado(columnas)
   const editando = modal.editId ? pendientes.find(p => p.id === modal.editId) : null
@@ -49,7 +49,10 @@ export default function TaskModal() {
   const [adjuntos, setAdjuntos] = useState<Adjunto[]>([])
   const [subNueva, setSubNueva] = useState('')
   const [comNuevo, setComNuevo] = useState('')
-  const [avanzado, setAvanzado] = useState(false)
+  // Fase 2.3 (plan de mejora): el modal se organiza en pestañas en vez del acordeón "Más
+  // detalles" que escondía Proyecto/Etiquetas/Ponderación. Puramente de presentación — ningún
+  // campo, handler ni la lógica de guardado/dirty-check de abajo cambia de comportamiento.
+  const [tab, setTab] = useState<'general' | 'subtareas' | 'detalles' | 'actividad'>('general')
 
   type ValoresFormulario = {
     titulo: string; solicitante: string; responsable: string; descripcion: string
@@ -106,7 +109,7 @@ export default function TaskModal() {
     setSubtareas(JSON.parse(JSON.stringify(editando?.subtareas ?? d.subtareas ?? [])))
     setComentarios(JSON.parse(JSON.stringify(editando?.comentarios ?? d.comentarios ?? [])))
     setAdjuntos(JSON.parse(JSON.stringify(editando?.adjuntos ?? d.adjuntos ?? [])))
-    setAvanzado(false)
+    setTab('general')
     setSubNueva(''); setComNuevo('')
     baseRef.current = snapshotDe({
       titulo: editando?.titulo ?? d.titulo ?? '',
@@ -164,8 +167,22 @@ export default function TaskModal() {
       ? defaultsHorario(fechaLimite, hora, editando?.duracionMin)
       : { hora, duracionMin: editando?.duracionMin }
     const descripcionFinal = descripcion.trim()
+    // Combobox de contacto (Fase 1b): el campo sigue siendo un string libre (retrocompatible,
+    // igual que antes), pero al guardar se resuelve contra `contactos` por nombre — si ya existe
+    // un contacto con ese nombre se reusa su id, si no se crea uno nuevo automáticamente. Así
+    // `responsableId`/`solicitanteId` quedan como referencia real sin agregar un paso extra al
+    // usuario (sigue siendo "escribir un nombre y listo").
+    const resolverContacto = (nombre: string): string | undefined => {
+      const n = nombre.trim()
+      if (!n) return undefined
+      const existente = contactos.find(c => !c.borrado && c.nombre.toLowerCase() === n.toLowerCase())
+      return existente ? existente.id : crearContacto(n).id
+    }
+    const responsableTrim = responsable.trim()
+    const solicitanteTrim = solicitante.trim()
     const datos = {
-      titulo: t, solicitante: solicitante.trim(), responsable: responsable.trim(),
+      titulo: t, solicitante: solicitanteTrim, responsable: responsableTrim,
+      responsableId: resolverContacto(responsableTrim), solicitanteId: resolverContacto(solicitanteTrim),
       descripcion: descripcionFinal, prioridad, estado, fechaLimite, hora: horaFinal, duracionMin: duracionFinal,
       proyecto: nombreProyecto, proyectoId: proyectoId || undefined,
       etiquetas: etiquetas.split(',').map(s => s.trim()).filter(Boolean),
@@ -223,79 +240,105 @@ export default function TaskModal() {
             <Label className="text-[11px] uppercase text-muted-foreground">Título *</Label>
             <Input value={titulo} onChange={e => setTitulo(e.target.value)} placeholder="¿Qué hay que hacer?" autoFocus />
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-[11px] uppercase text-muted-foreground">Quién lo solicita</Label>
-              <Input list="personas-dl" value={solicitante} onChange={e => setSolicitante(e.target.value)} placeholder="Ej: Liz" />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-[11px] uppercase text-muted-foreground">Responsable</Label>
-              <Input list="personas-dl" value={responsable} onChange={e => setResponsable(e.target.value)} placeholder="Ej: Yo" />
-            </div>
-          </div>
-          <datalist id="personas-dl">{personas.map(p => <option key={p} value={p} />)}</datalist>
+          <datalist id="personas-dl">
+            {/* Une los strings sueltos legacy (`personas`, derivado de responsable/solicitante ya
+                usados) con los nombres de Contacto reales — un nombre nuevo tipeado acá se
+                convierte en Contacto recién al guardar (ver `resolverContacto` más abajo). */}
+            {[...new Set([...personas, ...contactos.filter(c => !c.borrado).map(c => c.nombre)])].sort().map(p => <option key={p} value={p} />)}
+          </datalist>
 
-          <div className="space-y-1.5">
-            <Label className="text-[11px] uppercase text-muted-foreground">Descripción</Label>
-            <Textarea rows={2} value={descripcion} onChange={e => setDescripcion(e.target.value)} placeholder="Contexto, detalle…" />
+          {/* Pestañas (Fase 2.3): reemplazan el acordeón "Más detalles" — nada se esconde detrás
+              de un toggle, cada sección tiene su propio lugar fijo. */}
+          <div className="flex gap-1 border-b">
+            {([
+              ['general', 'General'],
+              ['subtareas', `Subtareas${subtareas.length ? ` (${subtareas.length})` : ''}`],
+              ['detalles', 'Detalles'],
+              ['actividad', `Actividad${comentarios.length || adjuntos.length ? ` (${comentarios.length + adjuntos.length})` : ''}`],
+            ] as const).map(([id, label]) => (
+              <button key={id} type="button" onClick={() => setTab(id)}
+                className={'border-b-2 px-2.5 pb-2 text-xs font-medium transition-colors ' + (tab === id ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground')}>
+                {label}
+              </button>
+            ))}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-[11px] uppercase text-muted-foreground">Prioridad</Label>
-              <Select value={prioridad} onValueChange={v => { setPrioridad(v as Prioridad); if (!fechaTocada) setFechaLimite(fechaPorPrioridad(v as Prioridad)) }}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent><SelectItem value="Alta">🔴 Alta</SelectItem><SelectItem value="Media">🟡 Media</SelectItem><SelectItem value="Baja">🟢 Baja</SelectItem></SelectContent>
-              </Select>
+          {tab === 'general' && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-[11px] uppercase text-muted-foreground">Quién lo solicita</Label>
+                <Input list="personas-dl" value={solicitante} onChange={e => setSolicitante(e.target.value)} placeholder="Ej: Liz" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[11px] uppercase text-muted-foreground">Responsable</Label>
+                <Input list="personas-dl" value={responsable} onChange={e => setResponsable(e.target.value)} placeholder="Ej: Yo" />
+              </div>
             </div>
+
             <div className="space-y-1.5">
-              <Label className="text-[11px] uppercase text-muted-foreground">Estado</Label>
-              <Select value={estado} onValueChange={v => setEstado(v as Estado)}>
+              <Label className="text-[11px] uppercase text-muted-foreground">Descripción</Label>
+              <Textarea rows={2} value={descripcion} onChange={e => setDescripcion(e.target.value)} placeholder="Contexto, detalle…" />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-[11px] uppercase text-muted-foreground">Prioridad</Label>
+                <Select value={prioridad} onValueChange={v => { setPrioridad(v as Prioridad); if (!fechaTocada) setFechaLimite(fechaPorPrioridad(v as Prioridad)) }}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="Alta">🔴 Alta</SelectItem><SelectItem value="Media">🟡 Media</SelectItem><SelectItem value="Baja">🟢 Baja</SelectItem></SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[11px] uppercase text-muted-foreground">Estado</Label>
+                <Select value={estado} onValueChange={v => setEstado(v as Estado)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {columnas.map(c => (
+                      <SelectItem key={c.id} value={c.id} disabled={c.esCompletado && faltanSub > 0}>
+                        {c.nombre}{c.esCompletado && faltanSub > 0 ? ` (faltan ${faltanSub})` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Fecha límite + hora */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-[11px] uppercase text-muted-foreground">Fecha límite</Label>
+                <Input type="date" value={fechaLimite} onChange={e => { setFechaLimite(e.target.value); setFechaTocada(true) }} />
+                {!fechaTocada && <p className="text-[10px] text-muted-foreground">Sugerida por prioridad ({prioridad})</p>}
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[11px] uppercase text-muted-foreground">Hora (opcional)</Label>
+                <Input type="time" value={hora} onChange={e => setHora(e.target.value)} />
+                {!hora && <p className="text-[10px] text-muted-foreground">Sin hora se agenda a las 8:00 (5 min)</p>}
+              </div>
+            </div>
+
+            {/* Repetición */}
+            <div className="space-y-1.5">
+              <Label className="text-[11px] uppercase text-muted-foreground">Repetir</Label>
+              <Select value={repetir || 'nunca'} onValueChange={v => setRepetir(v === 'nunca' ? '' : v)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {columnas.map(c => (
-                    <SelectItem key={c.id} value={c.id} disabled={c.esCompletado && faltanSub > 0}>
-                      {c.nombre}{c.esCompletado && faltanSub > 0 ? ` (faltan ${faltanSub})` : ''}
-                    </SelectItem>
-                  ))}
+                  <SelectItem value="nunca">No se repite</SelectItem>
+                  <SelectItem value="1d">Cada día</SelectItem>
+                  <SelectItem value="7d">Cada semana</SelectItem>
+                  <SelectItem value="14d">Cada 2 semanas</SelectItem>
+                  <SelectItem value="1m">Cada mes</SelectItem>
+                  <SelectItem value="!1d">Cada día (desde que se completa)</SelectItem>
+                  <SelectItem value="!7d">Cada semana (desde que se completa)</SelectItem>
                 </SelectContent>
               </Select>
+              {repetir && <p className="text-[10px] text-muted-foreground">Al completarlo se creará el siguiente: {describirRepeticion(repetir)}.</p>}
             </div>
           </div>
+          )}
 
-          {/* Fecha límite + hora */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-[11px] uppercase text-muted-foreground">Fecha límite</Label>
-              <Input type="date" value={fechaLimite} onChange={e => { setFechaLimite(e.target.value); setFechaTocada(true) }} />
-              {!fechaTocada && <p className="text-[10px] text-muted-foreground">Sugerida por prioridad ({prioridad})</p>}
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-[11px] uppercase text-muted-foreground">Hora (opcional)</Label>
-              <Input type="time" value={hora} onChange={e => setHora(e.target.value)} />
-              {!hora && <p className="text-[10px] text-muted-foreground">Sin hora se agenda a las 8:00 (5 min)</p>}
-            </div>
-          </div>
-
-          {/* Repetición */}
-          <div className="space-y-1.5">
-            <Label className="text-[11px] uppercase text-muted-foreground">Repetir</Label>
-            <Select value={repetir || 'nunca'} onValueChange={v => setRepetir(v === 'nunca' ? '' : v)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="nunca">No se repite</SelectItem>
-                <SelectItem value="1d">Cada día</SelectItem>
-                <SelectItem value="7d">Cada semana</SelectItem>
-                <SelectItem value="14d">Cada 2 semanas</SelectItem>
-                <SelectItem value="1m">Cada mes</SelectItem>
-                <SelectItem value="!1d">Cada día (desde que se completa)</SelectItem>
-                <SelectItem value="!7d">Cada semana (desde que se completa)</SelectItem>
-              </SelectContent>
-            </Select>
-            {repetir && <p className="text-[10px] text-muted-foreground">Al completarlo se creará el siguiente: {describirRepeticion(repetir)}.</p>}
-          </div>
-
-          {/* Subtareas con responsable y fecha */}
+          {tab === 'subtareas' && (
           <div className="space-y-1.5">
             <Label className="text-[11px] uppercase text-muted-foreground">Subtareas {faltanSub > 0 && <span className="text-amber-600">· {faltanSub} por completar</span>}</Label>
             <div className="space-y-2">
@@ -319,42 +362,41 @@ export default function TaskModal() {
               <Button variant="secondary" size="sm" onClick={agregarSub}><Plus size={14} /></Button>
             </div>
           </div>
+          )}
 
-          {/* Adjuntos */}
-          <div className="space-y-1.5">
-            <Label className="text-[11px] uppercase text-muted-foreground">Adjuntos (archivos / imágenes)</Label>
-            <AdjuntosUI adjuntos={adjuntos} taskId={draftId} onChange={setAdjuntos} />
-          </div>
+          {tab === 'actividad' && (
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label className="text-[11px] uppercase text-muted-foreground">Adjuntos (archivos / imágenes)</Label>
+              <AdjuntosUI adjuntos={adjuntos} taskId={draftId} onChange={setAdjuntos} />
+            </div>
 
-          {/* Comentarios / bitácora */}
-          <div className="space-y-1.5">
-            <Label className="text-[11px] uppercase text-muted-foreground">Comentarios e historial</Label>
-            <div className="max-h-32 space-y-1 overflow-y-auto scroll-thin">
-              {comentarios.map((c, i) => (
-                <div key={i} className="rounded bg-muted p-1.5 text-xs">
-                  <div className="flex justify-between gap-2">
-                    <span><b>{c.autor}:</b> {c.texto} <span className="text-muted-foreground">· {new Date(c.fecha).toLocaleString()}</span></span>
-                    <button onClick={() => setComentarios(arr => arr.filter((_, j) => j !== i))} className="text-muted-foreground hover:text-destructive"><X size={12} /></button>
+            <div className="space-y-1.5">
+              <Label className="text-[11px] uppercase text-muted-foreground">Comentarios e historial</Label>
+              <div className="max-h-32 space-y-1 overflow-y-auto scroll-thin">
+                {comentarios.map((c, i) => (
+                  <div key={i} className="rounded bg-muted p-1.5 text-xs">
+                    <div className="flex justify-between gap-2">
+                      <span><b>{c.autor}:</b> {c.texto} <span className="text-muted-foreground">· {new Date(c.fecha).toLocaleString()}</span></span>
+                      <button onClick={() => setComentarios(arr => arr.filter((_, j) => j !== i))} className="text-muted-foreground hover:text-destructive"><X size={12} /></button>
+                    </div>
+                    {c.adjuntos && c.adjuntos.length > 0 && (
+                      <div className="mt-1 flex flex-wrap gap-1.5">{c.adjuntos.map(a => <Miniatura key={a.id} a={a} />)}</div>
+                    )}
                   </div>
-                  {c.adjuntos && c.adjuntos.length > 0 && (
-                    <div className="mt-1 flex flex-wrap gap-1.5">{c.adjuntos.map(a => <Miniatura key={a.id} a={a} />)}</div>
-                  )}
-                </div>
-              ))}
-              {!comentarios.length && <p className="text-xs text-muted-foreground">Sin comentarios.</p>}
-            </div>
-            <div className="flex gap-2">
-              <Input value={comNuevo} onChange={e => setComNuevo(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); agregarCom() } }} placeholder="Escribe un comentario y Enter" className="h-8 text-xs" />
-              <Button variant="secondary" size="sm" onClick={agregarCom}><Plus size={14} /></Button>
+                ))}
+                {!comentarios.length && <p className="text-xs text-muted-foreground">Sin comentarios.</p>}
+              </div>
+              <div className="flex gap-2">
+                <Input value={comNuevo} onChange={e => setComNuevo(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); agregarCom() } }} placeholder="Escribe un comentario y Enter" className="h-8 text-xs" />
+                <Button variant="secondary" size="sm" onClick={agregarCom}><Plus size={14} /></Button>
+              </div>
             </div>
           </div>
+          )}
 
-          {/* Avanzado */}
-          <button onClick={() => setAvanzado(a => !a)} className="flex items-center gap-1 text-xs font-semibold text-primary">
-            {avanzado ? <ChevronDown size={14} /> : <ChevronRight size={14} />} Más detalles (proyecto, etiquetas)
-          </button>
-          {avanzado && (
-            <div className="space-y-4 border-t pt-4">
+          {tab === 'detalles' && (
+            <div className="space-y-4">
               <div className="space-y-1.5">
                 <Label className="text-[11px] uppercase text-muted-foreground">Proyecto</Label>
                 {creandoProyecto ? (

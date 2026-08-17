@@ -1287,3 +1287,283 @@ mano `rounded-xl/lg/2xl border bg-card`, y baja la navegación primaria de 7 a 5
   `LS_VISTA`) no se tocó — sigue siendo la lista completa de 7, en el mismo orden.
 - **Verificado**: `npm run test` (147/147), `npm run build` y `npm run lint` en verde;
   revisión visual en `npm run dev` del sidebar, Pendientes y Papelera en tema oscuro.
+
+### Fase 1a (Contactos) — Entidad `Contacto` y CRUD en el store (2026-08-16)
+
+Primer sub-hito del plan de Contactos/Equipos/Delegación (ver `.claude/skills/workspace-doctrine`).
+Solo capa de datos, sin cambios visibles — la UI (`ContactosView`, combobox en `TaskModal`) y el
+sync a la nube (`pnp_contactos`, 3-way merge) quedan para el siguiente sub-hito, deliberadamente
+separados por el riesgo de tocar el pipeline de sync con datos reales de por medio.
+
+- **Añadido** `src/types.ts`: interfaz `Contacto` (id, nombre, email, telefono, avatar, color,
+  usuarioId, etiquetas, notas, borrado, creado, modificado), siguiendo el mismo patrón que
+  `Etiqueta`.
+- **Añadido** `Pendiente.responsableId?` / `Pendiente.solicitanteId?` (referencia a `Contacto.id`)
+  y `Subtarea.asignadoA?: string[]` — todos opcionales y retrocompatibles; los campos legacy
+  `responsable`/`solicitante` (string) se mantienen como espejo/fallback, no se tocan ni migran
+  datos existentes.
+- **Añadido** `src/store.tsx`: estado `contactos` (persistido en `pn_contactos`, local por ahora,
+  igual que `etiquetas`) y CRUD `crearContacto`/`actualizarContacto`/`eliminarContacto`/
+  `contactoPorId`. `eliminarContacto` es soft-delete (no limpia referencias existentes, para no
+  perder de golpe quién era el responsable de una tarea vieja). Incluido en la purga automática de
+  papelera a 30 días y en `vaciarPapelera`.
+- **Verificado**: `npx tsc --noEmit`, `npm run test` (233/233) y `npm run build` en verde.
+
+### Fase 1b (Contactos) — `ContactosView` y combobox real en `TaskModal` (2026-08-16)
+
+Segundo sub-hito: la UI sobre la capa de datos de la Fase 1a. Sigue sin tocar sync — contactos
+todavía solo viven en `localStorage` (`pn_contactos`) en este punto del roadmap.
+
+- **Añadido** `src/views/ContactosView.tsx`: directorio buscable de contactos (tarjetas con
+  avatar/color, badge de pendientes abiertos) y diálogo de detalle con la lista de pendientes
+  delegados/solicitados a esa persona (resuelve por `responsableId`/`solicitanteId` **y** por el
+  string legacy, para no dejar invisibles las tareas viejas sin id asociado todavía).
+- **Añadido** `src/components/NuevoContactoDialog.tsx`: crear contacto (nombre, email, teléfono,
+  avatar, color), mismo patrón que `NuevoEspacioDialog`.
+- **Cambiado** `src/components/TaskModal.tsx`: el combobox de responsable/solicitante (ya
+  existía como `<Input list>` con autocomplete) ahora, al guardar, resuelve el nombre tipeado
+  contra `contactos` — reusa el id si ya existe, crea el contacto automáticamente si no — y
+  guarda `responsableId`/`solicitanteId` reales. El campo sigue siendo texto libre para el
+  usuario (cero pasos extra); el datalist ahora también sugiere nombres de contactos ya creados.
+- **Cambiado** `src/App.tsx`: nueva vista `Contactos`, agregada a `VISTAS_SISTEMA` (consulta
+  ocasional, junto a Panel/Papelera) y accesible desde el menú "Sistema" (desktop y móvil). Sin
+  atajo numérico propio a propósito — insertarla en `VISTAS_VALIDAS` en otra posición habría
+  corrido los atajos 6/7/8 ya aprendidos por el usuario.
+- **Verificado**: `npx tsc --noEmit`, `npm run lint`, `npm run test` (233/233) y `npm run build`
+  en verde.
+
+### Fase 1c (Contactos) — Sync a la nube (`pnp_ctx_contactos`, 3-way merge) (2026-08-16)
+
+Cierra el hueco de seguridad de datos señalado en el análisis del plan: hasta acá un contacto
+creado en un dispositivo no aparecía en los demás. Extiende el mecanismo de sync ya existente
+(mismo usado por pendientes/notas/proyectos/eventos/Espacios) a Contactos, sin tocar su lógica.
+
+WARNING: **requiere re-ejecutar `supabase_setup.sql` en el proyecto de Supabase** — agrega la
+tabla `pnp_ctx_contactos` (aditiva, mismo patrón que `pnp_ctx_espacios` de la Fase 4/H7), su
+política RLS ("miembros CRUD ctx_contactos de su espacio") y la agrega a la publicación
+`supabase_realtime`. Hasta que se corra, el sync de contactos falla en silencio (mismo
+comportamiento defensivo que `pnp_ctx_espacios` cuando esa tabla no existía) — el resto de la
+app sigue funcionando sin verse afectada.
+
+- **Añadido** `supabase_setup.sql`: tabla `pnp_ctx_contactos` (mismo sobre genérico `id`/
+  `user_id`/`espacio_id`/`data jsonb`/`updated_at` que las demás entidades de dominio), su
+  índice, política RLS y alta en `supabase_realtime`.
+- **Añadido** `src/lib/sync-merge.ts`: `mergeContacto` — mismo criterio last-write-wins que
+  `mergeEspacio` (sin colecciones internas que unir).
+- **Cambiado** `src/sync.tsx`: contactos sigue el mismo pull → reconciliar → push que las demás
+  entidades, con su propio `try/catch` en pull/flush (igual que `pnp_ctx_espacios`) para que la
+  ausencia de la tabla nueva no bloquee el resto del sync si `supabase_setup.sql` todavía no se
+  re-ejecutó. Incluye el circuito de seguridad H12 (ausencias sospechosas de golpe = colección
+  protegida, no se borra nada localmente).
+- **Cambiado** `src/store.tsx`: `reemplazarTodo` acepta contactos como séptimo parámetro
+  opcional (retrocompatible — todos los llamadores existentes, como la importación de JSON en
+  `App.tsx`, siguen funcionando sin pasarlo).
+- **Verificado**: `npx tsc --noEmit`, `npm run lint`, `npm run test` (233/233) y `npm run build`
+  en verde. Verificación manual de sync entre dispositivos pendiente de que el usuario re-corra
+  el SQL en su proyecto de Supabase.
+
+### Fase 2 (parcial) — Avatar de Contacto en `TaskRow` (2026-08-16)
+
+Primer punto de la Fase 2 del plan (UI/UX): aprovecha la entidad `Contacto` recién creada en
+las filas de pendientes existentes, sin cambiar ningún dato guardado.
+
+- **Cambiado** `src/components/TaskRow.tsx`: si el responsable de un pendiente se resuelve a un
+  `Contacto` real (por `responsableId` o, si no, por coincidencia de nombre), se muestra su
+  avatar/emoji en vez del ícono genérico de persona. Puramente visual — `p.responsable` no se
+  toca.
+- **Verificado**: `npx tsc --noEmit`, `npm run test` (233/233) y `npm run build` en verde.
+
+### Fase 2.2 — Selección múltiple y acciones masivas en Lista (2026-08-16)
+
+Bulk actions del plan de mejora: seleccionar varios pendientes a la vez en `ListView` (modo
+lista) y aplicarles una acción en lote, en vez de repetirla uno por uno.
+
+- **Añadido** `src/components/BulkActionsBar.tsx`: barra flotante (mismo estilo `.glass` que el
+  dock de accesos rápidos) con Completar, cambiar Prioridad, cambiar Responsable (incluye
+  contactos ya creados) y Eliminar (con confirmación, mueve a Papelera — no borra directo).
+  Reusa el CRUD normal del store (`toggleCompletar`/`actualizarPendiente`/`eliminarPendiente`)
+  en bucle sobre los ids seleccionados — no hay lógica de datos nueva.
+- **Cambiado** `src/components/TaskRow.tsx`: props opcionales `bulkMode`/`bulkChecked`/
+  `onBulkToggle` para el checkbox de selección — sin ellos la fila se comporta exactamente
+  igual que antes (usada así en Proyectos, Inbox, Hoy y el widget de próxima tarea).
+- **Cambiado** `src/views/ListView.tsx`: botón "Seleccionar varios" que activa el modo (un clic
+  en una fila selecciona en vez de abrir el detalle); la barra aparece con ≥1 seleccionado.
+- **Pendiente para un hito futuro**: "mover a proyecto" en bulk (quedó fuera de este alcance,
+  las otras cuatro acciones cubren los casos de uso más frecuentes).
+- **Verificado**: `npx tsc --noEmit`, `npm run lint`, `npm run test` (233/233) y `npm run build`
+  en verde.
+
+### Fase 2.4 — Micro-celebración al completar + @menciones con Contactos (2026-08-16)
+
+- **Añadido** `src/index.css`: `@keyframes check-pop` (pulso con overshoot, misma curva "spring"
+  que ya usa `.scale-in`) — clase transitoria `.check-pop`, respeta
+  `prefers-reduced-motion: reduce`.
+- **Cambiado** `src/components/TaskRow.tsx`: aplica `.check-pop` al checkbox al marcar un
+  pendiente como completado (no al desmarcar). Se quita sola a los 320ms.
+- **Cambiado** `src/components/PendienteCuerpo.tsx`: las sugerencias de @mención en comentarios
+  (ya existían desde la Fase 11.2) ahora también incluyen los nombres de `Contacto`, no solo los
+  strings legacy de `personas`.
+- **Verificado**: `npx tsc --noEmit`, `npm run lint`, `npm run test` (233/233) y `npm run build`
+  en verde.
+
+### Fase 2.3 — `TaskModal` en pestañas (General/Subtareas/Detalles/Actividad) (2026-08-16)
+
+Reorganización deliberadamente **solo de presentación**: ningún campo, handler, validación ni
+la lógica de guardado/dirty-check/descarte cambia de comportamiento — se movió JSX de lugar,
+no se tocó una sola línea de las funciones `guardar`/`guardarComoPlantilla`/efectos. Por eso
+pudo hacerse en la misma sesión que ya tocó datos/sync: el riesgo real es de UI, no de datos.
+
+- **Cambiado** `src/components/TaskModal.tsx`: el acordeón "Más detalles" que escondía
+  Proyecto/Etiquetas/Ponderación/Bloqueado-por se reemplaza por 4 pestañas con botones simples
+  (mismo patrón sin librería nueva que el selector de modo de `PendientesView`, no se agregó
+  `@radix-ui/react-tabs` — no había necesidad de una dependencia nueva para esto):
+  - **General**: solicitante/responsable, descripción, prioridad, estado, fecha/hora, repetir.
+  - **Subtareas**: la lista completa, sin cambios de comportamiento.
+  - **Detalles**: proyecto, etiquetas, ponderación, modalidad, bloqueado por, guardar plantilla.
+  - **Actividad**: adjuntos y comentarios (antes al final del acordeón cerrado).
+  Cada pestaña muestra un contador (subtareas, comentarios+adjuntos) para saber si hay
+  contenido sin necesidad de entrar. El título queda siempre visible arriba de las pestañas.
+- **Verificado**: `npx tsc --noEmit`, `npm run lint`, `npm run test` (233/233 — incluye los
+  tests existentes que interactúan con TaskModal, ninguno se tocó) y `npm run build` en verde.
+
+### Invitación restringida por email en EspacioDialog (2026-08-16)
+
+Hallazgo al revisar el código: el backend YA validaba esto — `pnp_canjear_invitacion` (RPC en
+`supabase_setup.sql`) desde su creación compara el email de la invitación contra el de quien
+intenta canjearla y rechaza si no coincide. Solo faltaba exponer el campo en la UI. **Cero
+cambios de SQL/RLS** — se agregó únicamente el input y el paso del parámetro ya soportado.
+
+- **Cambiado** `src/components/EspacioDialog.tsx`: campo opcional de email antes de "Invitar
+  cuenta hija" — `crearInvitacion(espacioId, userId, email)` ya aceptaba ese tercer parámetro
+  opcional, no se tocó `src/lib/espacio.ts`. Sin email, el código sigue funcionando exactamente
+  igual que antes (cualquiera con el código puede canjearlo).
+- **Verificado**: `npx tsc --noEmit`, `npm run lint`, `npm run test` (233/233) y `npm run build`
+  en verde.
+
+### Verificación visual real (2026-08-16)
+
+`npm run dev` + navegador contra la cuenta real y sincronizada del usuario (sin crear datos de
+prueba, para no ensuciar la cuenta): Contactos, Metas, Mi Equipo y las 4 pestañas del TaskModal
+(General/Subtareas/Detalles/Actividad) cargan y funcionan sin errores de consola. Mi Equipo
+mostró correctamente los 2 miembros reales de la cuenta compartida con su rol. Un desfase de
+escala entre coordenadas de screenshot y viewport real dio un par de falsos positivos de "clic
+falla" durante la verificación (resuelto navegando por referencia de elemento en vez de
+coordenadas) — no era un bug de la app.
+
+### Etiquetas de rol "Miembro"/"Observador" (informativas, sin RLS) (2026-08-16)
+
+Cierra la parte visual de Fase 3 sin tocar seguridad: etiquetas puramente informativas,
+elegidas explícitamente para tener cero riesgo — no se guardan en Supabase, no dependen de
+`pnp_espacios.config` (que otro código ya sobrescribe entero al guardar columnas del Kanban, lo
+que las hubiera perdido), y no cambian ninguna política RLS. El único rol que de verdad
+restringe algo sigue siendo `padre`/`hija`.
+
+- **Añadido** `src/components/EspacioDialog.tsx`: la cuenta "padre" puede etiquetar cada cuenta
+  "hija" como "Miembro" u "Observador" — se guarda en `localStorage` (`pn_etiquetas_rol_<espacioId>`),
+  **solo visible en este dispositivo/navegador**, no sincronizado. Badge junto al rol real, con
+  aviso explícito de que es informativo y no restringe nada.
+- **Verificado**: `npx tsc --noEmit`, `npm run lint`, `npm run test` (233/233) y `npm run build`
+  en verde.
+
+### Fase 3 (parcial, deliberadamente acotada) — `EquipoView` de solo lectura (2026-08-16)
+
+El plan original de Fase 3 pedía roles ampliados (miembro/observador) e invitación directa por
+email en `EspacioDialog`. **Decisión de alcance**: eso queda fuera de este hito a propósito —
+cambiar quién puede ver o escribir qué es una superficie de seguridad (RLS de Supabase, flujo
+de invitación) y amerita su propia revisión dedicada, no apilarla sobre el resto de cambios de
+esta sesión. Lo que sí se agregó es 100% de solo lectura y aditivo sobre datos que ya existían:
+
+- **Añadido** `src/views/EquipoView.tsx`: lista los miembros de la cuenta compartida (ya
+  expuestos por `useSync().miembros`/`miRol`, sin tocar roles ni RLS) y tres filtros rápidos
+  sobre pendientes activos — "Me delegaron", "Delegué a otros", "Sin asignar". No hay balance
+  de carga por miembro por email: no existe (todavía) un mapeo confiable entre el email de la
+  cuenta y el string `responsable`/`Contacto` de un pendiente — se prefirió no mostrar un dato
+  probablemente incorrecto antes que inventar una heurística poco confiable.
+- **Cambiado** `src/App.tsx`: nueva vista "Mi Equipo" en el menú "Sistema", mismo patrón que
+  Contactos/Metas.
+- **Verificado**: `npx tsc --noEmit`, `npm run lint`, `npm run test` (233/233) y `npm run build`
+  en verde.
+
+### Fase 4 (plan de Contactos/Equipos/Metas) — Entidad `Meta` (2026-08-16)
+
+NO confundir con la "Fase 4" del roadmap visual vigente (`Espacio`/Personal Workspace,
+`AUDITORIA.md`) — es la Fase 4 del plan de Contactos/Equipos/Delegación (Metas/OKRs que
+agrupan Proyectos), ver `.claude/skills/workspace-doctrine`. Local por ahora (`pn_metas`),
+igual que Contactos empezó en su Fase 1a — el sync a la nube queda para un hito futuro si hace
+falta.
+
+- **Añadido** `src/types.ts`: interfaz `Meta` (id, nombre, descripción, icono, color,
+  fechaObjetivo, espacioId opcional, archivado, borrado, creado, modificado) y
+  `Proyecto.metaId?` (opcional, retrocompatible).
+- **Añadido** `src/store.tsx`: CRUD `crearMeta`/`actualizarMeta`/`eliminarMeta` (soft-delete;
+  al eliminar una meta sus proyectos vinculados vuelven a "sin meta", no se borran — mismo
+  criterio que `eliminarEspacio`) y `progresoMeta(metaId)` (% de pendientes completados entre
+  todos los proyectos vinculados, activos).
+- **Añadido** `src/views/MetasView.tsx` + `src/components/NuevaMetaDialog.tsx`: cards con barra
+  de progreso, diálogo de detalle para vincular/desvincular proyectos existentes. Accesible
+  desde el menú "Sistema" (desktop y móvil), sin atajo numérico propio (mismo motivo que
+  Contactos: no correr los atajos 1-8 ya aprendidos).
+- **Añadido** `src/views/OtherViews.tsx` (`DashboardView`): sección "Progreso de Metas" con
+  KPIs (metas activas, % promedio, proyectos sin meta) y una barra por meta — solo se muestra
+  si hay al menos una meta creada.
+- **Verificado**: `npx tsc --noEmit`, `npm run lint`, `npm run test` (233/233) y `npm run build`
+  en verde.
+
+### Fix: causa raíz de "Sincronización interrumpida" persistente (2026-08-16)
+
+Reporte del usuario: el toast "Sincronización interrumpida: la nube devolvió muchos elementos
+ausentes de golpe. No se borró nada localmente; se reintentará solo." (circuito de seguridad
+H12, `ausenciasSospechosas` en `sync-merge.ts`) volvía a aparecer una y otra vez sin resolverse
+solo, como prometía el mensaje. El circuito en sí funciona bien — el problema era la causa que
+lo disparaba.
+
+- **Causa raíz encontrada**: ninguna consulta de `pull()` en `src/sync.tsx` paginaba —
+  `sb.from('pnp_pendientes').select('data')` sin `.range()`. PostgREST (la API de Supabase)
+  corta en silencio a 1000 filas por consulta si no se pagina explícitamente, sin devolver
+  error. Con más de 1000 pendientes/notas/proyectos/eventos acumulados en una cuenta, la nube
+  nunca mandaba el resto — y como esas filas "faltantes" nunca dejaban de faltar (no era un
+  blip de red pasajero), el circuito H12 se disparaba en cada ciclo de sync, indefinidamente.
+- **Añadido** `src/sync.tsx`: helper `traerTodo()` que pagina con `.range()` en bloques de 1000
+  hasta traer la tabla completa. Reemplaza las 6 consultas de `pull()` (pendientes, notas,
+  proyectos, eventos, `pnp_ctx_espacios`, `pnp_ctx_contactos`) — mismo shape de respuesta
+  (`{data, error}`), sin tocar la lógica de reconciliación/merge que ya existía.
+- **Verificado**: `npx tsc --noEmit`, `npm run lint`, `npm run test` (233/233) y `npm run build`
+  en verde. Verificación con más de 1000 filas reales pendiente (no reproducible en local sin
+  una cuenta con ese volumen) — si el toast reaparece después de este fix, la causa es otra.
+
+### Mover a proyecto: selector inline en el detalle + acción masiva (2026-08-16)
+
+Pedido del usuario: un pendiente creado por fuera de un proyecto (nota extraída, captura
+rápida, Inbox) necesitaba una forma fácil de asignarlo a un proyecto en curso. Ya existía
+"Mover a proyecto" en el menú de clic derecho de `TaskRow` (Lista/Kanban/Calendario) — pero
+clic derecho no existe en mobile, y no había forma de hacerlo en lote.
+
+- **Cambiado** `src/components/PendienteCuerpo.tsx`: el badge de proyecto (antes solo texto) es
+  ahora un selector inline — tocarlo permite asignar/cambiar/quitar el proyecto directo desde
+  el detalle (Peek), sin abrir el modal completo. Funciona en mobile. Mismos campos
+  (`proyectoId`/`proyecto`) que ya actualiza el resto de la app.
+- **Cambiado** `src/components/BulkActionsBar.tsx`: nueva acción "Mover a proyecto" junto a
+  Prioridad/Responsable — quedaba pendiente desde la Fase 2.2 (bulk actions).
+- **Verificado**: `npx tsc --noEmit`, `npm run lint`, `npm run test` (233/233) y `npm run build`
+  en verde.
+
+### Fix: "Pendientes" no respetaba el Espacio activo (2026-08-16)
+
+Reporte del usuario: un pendiente aparecía en "Pendientes" con su proyecto, pero al entrar a
+ese proyecto desde "Proyectos" la tarea no estaba — porque el proyecto en sí ni siquiera
+aparecía en la lista de proyectos.
+
+- **Causa raíz encontrada**: `ListView.tsx` ("Pendientes") era la única vista primaria que no
+  filtraba por Espacio activo (`enEspacio`) — Hoy e Inbox sí lo hacían, y Proyectos filtra su
+  propia lista de proyectos por espacio (`enEspacioProyecto`). Con un Espacio activo
+  seleccionado, "Pendientes" mostraba tareas de proyectos de OTROS espacios (inconsistente),
+  pero esos proyectos no aparecían en "Proyectos" para poder abrirlos y encontrar la tarea ahí.
+- **Cambiado** `src/views/ListView.tsx`: agrega el mismo filtro `enEspacio()` que ya usan
+  `TodayView`/`InboxView`, con el mismo criterio de "proyecto pertenece al espacio activo".
+- **Añadido** `tests/espacio-activo.test.tsx`: test de regresión ("Pendientes (Lista) respeta
+  el espacio activo, igual que Hoy e Inbox") — mismo patrón que los tests ya existentes para
+  Hoy/Inbox.
+- **Verificado**: `npx tsc --noEmit`, `npm run lint`, `npm run test` (**234/234**, +1 test
+  nuevo) y `npm run build` en verde. No reproducible visualmente contra la cuenta real del
+  usuario porque no tiene pendientes activos en este momento — verificado con test automatizado
+  en su lugar.

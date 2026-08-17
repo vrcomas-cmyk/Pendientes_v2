@@ -398,7 +398,7 @@ function Barra({ label, v, max, color }: { label: string; v: number; max: number
   )
 }
 export function DashboardView() {
-  const { pendientes: todosPendientes, notas, columnas } = useApp()
+  const { pendientes: todosPendientes, notas, columnas, metas, proyectos, progresoMeta } = useApp()
   const idCompletado = idColumnaCompletado(columnas)
   const pendientes = useMemo(() => todosPendientes.filter(activo), [todosPendientes])
   const stats = useMemo(() => {
@@ -423,6 +423,11 @@ export function DashboardView() {
   const maxR = Math.max(1, ...Object.values(stats.porR))
   const maxC = Math.max(1, ...Object.values(stats.porColumna))
   const colP: Record<string, string> = { Alta: 'bg-red-500', Media: 'bg-amber-400', Baja: 'bg-emerald-400' }
+  // Sección "Progreso de Metas" (plan de Contactos/Equipos/Metas, ver workspace-doctrine).
+  const metasActivas = metas.filter(m => !m.borrado)
+  const progresos = metasActivas.map(m => progresoMeta(m.id).porcentaje)
+  const porcentajePromedioMetas = progresos.length ? Math.round(progresos.reduce((a, b) => a + b, 0) / progresos.length) : 0
+  const proyectosSinMeta = proyectos.filter(p => !p.metaId && !p.archivado).length
   return (
     <div className="mx-auto max-w-5xl space-y-4">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
@@ -438,6 +443,31 @@ export function DashboardView() {
         <KPI label="Mediana días/tarea" value={stats.mediana === null ? '—' : Math.round(stats.mediana * 10) / 10} color="text-primary" />
       </div>
       <HeatmapActividad actividad={stats.actividad} />
+      {metasActivas.length > 0 && (
+        <Card className="p-4">
+          <h3 className="mb-3 text-xs font-bold">Progreso de Metas</h3>
+          <div className="mb-3 grid grid-cols-3 gap-3">
+            <KPI label="Metas activas" value={metasActivas.length} color="text-primary" />
+            <KPI label="% promedio" value={`${porcentajePromedioMetas}%`} color="text-primary" />
+            <KPI label="Proyectos sin meta" value={proyectosSinMeta} />
+          </div>
+          <div className="space-y-2">
+            {metasActivas.map(m => {
+              const p = progresoMeta(m.id)
+              return (
+                <div key={m.id} className="flex items-center gap-2 text-xs">
+                  <span aria-hidden>{m.icono}</span>
+                  <span className="w-32 shrink-0 truncate">{m.nombre}</span>
+                  <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+                    <div className="h-full rounded-full bg-primary" style={{ width: `${p.porcentaje}%` }} />
+                  </div>
+                  <span className="w-10 shrink-0 text-right text-muted-foreground">{p.porcentaje}%</span>
+                </div>
+              )
+            })}
+          </div>
+        </Card>
+      )}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <Card className="p-4">
           <h3 className="mb-3 text-xs font-bold">Por columna del tablero</h3>

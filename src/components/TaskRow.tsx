@@ -15,14 +15,26 @@ import { StickyNote, User, Calendar, CheckSquare, Repeat, Users, Archive, Archiv
 
 const UMBRAL_SWIPE = 0.35 // fracción del ancho para "soltar y archivar"
 
-export default function TaskRow({ p, seleccionado, onClick, modoArchivados }: { p: Pendiente; seleccionado?: boolean; onClick?: () => void; modoArchivados?: boolean }) {
-  const { toggleCompletar, proyectos, archivarPendiente, desarchivarPendiente, columnas, pendientes } = useApp()
+export default function TaskRow({ p, seleccionado, onClick, modoArchivados, bulkMode, bulkChecked, onBulkToggle }: {
+  p: Pendiente; seleccionado?: boolean; onClick?: () => void; modoArchivados?: boolean
+  // Fase 2.2 (bulk actions): checkbox de selección múltiple, independiente del checkbox de
+  // "completado" de siempre. Todos opcionales — sin ellos la fila se comporta exactamente igual
+  // que antes (usada así en ProyectosView/InboxView/OtherViews/ProximaTareaWidget).
+  bulkMode?: boolean; bulkChecked?: boolean; onBulkToggle?: () => void
+}) {
+  const { toggleCompletar, proyectos, archivarPendiente, desarchivarPendiente, columnas, pendientes, contactos } = useApp()
   const { abrirPeek } = useUI()
   const idCompletado = idColumnaCompletado(columnas)
   const bloqueado = estaBloqueado(p, pendientes, idCompletado)
   const col = columnaDe(columnas, p.estado)
   const sub = progresoSub(p)
   const proyecto = p.proyectoId ? proyectos.find(x => x.id === p.proyectoId) : null
+  // Fase 2 (UI de Contactos): si el responsable se puede resolver a un Contacto real (por id o,
+  // como fallback, por nombre — igual criterio que ContactosView), se muestra su avatar en vez
+  // del ícono genérico. Puramente cosmético: no cambia `p.responsable` ni ningún dato guardado.
+  const contactoResponsable = p.responsable
+    ? contactos.find(c => !c.borrado && (c.id === p.responsableId || c.nombre.toLowerCase() === p.responsable.trim().toLowerCase()))
+    : undefined
   const esMobile = useIsMobile()
 
   // --- Swipe (solo móvil): pointer events, solo se compromete si el gesto es predominantemente horizontal ---
@@ -31,6 +43,11 @@ export default function TaskRow({ p, seleccionado, onClick, modoArchivados }: { 
   const [arrastrando, setArrastrando] = useState(false)
   const [saliendo, setSaliendo] = useState(false)
   const inicio = useRef<{ x: number; y: number; decidido: boolean; horizontal: boolean; ancho: number } | null>(null)
+
+  // Micro-celebración al completar (Fase 2.4): clase transitoria, se quita sola a los 320ms
+  // (duración de la animación en index.css) — nunca queda pegada en re-renders posteriores.
+  const [pulso, setPulso] = useState(false)
+  const celebrar = () => { setPulso(true); setTimeout(() => setPulso(false), 320) }
 
   const alTerminarSwipe = (accionArchivar: boolean) => {
     setSaliendo(true)
@@ -95,12 +112,21 @@ export default function TaskRow({ p, seleccionado, onClick, modoArchivados }: { 
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
     >
+      {bulkMode && (
+        <Checkbox
+          checked={!!bulkChecked}
+          onCheckedChange={() => onBulkToggle?.()}
+          onClick={e => e.stopPropagation()}
+          aria-label={`Seleccionar "${p.titulo}" para acción masiva`}
+          className="mt-0.5"
+        />
+      )}
       <Checkbox
         checked={p.estado === idCompletado}
-        onCheckedChange={() => toggleCompletar(p.id)}
+        onCheckedChange={() => { if (p.estado !== idCompletado) celebrar(); toggleCompletar(p.id) }}
         onClick={e => e.stopPropagation()}
         aria-label={p.estado === idCompletado ? `Marcar "${p.titulo}" como no completado` : `Marcar "${p.titulo}" como completado`}
-        className="mt-0.5"
+        className={'mt-0.5' + (pulso ? ' check-pop' : '')}
       />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
@@ -123,7 +149,12 @@ export default function TaskRow({ p, seleccionado, onClick, modoArchivados }: { 
           ) : p.proyecto && <span className="rounded-full bg-muted px-1.5">📁 {p.proyecto}</span>}
           {p.fechaLimite && <span className="inline-flex items-center gap-0.5"><Calendar size={10} />{p.fechaLimite}</span>}
           <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 opacity-0 transition-opacity duration-150 ease-smooth group-hover:opacity-100 group-focus-within:opacity-100">
-            {p.responsable && <span className="inline-flex items-center gap-0.5"><User size={10} />{p.responsable}</span>}
+            {p.responsable && (
+              <span className="inline-flex items-center gap-0.5">
+                {contactoResponsable?.avatar ? <span aria-hidden className="text-[10px] leading-none">{contactoResponsable.avatar}</span> : <User size={10} />}
+                {p.responsable}
+              </span>
+            )}
             {sub && <span className="inline-flex items-center gap-0.5"><CheckSquare size={10} />{sub.hechas}/{sub.total}</span>}
             {p.repetir && <span className="inline-flex items-center gap-0.5" title={describirRepeticion(p.repetir)}><Repeat size={10} /></span>}
             {typeof p.ponderacion === 'number' && <span aria-label={`Vale ${p.ponderacion} por ciento de la calificación`} className="inline-flex items-center gap-0.5 rounded-full bg-indigo-100 px-1.5 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">{p.ponderacion}%</span>}

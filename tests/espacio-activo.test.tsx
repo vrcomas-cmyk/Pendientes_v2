@@ -171,6 +171,21 @@ describe('E2-F2 — Selector «Espacio activo» + filtro de contexto (TDD, tests
     expect(within(main).queryAllByText('Pintar la sala').length).toBe(0)            // p-casa → otro espacio
   })
 
+  // Regresión: "Pendientes" (ListView) era la única vista primaria que no respetaba el Espacio
+  // activo — un pendiente de un proyecto fuera del espacio aparecía acá igual, pero el proyecto
+  // ni siquiera se veía en Proyectos para poder encontrarlo ahí (reporte real de usuario).
+  it('Pendientes (Lista) respeta el espacio activo, igual que Hoy e Inbox', async () => {
+    renderApp({ espacios: [espTrabajo, espCasa], proyectos, pendientes: pendientesInbox })
+    const main = await screen.findByRole('main')
+    await activarEspacio(main, 'Trabajo')
+    await irAVista('Pendientes')
+    await waitFor(() => expect(within(main).getByPlaceholderText('Buscar...')).toBeTruthy())
+    expect(within(main).getAllByText('Llamar al proveedor').length).toBeGreaterThan(0) // p-reporte → Trabajo
+    expect(within(main).queryAllByText('Comprar focos').length).toBe(0)                // p-casa → otro espacio
+    expect(within(main).queryAllByText('Leer un rato').length).toBe(0)                 // p-general → sin espacio
+    expect(within(main).queryAllByText('Ideas sueltas').length).toBe(0)                // sin proyectoId
+  })
+
   it('elegir «📋 Todos» en el selector desactiva el filtro de contexto (Inbox muestra todo)', async () => {
     renderApp({ espacios: [espTrabajo, espCasa], proyectos, pendientes: pendientesInbox })
     const main = await screen.findByRole('main')

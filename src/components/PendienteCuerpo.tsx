@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { Adjunto, Pendiente, Subtarea } from '@/types'
 import { PROYECTO_COLORES } from '@/types'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useApp } from '@/store'
 import { useUI } from '@/ui-store'
 import { googleCalendarUrl, progresoSub, vencido, describirRepeticion } from '@/lib/app-utils'
@@ -132,7 +133,7 @@ export default function PendienteCuerpo({
   destacarOrigenNota = false,
   mostrarCreado = false,
 }: Props) {
-  const { proyectos, columnas, agregarSubtarea, agregarComentario, actualizarPendiente, colorDeEtiqueta, personas, promoverPendienteAProyecto } = useApp()
+  const { proyectos, columnas, agregarSubtarea, agregarComentario, actualizarPendiente, colorDeEtiqueta, personas, contactos, promoverPendienteAProyecto } = useApp()
   const { setNotaActualId } = useUI()
   const idCompletado = idColumnaCompletado(columnas)
   const col = columnaDe(columnas, p.estado)
@@ -161,7 +162,10 @@ export default function PendienteCuerpo({
     const m = v.match(/@(\w*)$/)
     if (!m) { setSugerenciasMencion([]); return }
     const frag = m[1].toLowerCase()
-    setSugerenciasMencion(personas.filter(nombre => nombre.toLowerCase().startsWith(frag) && nombre.toLowerCase() !== frag).slice(0, 5))
+    // Fase 2.4: suma los nombres de Contacto (además de los strings legacy en `personas`) — un
+    // contacto creado en la Fase 1 ahora también aparece al escribir "@" en un comentario.
+    const nombres = [...new Set([...personas, ...contactos.filter(c => !c.borrado).map(c => c.nombre)])]
+    setSugerenciasMencion(nombres.filter(nombre => nombre.toLowerCase().startsWith(frag) && nombre.toLowerCase() !== frag).slice(0, 5))
   }
   const elegirMencion = (nombre: string) => {
     setCom(v => v.replace(/@(\w*)$/, '@' + nombre + ' '))
@@ -189,9 +193,37 @@ export default function PendienteCuerpo({
       <div className="flex flex-wrap gap-1.5 text-[11px]">
         <span className={' rounded-full px-2 py-0.5 ' + colorColumna(col).badge}>{col.nombre}</span>
         <Badge variant="secondary">Prioridad: {p.prioridad}</Badge>
-        {proyecto
-          ? <Badge variant="secondary"><span className={'mr-1 inline-block h-2 w-2 rounded-full ' + (PROYECTO_COLORES[proyecto.color]?.dot || '')} />{proyecto.nombre}</Badge>
-          : p.proyecto && <Badge variant="secondary">📁 {p.proyecto}</Badge>}
+        {/* Selector de proyecto inline (no solo badge estático): un pendiente creado por fuera
+            de un proyecto (nota extraída, captura rápida, Inbox) se puede asignar a un proyecto
+            en curso sin abrir el modal completo ni necesitar clic derecho — importante en
+            mobile, donde no hay clic derecho. Mismo dato (`proyectoId`/`proyecto`) que ya
+            actualiza el resto de la app. */}
+        {proyectos.length > 0 ? (
+          <Select value={p.proyectoId || '__ninguno'} onValueChange={v => {
+            const pr = v === '__ninguno' ? null : proyectos.find(x => x.id === v)
+            actualizarPendiente(p.id, { proyectoId: pr?.id, proyecto: pr?.nombre || '' })
+          }}>
+            <SelectTrigger className="h-6 w-auto gap-1 rounded-full border-none bg-secondary px-2.5 text-[11px] font-medium text-secondary-foreground [&>svg]:size-3">
+              <SelectValue>
+                {proyecto
+                  ? <span className="flex items-center"><span className={'mr-1 inline-block h-2 w-2 rounded-full ' + (PROYECTO_COLORES[proyecto.color]?.dot || '')} />{proyecto.nombre}</span>
+                  : (p.proyecto ? `📁 ${p.proyecto}` : 'Sin proyecto')}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__ninguno">Sin proyecto</SelectItem>
+              {proyectos.map(pr => (
+                <SelectItem key={pr.id} value={pr.id}>
+                  <span className={'mr-1.5 inline-block h-2 w-2 rounded-full ' + (PROYECTO_COLORES[pr.color]?.dot || '')} />{pr.nombre}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          proyecto
+            ? <Badge variant="secondary"><span className={'mr-1 inline-block h-2 w-2 rounded-full ' + (PROYECTO_COLORES[proyecto.color]?.dot || '')} />{proyecto.nombre}</Badge>
+            : p.proyecto && <Badge variant="secondary">📁 {p.proyecto}</Badge>
+        )}
         {p.origenNota && <Badge variant="secondary"><StickyNote size={11} className="mr-1" /> Desde nota</Badge>}
         {p.repetir && <Badge variant="secondary">🔁 {describirRepeticion(p.repetir)}</Badge>}
       </div>

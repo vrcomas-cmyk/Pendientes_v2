@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
-import type { Nota, Pendiente, Estado, Proyecto, EventoCalendario, ColumnaKanban, Espacio, Etiqueta, FiltroGuardado, Subtarea, PlantillaPendiente } from '@/types'
+import type { Nota, Pendiente, Estado, Proyecto, EventoCalendario, ColumnaKanban, Espacio, Etiqueta, Contacto, Meta, FiltroGuardado, Subtarea, PlantillaPendiente } from '@/types'
 import { PROYECTO_COLORES_KEYS, COLUMNAS_DEFECTO, ESPACIO_ICONOS } from '@/types'
 import { hoyISO, normalizar, storage, uid, describirRepeticion, defaultsHorario, fechaPorPrioridad, proximaInstanciaRepeticion, asignarProyecto, normalizarNombreProyecto, buscarSubtarea, quitarSubtarea, pendientesDesdeSubtareas } from '@/lib/app-utils'
 
@@ -67,6 +67,16 @@ interface AppCtx {
   actualizarEtiqueta: (id: string, datos: Partial<Etiqueta>) => void
   eliminarEtiqueta: (id: string) => void
   colorDeEtiqueta: (nombre: string) => string | undefined
+  contactos: Contacto[]
+  crearContacto: (nombre: string, datos?: Partial<Contacto>) => Contacto
+  actualizarContacto: (id: string, datos: Partial<Contacto>) => void
+  eliminarContacto: (id: string) => void
+  contactoPorId: (id?: string) => Contacto | undefined
+  metas: Meta[]
+  crearMeta: (nombre: string, datos?: Partial<Meta>) => Meta
+  actualizarMeta: (id: string, datos: Partial<Meta>) => void
+  eliminarMeta: (id: string) => void
+  progresoMeta: (metaId: string) => { total: number; completados: number; porcentaje: number }
   filtrosGuardados: FiltroGuardado[]
   crearFiltroGuardado: (nombre: string, criterios: FiltroGuardado['criterios'], atajo?: FiltroGuardado['atajo']) => FiltroGuardado
   actualizarFiltroGuardado: (id: string, datos: Partial<FiltroGuardado>) => void
@@ -82,7 +92,7 @@ interface AppCtx {
   restaurarEvento: (id: string) => void
   columnas: ColumnaKanban[]
   setColumnas: (cols: ColumnaKanban[]) => void
-  reemplazarTodo: (p: Pendiente[], n: Nota[], u?: string, pr?: Proyecto[], ev?: EventoCalendario[], esp?: Espacio[]) => void
+  reemplazarTodo: (p: Pendiente[], n: Nota[], u?: string, pr?: Proyecto[], ev?: EventoCalendario[], esp?: Espacio[], con?: Contacto[]) => void
   vaciarPapelera: () => void
   personas: string[]
 }
@@ -159,6 +169,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } catch { /* noop */ }
     return []
   })
+  const [contactos, setContactos] = useState<Contacto[]>(() => {
+    try {
+      const raw = storage.get('pn_contactos')
+      if (raw) return JSON.parse(raw) as Contacto[]
+    } catch { /* noop */ }
+    return []
+  })
+  const [metas, setMetas] = useState<Meta[]>(() => {
+    try {
+      const raw = storage.get('pn_metas')
+      if (raw) return JSON.parse(raw) as Meta[]
+    } catch { /* noop */ }
+    return []
+  })
   const [filtrosGuardados, setFiltrosGuardados] = useState<FiltroGuardado[]>(() => {
     try {
       const raw = storage.get('pn_filtros_guardados')
@@ -182,6 +206,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useDebouncedStorage('pn_columnas_local', columnas)
   useDebouncedStorage('pn_espacios', espacios)
   useDebouncedStorage('pn_etiquetas', etiquetas)
+  useDebouncedStorage('pn_contactos', contactos)
+  useDebouncedStorage('pn_metas', metas)
   useDebouncedStorage('pn_filtros_guardados', filtrosGuardados)
   useDebouncedStorage('pn_plantillas', plantillas)
 
@@ -198,6 +224,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setPendientes(prev => { const p = purgar(prev); return p.length === prev.length ? prev : p })
     setNotas(prev => { const n = purgar(prev); return n.length === prev.length ? prev : n })
     setEventos(prev => { const e = purgar(prev); return e.length === prev.length ? prev : e })
+    setContactos(prev => { const c = purgar(prev); return c.length === prev.length ? prev : c })
+    setMetas(prev => { const m = purgar(prev); return m.length === prev.length ? prev : m })
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [])
 
@@ -565,6 +593,61 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return etiquetas.find(e => e.nombre.toLowerCase() === n)?.color
   }
 
+  const crearContacto = (nombre: string, datos?: Partial<Contacto>): Contacto => {
+    const c: Contacto = {
+      id: uid(), nombre: nombre.trim(),
+      color: PROYECTO_COLORES_KEYS[contactos.length % PROYECTO_COLORES_KEYS.length],
+      creado: new Date().toISOString(), modificado: new Date().toISOString(),
+      ...datos,
+    }
+    setContactos(prev => [...prev, c])
+    return c
+  }
+  const actualizarContacto = (id: string, datos: Partial<Contacto>) => {
+    setContactos(prev => prev.map(c => c.id !== id ? c : { ...c, ...datos, modificado: new Date().toISOString() }))
+  }
+  const eliminarContacto = (id: string) => {
+    // Soft-delete (igual que Pendiente/Nota): las referencias existentes (`responsableId`,
+    // `asignadoA`) no se limpian — un contacto borrado sigue resolviéndose por id hasta que se
+    // vacíe la papelera, así no se pierde de golpe quién era el responsable de una tarea vieja.
+    setContactos(prev => prev.map(c => c.id !== id ? c : { ...c, borrado: true, modificado: new Date().toISOString() }))
+  }
+  const contactoPorId = (id?: string): Contacto | undefined => {
+    if (!id) return undefined
+    return contactos.find(c => c.id === id)
+  }
+
+  const crearMeta = (nombre: string, datos?: Partial<Meta>): Meta => {
+    const m: Meta = {
+      id: uid(), nombre: nombre.trim(),
+      icono: '🎯', color: PROYECTO_COLORES_KEYS[metas.length % PROYECTO_COLORES_KEYS.length],
+      creado: new Date().toISOString(), modificado: new Date().toISOString(),
+      ...datos,
+    }
+    setMetas(prev => [...prev, m])
+    return m
+  }
+  const actualizarMeta = (id: string, datos: Partial<Meta>) => {
+    setMetas(prev => prev.map(m => m.id !== id ? m : { ...m, ...datos, modificado: new Date().toISOString() }))
+  }
+  const eliminarMeta = (id: string) => {
+    // Igual criterio que `eliminarEspacio`: los proyectos vinculados no se borran, vuelven a
+    // "sin meta" — soft-delete de la meta en sí (como Contacto) para poder restaurarla desde
+    // Papelera si fue un error.
+    setMetas(prev => prev.map(m => m.id !== id ? m : { ...m, borrado: true, modificado: new Date().toISOString() }))
+    setProyectos(prev => prev.map(p => p.metaId === id ? { ...p, metaId: undefined, modificado: new Date().toISOString() } : p))
+  }
+  /** Progreso agregado (Fase Metas): % de pendientes completados entre todos los proyectos
+      vinculados a la meta. Cuenta pendientes activos (no borrados, no archivados) de esos
+      proyectos — mismo criterio de "activo" que ya usa el resto de la app. */
+  const progresoMeta = (metaId: string): { total: number; completados: number; porcentaje: number } => {
+    const idsProyecto = new Set(proyectos.filter(p => p.metaId === metaId).map(p => p.id))
+    const relacionados = pendientes.filter(p => p.proyectoId && idsProyecto.has(p.proyectoId) && !p.borrado && !p.archivado)
+    const completados = relacionados.filter(p => !!p.fechaCompletado).length
+    const total = relacionados.length
+    return { total, completados, porcentaje: total > 0 ? Math.round((completados / total) * 100) : 0 }
+  }
+
   const crearFiltroGuardado = (nombre: string, criterios: FiltroGuardado['criterios'], atajo?: FiltroGuardado['atajo']): FiltroGuardado => {
     const f: FiltroGuardado = { id: uid(), nombre: nombre.trim(), criterios, atajo, creado: new Date().toISOString(), modificado: new Date().toISOString() }
     // Un atajo solo puede pertenecer a un filtro a la vez: se lo quitamos a quien lo tuviera.
@@ -614,6 +697,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setPendientes(prev => prev.filter(p => !p.borrado))
     setNotas(prev => prev.filter(n => !n.borrado))
     setEventos(prev => prev.filter(e => !e.borrado))
+    setContactos(prev => prev.filter(c => !c.borrado))
+    setMetas(prev => prev.filter(m => !m.borrado))
   }
 
   const crearEvento = (datos: Partial<EventoCalendario>): EventoCalendario => {
@@ -631,13 +716,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setEventos(prev => prev.map(e => e.id !== id ? e : { ...e, ...datos, modificado: new Date().toISOString() }))
   }
 
-  const reemplazarTodo = (p: Pendiente[], n: Nota[], u?: string, pr?: Proyecto[], ev?: EventoCalendario[], esp?: Espacio[]) => {
+  const reemplazarTodo = (p: Pendiente[], n: Nota[], u?: string, pr?: Proyecto[], ev?: EventoCalendario[], esp?: Espacio[], con?: Contacto[]) => {
     setPendientes(p.map(normalizarConservandoId))
     setNotas(n)
     if (u) setUsuario(u)
     if (pr) setProyectos(pr)
     if (ev) setEventos(ev.map(normalizarEventoConservandoId))
     if (esp) setEspacios(esp)
+    if (con) setContactos(con)
   }
 
   const personas = useMemo(() => {
@@ -652,6 +738,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     crearNota, actualizarNota, agregarComentarioNota, eliminarNota, restaurarNota, duplicarNota, proyectos, crearProyecto, actualizarProyecto, eliminarProyecto,
     espacios, crearEspacio, actualizarEspacio, eliminarEspacio,
     etiquetas, crearEtiqueta, actualizarEtiqueta, eliminarEtiqueta, colorDeEtiqueta,
+    contactos, crearContacto, actualizarContacto, eliminarContacto, contactoPorId,
+    metas, crearMeta, actualizarMeta, eliminarMeta, progresoMeta,
     filtrosGuardados, crearFiltroGuardado, actualizarFiltroGuardado, eliminarFiltroGuardado,
     plantillas, crearPlantilla, eliminarPlantilla, crearPendienteDesdePlantilla,
     eventos, crearEvento, actualizarEvento, eliminarEvento, restaurarEvento, columnas, setColumnas, reemplazarTodo, vaciarPapelera,

@@ -1,11 +1,11 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
-import type { Session } from '@supabase/supabase-js'
+import type { Session, SupabaseClient } from '@supabase/supabase-js'
 import { toast } from 'sonner'
 import { useApp } from '@/store'
-import type { Nota, Pendiente, Proyecto, EventoCalendario, ColumnaKanban, Espacio } from '@/types'
+import type { Nota, Pendiente, Proyecto, EventoCalendario, ColumnaKanban, Espacio, Contacto } from '@/types'
 import { COLUMNAS_DEFECTO } from '@/types'
 import { getConfig, getSupabase, isConfigured, saveConfig } from '@/lib/supabase'
-import { mergeNota, mergePendiente, mergeProyecto, mergeEvento, mergeEspacio, reconciliar, ausenciasSospechosas, type MapaSync } from '@/lib/sync-merge'
+import { mergeNota, mergePendiente, mergeProyecto, mergeEvento, mergeEspacio, mergeContacto, reconciliar, ausenciasSospechosas, type MapaSync } from '@/lib/sync-merge'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -41,8 +41,8 @@ const Ctx = createContext<SyncCtx>({
 // eslint-disable-next-line react-refresh/only-export-components -- context hook shared alongside its provider
 export const useSync = () => useContext(Ctx)
 
-interface UltimoSync { pendientes: MapaSync; notas: MapaSync; proyectos: MapaSync; eventos: MapaSync; espacios: MapaSync }
-const vacio = (): UltimoSync => ({ pendientes: {}, notas: {}, proyectos: {}, eventos: {}, espacios: {} })
+interface UltimoSync { pendientes: MapaSync; notas: MapaSync; proyectos: MapaSync; eventos: MapaSync; espacios: MapaSync; contactos: MapaSync }
+const vacio = (): UltimoSync => ({ pendientes: {}, notas: {}, proyectos: {}, eventos: {}, espacios: {}, contactos: {} })
 
 /** Ventana (ms) durante la cual un ítem recién subido está protegido de un borrado remoto fantasma por lag de replicación. */
 const GRACIA_SUBIDA = 30000
@@ -55,6 +55,28 @@ function mismaLista<T extends { id: string }>(a: T[], b: T[]): boolean {
     if (mapa.get(x.id) !== JSON.stringify(x)) return false
   }
   return true
+}
+
+// PostgREST (la API de Supabase) devuelve como máximo 1000 filas por consulta por defecto —
+// `select('data')` sin `.range()` corta en silencio ahí, sin error. Con más de 1000 pendientes/
+// notas/proyectos/eventos acumulados, la nube nunca mandaba el resto: la colección local (con
+// más ítems que la nube) disparaba el circuito de seguridad H12 (`ausenciasSospechosas`) en
+// CADA ciclo de sync, de forma persistente, porque los ítems "ausentes" nunca dejaban de faltar
+// — no era un falso positivo del circuito, era la causa raíz real. `traerTodo` pagina con
+// `.range()` hasta que una página vuelve con menos filas que `TAM_PAGINA`, así se trae la tabla
+// completa sin importar cuántas filas tenga.
+const TAM_PAGINA = 1000
+async function traerTodo<T>(sb: SupabaseClient, tabla: string): Promise<{ data: T[]; error: { message: string } | null }> {
+  const filas: T[] = []
+  let desde = 0
+  for (;;) {
+    const { data, error } = await sb.from(tabla).select('data').range(desde, desde + TAM_PAGINA - 1)
+    if (error) return { data: filas, error }
+    filas.push(...((data || []) as T[]))
+    if (!data || data.length < TAM_PAGINA) break
+    desde += TAM_PAGINA
+  }
+  return { data: filas, error: null }
 }
 
 export function SyncProvider({ children }: { children: ReactNode }) {
@@ -92,6 +114,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   const ausenciaPr = useRef<Map<string, number>>(new Map())
   const ausenciaEv = useRef<Map<string, number>>(new Map())
   const ausenciaEsp = useRef<Map<string, number>>(new Map())
+  const ausenciaCon = useRef<Map<string, number>>(new Map())
   const pushTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const rtTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   // Si este dispositivo/navegador tiene el almacenamiento local vacío (perfil nuevo, caché
@@ -190,7 +213,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     recalcularPendientes()
     clearTimeout(pushTimer.current)
     pushTimer.current = setTimeout(() => { sincronizar() }, 1000)
-  }, [app.pendientes, app.notas, app.proyectos, app.eventos, app.espacios]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [app.pendientes, app.notas, app.proyectos, app.eventos, app.espacios, app.contactos]) // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ---- online / offline ---- */
   useEffect(() => {
@@ -217,6 +240,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'pnp_proyectos' }, onRemote)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'pnp_eventos' }, onRemote)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'pnp_ctx_espacios' }, onRemote)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pnp_ctx_contactos' }, onRemote)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pnp_espacios' }, () => { recargarColumnas() })
       .subscribe()
     const intervalo = setInterval(() => { if (navigator.onLine) sincronizar() }, 60000)
@@ -227,7 +251,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 
   function recalcularPendientes() {
     const L = last.current
-    const { pendientes, notas, proyectos, eventos, espacios } = appRef.current
+    const { pendientes, notas, proyectos, eventos, espacios, contactos } = appRef.current
     const dP = pendientes.filter(p => L.pendientes[p.id] !== p.modificado).length
     const localPids = new Set(pendientes.map(p => p.id))
     const delP = Object.keys(L.pendientes).filter(id => !localPids.has(id)).length
@@ -243,7 +267,10 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     const dEsp = espacios.filter(e => L.espacios[e.id] !== e.modificado).length
     const localEspids = new Set(espacios.map(e => e.id))
     const delEsp = Object.keys(L.espacios).filter(id => !localEspids.has(id)).length
-    setPorSubir(dP + delP + dN + delN + dPr + delPr + dEv + delEv + dEsp + delEsp)
+    const dCon = contactos.filter(c => L.contactos[c.id] !== c.modificado).length
+    const localConids = new Set(contactos.map(c => c.id))
+    const delCon = Object.keys(L.contactos).filter(id => !localConids.has(id)).length
+    setPorSubir(dP + delP + dN + delN + dPr + delPr + dEv + delEv + dEsp + delEsp + dCon + delCon)
   }
 
   async function flush() {
@@ -252,7 +279,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     if (!sb) return
     const eid = espacioRef.current
     const L = last.current
-    const { pendientes, notas, proyectos, eventos, espacios } = appRef.current
+    const { pendientes, notas, proyectos, eventos, espacios, contactos } = appRef.current
     // Defensa: NUNCA borrar de la nube algo subido hace muy poco. Si un ítem
     // recién creado desaparece de la lista local por cualquier carrera de estado,
     // no debe propagarse como borrado. Un borrado real del usuario se aplica igual
@@ -273,7 +300,10 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     const dirtyEsp = espacios.filter(e => L.espacios[e.id] !== e.modificado)
     const localEspids = new Set(espacios.map(e => e.id))
     const delEsp = Object.keys(L.espacios).filter(id => !localEspids.has(id) && !recienSubido(id))
-    if (!dirtyP.length && !delP.length && !dirtyN.length && !delN.length && !dirtyPr.length && !delPr.length && !dirtyEv.length && !delEv.length && !dirtyEsp.length && !delEsp.length) { setEstado('sincronizado'); recalcularPendientes(); return }
+    const dirtyCon = contactos.filter(c => L.contactos[c.id] !== c.modificado)
+    const localConids = new Set(contactos.map(c => c.id))
+    const delCon = Object.keys(L.contactos).filter(id => !localConids.has(id) && !recienSubido(id))
+    if (!dirtyP.length && !delP.length && !dirtyN.length && !delN.length && !dirtyPr.length && !delPr.length && !dirtyEv.length && !delEv.length && !dirtyEsp.length && !delEsp.length && !dirtyCon.length && !delCon.length) { setEstado('sincronizado'); recalcularPendientes(); return }
     setEstado('sincronizando')
     const ahora = Date.now()
     try {
@@ -299,6 +329,12 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         if (dirtyEsp.length) { const { error } = await sb.from('pnp_ctx_espacios').upsert(dirtyEsp.map(e => ({ id: e.id, user_id: userId, espacio_id: eid, data: e, updated_at: e.modificado }))); if (error) throw error; dirtyEsp.forEach(e => { L.espacios[e.id] = e.modificado; subidoReciente.current.set(e.id, ahora) }) }
         if (delEsp.length) { const { error } = await sb.from('pnp_ctx_espacios').delete().in('id', delEsp); if (error) throw error; delEsp.forEach(id => { subidoReciente.current.delete(id) }) }
       } catch { /* tabla no provisionada aún: se reintenta en el próximo ciclo, sin bloquear el resto */ }
+      // `pnp_ctx_contactos` (Fase 1c): mismo motivo que `pnp_ctx_espacios` arriba — tabla nueva,
+      // propio try/catch para no tumbar el resto del flush si el SQL de contactos no corrió aún.
+      try {
+        if (dirtyCon.length) { const { error } = await sb.from('pnp_ctx_contactos').upsert(dirtyCon.map(c => ({ id: c.id, user_id: userId, espacio_id: eid, data: c, updated_at: c.modificado }))); if (error) throw error; dirtyCon.forEach(c => { L.contactos[c.id] = c.modificado; subidoReciente.current.set(c.id, ahora) }) }
+        if (delCon.length) { const { error } = await sb.from('pnp_ctx_contactos').delete().in('id', delCon); if (error) throw error; delCon.forEach(id => { subidoReciente.current.delete(id) }) }
+      } catch { /* tabla no provisionada aún: se reintenta en el próximo ciclo, sin bloquear el resto */ }
       guardarLast()
       silenciar.current = Date.now() + 2500
       setEstado('sincronizado')
@@ -315,10 +351,10 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     setEstado('sincronizando')
     try {
       const [{ data: rp, error: ep }, { data: rn, error: en }, { data: rpr, error: epr }, { data: rev, error: eev }] = await Promise.all([
-        sb.from('pnp_pendientes').select('data'),
-        sb.from('pnp_notas').select('data'),
-        sb.from('pnp_proyectos').select('data'),
-        sb.from('pnp_eventos').select('data'),
+        traerTodo<{ data: Pendiente }>(sb, 'pnp_pendientes'),
+        traerTodo<{ data: Nota }>(sb, 'pnp_notas'),
+        traerTodo<{ data: Proyecto }>(sb, 'pnp_proyectos'),
+        traerTodo<{ data: EventoCalendario }>(sb, 'pnp_eventos'),
       ])
       if (ep || en || epr || eev) throw (ep || en || epr || eev)
       // `pnp_ctx_espacios` se pide APARTE y con su propio try/catch: es una tabla nueva
@@ -330,9 +366,18 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       // de H7) y el resto sigue funcionando.
       let remoteEsp: Espacio[] = []
       try {
-        const { data: resp, error: eesp } = await sb.from('pnp_ctx_espacios').select('data')
+        const { data: resp, error: eesp } = await traerTodo<{ data: Espacio }>(sb, 'pnp_ctx_espacios')
         if (eesp) throw eesp
         remoteEsp = (resp || []).map(r => (r as { data: Espacio }).data)
+      } catch { /* tabla no provisionada aún: se reintenta en el próximo ciclo */ }
+      // `pnp_ctx_contactos` (Fase 1c): mismo motivo y mismo try/catch aparte que `pnp_ctx_espacios`
+      // arriba — tabla nueva, no debe tumbar el pull de pendientes/notas/proyectos/eventos si el
+      // SQL de contactos todavía no corrió en este proyecto de Supabase.
+      let remoteCon: Contacto[] = []
+      try {
+        const { data: resc, error: econ } = await traerTodo<{ data: Contacto }>(sb, 'pnp_ctx_contactos')
+        if (econ) throw econ
+        remoteCon = (resc || []).map(r => (r as { data: Contacto }).data)
       } catch { /* tabla no provisionada aún: se reintenta en el próximo ciclo */ }
       // A partir de aquí ya tenemos el estado real de la nube: recién ahora es seguro dejar que
       // el efecto de "subir cambios" empiece a operar (ver comentario en `primerPullListo`).
@@ -350,6 +395,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       const remotePrids = new Set(remotePr.map(p => p.id))
       const remoteEvids = new Set(remoteEv.map(e => e.id))
       const remoteEspids = new Set(remoteEsp.map(e => e.id))
+      const remoteConids = new Set(remoteCon.map(c => c.id))
       // Cuenta ausencias remotas consecutivas de ítems conocidos; resetea si reaparecen.
       const contarAusencias = (local: { id: string }[], remoteIds: Set<string>, lastMap: MapaSync, cont: Map<string, number>) => {
         const vivos = new Set(local.map(x => x.id))
@@ -359,7 +405,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
           else cont.delete(it.id)
         }
       }
-      const { pendientes, notas, proyectos, eventos, espacios, reemplazarTodo } = appRef.current
+      const { pendientes, notas, proyectos, eventos, espacios, contactos, reemplazarTodo } = appRef.current
       // Circuito de seguridad (H12, incidente real: ~60 pendientes ya sincronizados
       // desaparecieron de golpe de Supabase por un fallo de lectura —no un borrado real—
       // y se purgaron también en local). Si de golpe faltan muchos ids ya conocidos, la
@@ -370,7 +416,8 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       const sospechosoPr = ausenciasSospechosas(proyectos, remotePrids, L.proyectos)
       const sospechosoEv = ausenciasSospechosas(eventos, remoteEvids, L.eventos)
       const sospechosoEsp = ausenciasSospechosas(espacios, remoteEspids, L.espacios)
-      if (sospechosoP || sospechosoN || sospechosoPr || sospechosoEv || sospechosoEsp) {
+      const sospechosoCon = ausenciasSospechosas(contactos, remoteConids, L.contactos)
+      if (sospechosoP || sospechosoN || sospechosoPr || sospechosoEv || sospechosoEsp || sospechosoCon) {
         toast.warning('Sincronización interrumpida: la nube devolvió muchos elementos ausentes de golpe. No se borró nada localmente; se reintentará solo.')
       }
       if (!sospechosoP) contarAusencias(pendientes, remotePids, L.pendientes, ausenciaP.current)
@@ -378,6 +425,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       if (!sospechosoPr) contarAusencias(proyectos, remotePrids, L.proyectos, ausenciaPr.current)
       if (!sospechosoEv) contarAusencias(eventos, remoteEvids, L.eventos, ausenciaEv.current)
       if (!sospechosoEsp) contarAusencias(espacios, remoteEspids, L.espacios, ausenciaEsp.current)
+      if (!sospechosoCon) contarAusencias(contactos, remoteConids, L.contactos, ausenciaCon.current)
       // Protegido = recién subido (lag) O aún sin confirmar el borrado (menos de 2 ausencias
       // seguidas) O ausencias sospechosas de golpe (fallo de lectura, no borrado real).
       const protegidoP = (id: string) => sospechosoP || (subidoReciente.current.get(id) ?? 0) >= limite || (ausenciaP.current.get(id) ?? 0) < 2
@@ -385,16 +433,19 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       const protegidoPr = (id: string) => sospechosoPr || (subidoReciente.current.get(id) ?? 0) >= limite || (ausenciaPr.current.get(id) ?? 0) < 2
       const protegidoEv = (id: string) => sospechosoEv || (subidoReciente.current.get(id) ?? 0) >= limite || (ausenciaEv.current.get(id) ?? 0) < 2
       const protegidoEsp = (id: string) => sospechosoEsp || (subidoReciente.current.get(id) ?? 0) >= limite || (ausenciaEsp.current.get(id) ?? 0) < 2
+      const protegidoCon = (id: string) => sospechosoCon || (subidoReciente.current.get(id) ?? 0) >= limite || (ausenciaCon.current.get(id) ?? 0) < 2
       const resP = reconciliar(pendientes, remoteP, L.pendientes, mergePendiente, protegidoP)
       const resN = reconciliar(notas, remoteN, L.notas, mergeNota, protegidoN)
       const resPr = reconciliar(proyectos, remotePr, L.proyectos, mergeProyecto, protegidoPr)
       const resEv = reconciliar(eventos, remoteEv, L.eventos, mergeEvento, protegidoEv)
       const resEsp = reconciliar(espacios, remoteEsp, L.espacios, mergeEspacio, protegidoEsp)
+      const resCon = reconciliar(contactos, remoteCon, L.contactos, mergeContacto, protegidoCon)
       L.pendientes = resP.nextLast
       L.notas = resN.nextLast
       L.proyectos = resPr.nextLast
       L.eventos = resEv.nextLast
       L.espacios = resEsp.nextLast
+      L.contactos = resCon.nextLast
       guardarLast()
       // Solo reemplazar el estado si el contenido REALMENTE cambió (evita refrescos que borran lo que escribes)
       const cambioP = !mismaLista(pendientes, resP.resultado)
@@ -402,8 +453,9 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       const cambioPr = !mismaLista(proyectos, resPr.resultado)
       const cambioEv = !mismaLista(eventos, resEv.resultado)
       const cambioEsp = !mismaLista(espacios, resEsp.resultado)
-      if (cambioP || cambioN || cambioPr || cambioEv || cambioEsp) reemplazarTodo(resP.resultado, resN.resultado, undefined, resPr.resultado, resEv.resultado, resEsp.resultado)
-      const conf = resP.conflictos.length + resN.conflictos.length + resPr.conflictos.length + resEv.conflictos.length + resEsp.conflictos.length
+      const cambioCon = !mismaLista(contactos, resCon.resultado)
+      if (cambioP || cambioN || cambioPr || cambioEv || cambioEsp || cambioCon) reemplazarTodo(resP.resultado, resN.resultado, undefined, resPr.resultado, resEv.resultado, resEsp.resultado, resCon.resultado)
+      const conf = resP.conflictos.length + resN.conflictos.length + resPr.conflictos.length + resEv.conflictos.length + resEsp.conflictos.length + resCon.conflictos.length
       if (conf > 0) toast.info(`Se combinaron cambios de otro dispositivo en ${conf} elemento(s)`)
       recalcularPendientes()
     } catch {

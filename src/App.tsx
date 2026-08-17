@@ -31,7 +31,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import {
   Star, ListTodo, BarChart3, StickyNote, Briefcase, Inbox as InboxIcon,
-  Plus, Moon, Sun, Download, Upload, FileSpreadsheet, AlertTriangle, User, MoreVertical, LogOut, LogIn, HelpCircle, CalendarClock, Users, Settings2, Trash2, Search, LayoutGrid, Timer, Columns3, PenLine, ArrowRightCircle, FileText, ChevronDown,
+  Plus, Moon, Sun, Download, Upload, FileSpreadsheet, AlertTriangle, User, MoreVertical, LogOut, LogIn, HelpCircle, CalendarClock, Users, Users2, Target, Settings2, Trash2, Search, LayoutGrid, Timer, Columns3, PenLine, ArrowRightCircle, FileText, ChevronDown,
 } from 'lucide-react'
 
 const TodayView = lazy(() => import('@/views/OtherViews').then(m => ({ default: m.TodayView })))
@@ -42,11 +42,18 @@ const ProyectosView = lazy(() => import('@/views/ProyectosView'))
 const EspaciosView = lazy(() => import('@/views/EspaciosView'))
 const PapeleraView = lazy(() => import('@/views/PapeleraView'))
 const InboxView = lazy(() => import('@/views/InboxView'))
+const ContactosView = lazy(() => import('@/views/ContactosView'))
+const MetasView = lazy(() => import('@/views/MetasView'))
+const EquipoView = lazy(() => import('@/views/EquipoView'))
 
 const LS_VISTA = 'pn_vista'
-const VISTAS_VALIDAS = ['hoy', 'inbox', 'proyectos', 'notas', 'espacios', 'pendientes', 'dashboard', 'papelera'] as const
+// 'contactos'/'metas'/'equipo' se agregan al final a propósito: los atajos numéricos 1..8 (más
+// abajo, en el handler de teclado) son posicionales sobre este array — insertarlos en otro
+// lugar correría los atajos ya aprendidos de espacios/pendientes/dashboard/papelera. Sin atajo
+// numérico propio por ahora, solo accesibles desde el menú "Sistema".
+const VISTAS_VALIDAS = ['hoy', 'inbox', 'proyectos', 'notas', 'espacios', 'pendientes', 'dashboard', 'papelera', 'contactos', 'metas', 'equipo'] as const
 
-type Vista = 'hoy' | 'inbox' | 'proyectos' | 'notas' | 'espacios' | 'pendientes' | 'dashboard' | 'papelera'
+type Vista = 'hoy' | 'inbox' | 'proyectos' | 'notas' | 'espacios' | 'pendientes' | 'dashboard' | 'papelera' | 'contactos' | 'metas' | 'equipo'
 
 function ViewSkeleton() {
   return (
@@ -75,6 +82,9 @@ const VISTAS_SISTEMA: { id: Vista; label: string; corto: string; icon: React.Rea
   { id: 'dashboard', label: 'Panel', corto: 'Panel', icon: <BarChart3 size={18} /> },
   { id: 'papelera', label: 'Papelera', corto: 'Papelera', icon: <Trash2 size={18} /> },
   { id: 'pendientes', label: 'Pendientes', corto: 'Pendientes', icon: <ListTodo size={18} /> },
+  { id: 'contactos', label: 'Contactos', corto: 'Contactos', icon: <Users size={18} /> },
+  { id: 'metas', label: 'Metas', corto: 'Metas', icon: <Target size={18} /> },
+  { id: 'equipo', label: 'Mi Equipo', corto: 'Equipo', icon: <Users2 size={18} /> },
 ]
 const VISTAS = [...VISTAS_PRIMARIAS, ...VISTAS_SISTEMA]
 
@@ -310,6 +320,9 @@ function Shell() {
       {vistaMostrada === 'espacios' && <EspaciosView onEntrar={() => setVista('proyectos')} />}
       {vistaMostrada === 'dashboard' && <DashboardView />}
       {vistaMostrada === 'papelera' && <PapeleraView />}
+      {vistaMostrada === 'contactos' && <ContactosView />}
+      {vistaMostrada === 'metas' && <MetasView />}
+      {vistaMostrada === 'equipo' && <EquipoView />}
     </Suspense>
   )
 
@@ -487,6 +500,9 @@ function Shell() {
                 <div className="border-t" />
                 <button onClick={() => { setMenuAbierto(false); setVista('dashboard') }} className="flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-accent"><BarChart3 size={15} /> Panel</button>
                 <button onClick={() => { setMenuAbierto(false); setVista('papelera') }} className="flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-accent"><Trash2 size={15} /> Papelera</button>
+                <button onClick={() => { setMenuAbierto(false); setVista('contactos') }} className="flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-accent"><Users size={15} /> Contactos</button>
+                <button onClick={() => { setMenuAbierto(false); setVista('metas') }} className="flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-accent"><Target size={15} /> Metas</button>
+                <button onClick={() => { setMenuAbierto(false); setVista('equipo') }} className="flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-accent"><Users2 size={15} /> Mi Equipo</button>
                 <button onClick={() => { setMenuAbierto(false); setVista('pendientes') }} className="flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-accent"><ListTodo size={15} /> Pendientes</button>
                 <div className="border-t" />
                 <button onClick={() => { setMenuAbierto(false); setAjustesDlg(true) }} className="flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-accent"><Settings2 size={15} /> Ajustes</button>
@@ -629,6 +645,9 @@ function Shell() {
             <DropdownMenuContent align="start" side="right" className="w-56">
               <DropdownMenuItem onClick={() => setVista('dashboard')}><BarChart3 size={13} className="mr-2" /> Panel</DropdownMenuItem>
               <DropdownMenuItem onClick={() => setVista('papelera')}><Trash2 size={13} className="mr-2" /> Papelera</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setVista('contactos')}><Users size={13} className="mr-2" /> Contactos</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setVista('metas')}><Target size={13} className="mr-2" /> Metas</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setVista('equipo')}><Users2 size={13} className="mr-2" /> Mi Equipo</DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => setAjustesDlg(true)}><Settings2 size={13} className="mr-2" /> Ajustes</DropdownMenuItem>
               <DropdownMenuItem onClick={() => setAyudaAbierta(true)}><HelpCircle size={13} className="mr-2" /> Ayuda y atajos</DropdownMenuItem>

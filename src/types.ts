@@ -11,6 +11,7 @@ export interface Subtarea {
   responsable?: string
   fechaLimite?: string
   children?: Subtarea[]   // Fase 8.4: subtareas anidadas — opcional, sin migración de datos existentes
+  asignadoA?: string[]    // Fase 1 (Contactos): ids de Contacto asignados; `responsable` (string) se mantiene como fallback legacy
 }
 export interface Comentario { id?: string; texto: string; autor: string; fecha: string; adjuntos?: Adjunto[] }
 
@@ -48,6 +49,8 @@ export interface Pendiente {
   tiempoInicio?: string   // ISO: si está seteado, el timer está corriendo desde esa marca; ausente = pausado
   ponderacion?: number    // porcentaje (0-100) que vale la entrega, ej. para planes de estudio importados
   modalidad?: 'individual' | 'equipo'
+  responsableId?: string  // Fase 1 (Contactos): referencia a Contacto.id; `responsable` (string) se mantiene como espejo/fallback
+  solicitanteId?: string  // ídem para `solicitante`
   archivado?: boolean     // "archivar" (estilo Gmail): se saca de las vistas activas sin borrarlo
   borrado?: boolean
   creado: string
@@ -92,6 +95,7 @@ export interface Proyecto {
   color: string           // clave de PROYECTO_COLORES
   cuentaGoogleId?: string // id de conexión en pnp_google_calendar que "es dueña" de este proyecto (ruteo de espejo)
   espacioId?: string      // referencia a Espacio.id; sin asignar cae en el Espacio "General" implícito (Fase 4)
+  metaId?: string         // referencia a Meta.id (plan de Contactos/Equipos/Metas, ver workspace-doctrine); sin asignar no cuenta para el progreso de ninguna meta
   archivado?: boolean
   creado: string
   modificado: string
@@ -149,6 +153,47 @@ export interface Etiqueta {
   creado: string
   modificado: string
 }
+
+/** Contacto (Fase 1 del plan de Contactos/Equipos, ver `.claude/skills/workspace-doctrine`):
+    reemplaza los strings sueltos de `responsable`/`solicitante` por una entidad persistente y
+    referenciable. `Pendiente.responsable`/`solicitante` (strings) se mantienen como campo
+    legacy/espejo para retrocompatibilidad — `responsableId`/`solicitanteId` son la referencia
+    real cuando existe un Contacto asociado. Sync a la nube (`pnp_contactos`) y UI de selección
+    quedan para el siguiente hito; por ahora es solo local (`pn_contactos`), igual que `Etiqueta`. */
+export interface Contacto {
+  id: string
+  nombre: string
+  email?: string        // si coincide con el email de un usuario registrado, puede asociarse a `usuarioId`
+  telefono?: string
+  avatar?: string        // emoji o URL de imagen
+  color: string          // clave de PROYECTO_COLORES, para badges/avatares
+  usuarioId?: string      // referencia a un usuario real de la cuenta compartida, si ya se asoció
+  etiquetas?: string[]
+  notas?: string
+  borrado?: boolean
+  creado: string
+  modificado: string
+}
+
+/** Meta (Fase 4 del plan de Contactos/Equipos/Delegación — ver `.claude/skills/workspace-doctrine`;
+    NO confundir con la "Fase 4" del roadmap visual vigente en `AUDITORIA.md`, que es `Espacio`,
+    arriba en este mismo archivo): objetivo de largo plazo que agrupa Proyectos y agrega su
+    progreso. Capa nueva sobre `Proyecto` (`Proyecto.metaId?`), no reemplaza nada. */
+export interface Meta {
+  id: string
+  nombre: string
+  descripcion?: string
+  icono: string             // un solo emoji, mismo criterio que Espacio.icono
+  color: string             // clave de PROYECTO_COLORES
+  fechaObjetivo?: string    // YYYY-MM-DD
+  espacioId?: string        // opcional: si se quiere acotar la meta a un Espacio (workspace UI) puntual
+  archivado?: boolean
+  borrado?: boolean
+  creado: string
+  modificado: string
+}
+
+export const META_ICONOS = ['🎯', '🚀', '⭐', '🏆', '📈', '💪', '🌱', '🔭', '🧭', '🏔️']
 
 /** Columna del tablero Kanban: antes era un `enum` fijo, ahora es un dato moldeable por el usuario
     (nombre, color, orden) guardado en el espacio compartido (`pnp_espacios.config.columnas`) — así

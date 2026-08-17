@@ -147,6 +147,19 @@ create table if not exists pnp_ctx_espacios (
 );
 create index if not exists idx_ctx_espacios_espacio on pnp_ctx_espacios(espacio_id);
 
+-- pnp_ctx_contactos: la entidad `Contacto` (Fase 1c del plan de Contactos/Equipos, ver
+-- workspace-doctrine). Mismo sobre genérico y mismo prefijo `ctx_` que pnp_ctx_espacios por la
+-- misma razón: vive DENTRO de un `pnp_espacios.id` (cuenta compartida) como cualquier otra
+-- entidad de dominio, no hay que confundirla con esa tabla.
+create table if not exists pnp_ctx_contactos (
+  id         uuid primary key,
+  user_id    uuid not null references auth.users(id) on delete cascade,
+  espacio_id uuid not null references pnp_espacios(id) on delete cascade,
+  data       jsonb not null,
+  updated_at timestamptz not null default now()
+);
+create index if not exists idx_ctx_contactos_espacio on pnp_ctx_contactos(espacio_id);
+
 -- ----------------------------------------------------------------------------
 -- pnp_google_calendar: tokens OAuth de las cuentas de Google conectadas. Solo
 -- la Edge Function (supabase/functions/google-calendar) la toca, siempre con
@@ -181,6 +194,7 @@ alter table pnp_notas             enable row level security;
 alter table pnp_proyectos         enable row level security;
 alter table pnp_eventos           enable row level security;
 alter table pnp_ctx_espacios      enable row level security;
+alter table pnp_ctx_contactos     enable row level security;
 alter table pnp_google_calendar   enable row level security;
 
 -- Helper: ids de espacio a los que pertenece el usuario autenticado.
@@ -235,6 +249,10 @@ create policy "miembros CRUD eventos de su espacio" on pnp_eventos
 
 drop policy if exists "miembros CRUD ctx_espacios de su espacio" on pnp_ctx_espacios;
 create policy "miembros CRUD ctx_espacios de su espacio" on pnp_ctx_espacios
+  for all using (espacio_id in (select pnp_mis_espacios())) with check (espacio_id in (select pnp_mis_espacios()));
+
+drop policy if exists "miembros CRUD ctx_contactos de su espacio" on pnp_ctx_contactos;
+create policy "miembros CRUD ctx_contactos de su espacio" on pnp_ctx_contactos
   for all using (espacio_id in (select pnp_mis_espacios())) with check (espacio_id in (select pnp_mis_espacios()));
 
 -- pnp_google_calendar: sin políticas para 'authenticated'/'anon' → deny-all por
@@ -327,6 +345,9 @@ begin
   end if;
   if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and tablename = 'pnp_ctx_espacios') then
     alter publication supabase_realtime add table pnp_ctx_espacios;
+  end if;
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and tablename = 'pnp_ctx_contactos') then
+    alter publication supabase_realtime add table pnp_ctx_contactos;
   end if;
   if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and tablename = 'pnp_espacios') then
     alter publication supabase_realtime add table pnp_espacios;

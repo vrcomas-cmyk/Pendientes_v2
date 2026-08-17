@@ -139,6 +139,14 @@ html, body, #root { height: 100%; }
 }
 .linea-completada { text-decoration: line-through; opacity: .5; }
 
+/* Micro-celebración al completar (Fase 2.4 del plan de mejora, ver workspace-doctrine): pulso
+   sutil con overshoot (misma curva "spring" que .scale-in ya usa) — no confetti real para no
+   sumar dependencias ni distraer, solo feedback táctil de que la acción se registró. Se aplica
+   vía clase transitoria (`.check-pop`) que el componente agrega y quita solo, no queda pegada. */
+@keyframes check-pop { 0% { transform: scale(1); } 45% { transform: scale(1.3); } 100% { transform: scale(1); } }
+.check-pop { animation: check-pop 320ms cubic-bezier(.34,1.56,.64,1); }
+@media (prefers-reduced-motion: reduce) { .check-pop { animation: none; } }
+
 /* ===== Fase 2 — Cimientos visuales (glass / ambient / tipografía) =====
    Utilidades nuevas, opt-in: no se aplican a ningún componente existente todavía.
    Las consume la Fase 3 (shell Workspace) y siguientes. Ver AUDITORIA.md §8. */
