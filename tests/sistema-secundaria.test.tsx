@@ -3,11 +3,10 @@ import { render, screen, within, fireEvent, waitFor } from "@testing-library/rea
 import userEvent from "@testing-library/user-event";
 import App from "@/App";
 
-// Tests RED (TDD) — EPIC 2 «Panel/Dashboard y Papelera a navegación secundaria»
-// (PRODUCT_BACKLOG.md, depende de «Agrupación Sistema», ya Hecho). Hoy Panel y Papelera
-// son filas permanentes en el sidebar de escritorio, bajo el encabezado «Sistema», igual
-// que «Pendientes». Deben pasar a vivir dentro del menú «Sistema» (el DropdownMenu de H8),
-// dejando en el sidebar solo «Pendientes» como destino de contenido directo.
+// Tests RED (TDD) — «Panel/Contactos/Metas salen de Sistema a filas directas».
+// Hoy, antes de este cambio, Panel y Papelera vivían dentro del menú «Sistema» junto a
+// Contactos/Metas/Equipo. Se sacan Pendientes, Panel, Contactos y Metas a filas directas del
+// sidebar (bajo «Trabajo»); Papelera y Equipo se quedan en el menú «Sistema».
 
 vi.mock("@/lib/supabase", () => ({
   getConfig: () => ({ url: "", anon: "" }),
@@ -30,24 +29,27 @@ beforeEach(() => {
   window.innerWidth = 1024;
 });
 
-describe("Panel y Papelera a navegación secundaria en escritorio (TDD, tests RED)", () => {
-  it("el sidebar ya no tiene filas permanentes «Panel» ni «Papelera» (solo «Pendientes» queda directo)", async () => {
+describe("Pendientes/Panel/Contactos/Metas como filas directas en escritorio (TDD, tests RED)", () => {
+  it("el sidebar lista Panel, Contactos y Metas como filas directas (sin abrir el menú)", async () => {
     renderApp();
     const nav = await screen.findByRole("navigation", { name: /Navegación principal/i });
-    expect(within(nav).queryByRole("button", { name: "Panel" })).toBeNull();
-    expect(within(nav).queryByRole("button", { name: "Papelera" })).toBeNull();
     expect(within(nav).getByRole("button", { name: "Pendientes" })).toBeTruthy();
+    expect(within(nav).getByRole("button", { name: "Panel" })).toBeTruthy();
+    expect(within(nav).getByRole("button", { name: "Contactos" })).toBeTruthy();
+    expect(within(nav).getByRole("button", { name: "Metas" })).toBeTruthy();
   });
 
-  it("el menú «Sistema» abre Panel", async () => {
+  it("el menú «Sistema» ya no contiene Panel, Contactos ni Metas (solo Papelera y Equipo)", async () => {
     renderApp();
     const user = userEvent.setup();
     const nav = await screen.findByRole("navigation", { name: /Navegación principal/i });
     await user.click(within(nav).getByRole("button", { name: /Sistema/i }));
     const menu = await screen.findByRole("menu");
-    await user.click(within(menu).getByText("Panel"));
-    const main = await screen.findByRole("main");
-    await waitFor(() => expect(within(main).getByText("Total abiertos")).toBeTruthy());
+    expect(within(menu).getByText("Papelera")).toBeTruthy();
+    expect(within(menu).getByText("Mi Equipo")).toBeTruthy();
+    expect(within(menu).queryByText("Panel")).toBeNull();
+    expect(within(menu).queryByText("Contactos")).toBeNull();
+    expect(within(menu).queryByText("Metas")).toBeNull();
   });
 
   it("el menú «Sistema» abre Papelera", async () => {

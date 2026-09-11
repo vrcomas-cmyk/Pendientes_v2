@@ -5,7 +5,7 @@ import type { Pendiente } from '@/types'
 import { PROYECTO_COLORES } from '@/types'
 import type { FiltroFecha } from '@/types'
 export type { FiltroFecha } from '@/types'
-import { hoyISO, vencido, activo, estaBloqueado, enEspacio } from '@/lib/app-utils'
+import { hoyISO, vencido, activo, estaBloqueado, enEspacio, isoAFechaLegible } from '@/lib/app-utils'
 import { columnaDe, idColumnaCompletado } from '@/lib/columnas'
 import { useIsMobile } from '@/hooks/use-is-mobile'
 import TaskRow from '@/components/TaskRow'
@@ -226,7 +226,7 @@ export default function ListView({ filtroFecha, setFiltroFecha }: { filtroFecha:
             <span className="rounded bg-muted px-1 text-[9px] uppercase text-muted-foreground">sub</span>
             <span className={'flex-1 truncate ' + (s.completada ? 'linea-completada' : '')}>{s.texto}</span>
             {s.responsable && <span className="text-[10px] text-muted-foreground">👤{s.responsable}</span>}
-            {s.fechaLimite && <span className="text-[10px] text-muted-foreground">📅{s.fechaLimite}</span>}
+            {s.fechaLimite && <span className="text-[10px] text-muted-foreground">📅{isoAFechaLegible(s.fechaLimite)}</span>}
           </div>
         ))}
       </div>

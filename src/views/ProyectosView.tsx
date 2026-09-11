@@ -109,7 +109,7 @@ function ListaProyecto({ proyectoId, mostrarArchivados }: { proyectoId: string; 
 
 export default function ProyectosView() {
   const { proyectos: todosProyectos, pendientes, eliminarProyecto, actualizarProyecto, columnas, espacios } = useApp()
-  const { espacioActualId, proyectoAbiertoId: proyectoSelId, setProyectoAbiertoId: setProyectoSelId } = useUI()
+  const { espacioActualId, proyectoAbiertoId: proyectoSelId, setProyectoAbiertoId: setProyectoSelId, abrirModal } = useUI()
   const idCompletado = idColumnaCompletado(columnas)
   const isMobile = useIsMobile()
   const [modo, setModo] = useState<'tablero' | 'lista'>('tablero')
@@ -197,6 +197,9 @@ export default function ProyectosView() {
             )}
             <span className={'h-2.5 w-2.5 shrink-0 rounded-full ' + (PROYECTO_COLORES[proyecto.color]?.dot || '')} />
             <h2 className="min-w-0 flex-1 truncate text-sm font-bold">{proyecto.nombre}</h2>
+            <Button size="sm" onClick={() => abrirModal(null, { proyectoId: proyecto.id, proyecto: proyecto.nombre, estado: columnas[0]?.id ?? 'pendiente' })} className="shrink-0" title="Nuevo pendiente en este proyecto">
+              <Plus size={13} className="mr-1" /> {!isMobile && 'Pendiente'}
+            </Button>
             <div className="flex shrink-0 items-center gap-1 rounded-lg border p-0.5">
               <button onClick={() => setModo('tablero')} className={'rounded-md p-1.5 ' + (modo === 'tablero' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground')}><Columns3 size={14} /></button>
               <button onClick={() => setModo('lista')} className={'rounded-md p-1.5 ' + (modo === 'lista' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground')}><List size={14} /></button>

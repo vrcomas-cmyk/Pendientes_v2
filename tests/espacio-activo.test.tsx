@@ -101,18 +101,16 @@ beforeEach(() => {
 })
 
 describe('E2-F2 — Selector «Espacio activo» + filtro de contexto (TDD, tests RED)', () => {
-  it('el sidebar muestra la sección «Espacio activo: Todos ▾» entre los destinos primarios y «Sistema»', async () => {
+  it('el sidebar muestra la sección «Espacio activo: Todos ▾» entre los destinos primarios y «Trabajo»', async () => {
     renderApp({ espacios: [espTrabajo, espCasa], proyectos })
     const nav = await screen.findByRole('navigation', { name: /Navegación principal/i })
     const selector = within(nav).getByRole('button', { name: /Espacio activo: Todos/i })
     const botonEspacios = within(nav).getByRole('button', { name: /^Espacios$/ })
-    // Dos nodos dicen "Sistema" desde la Agrupación Sistema (EPIC 2): el encabezado de
-    // sección (div, el que interesa acá) y el botón que abre el menú Ajustes/Datos/Ayuda
-    // (span). Se filtra al div para no ambigüar con `getByText`.
-    const sistema = within(nav).getAllByText('Sistema', { exact: true }).find(el => el.tagName === 'DIV')!
-    // Orden: ... Espacios → «Espacio activo» → ... → «Sistema»
+    // El encabezado de la sección de vistas de trabajo («Trabajo») es un div; el selector de
+    // espacio activo debe venir ANTES (FOLLOWING) del encabezado «Trabajo».
+    const trabajo = within(nav).getAllByText('Trabajo', { exact: true }).find(el => el.tagName === 'DIV')!
     expect(botonEspacios.compareDocumentPosition(selector) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(selector.compareDocumentPosition(sistema) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(selector.compareDocumentPosition(trabajo) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('al abrir el selector, el dropdown lista «📋 Todos» al tope y una fila por espacio con su nº de proyectos activos', async () => {
@@ -134,14 +132,14 @@ describe('E2-F2 — Selector «Espacio activo» + filtro de contexto (TDD, tests
   it('elegir un espacio en el selector persiste `pn_espacio_activo` y NO cambia de vista (sigo en Hoy)', async () => {
     renderApp({ espacios: [espTrabajo, espCasa], proyectos, pendientes: pendientesHoy })
     const main = await screen.findByRole('main')
-    await waitFor(() => expect(within(main).getByText(/📆 Para hoy/)).toBeTruthy())
+    await waitFor(() => expect(within(main).getByText(/Para hoy/)).toBeTruthy())
     const nav = navSidebar()
     abrirSelector(nav)
     const menu = await screen.findByRole('menu')
     await elegirEnMenu(menu, 'Casa')
     await waitFor(() => expect(localStorage.getItem('pn_espacio_activo')).toBe('esp-casa'))
     // La elección no navegó: sigue montada TodayView y NO la vista Espacios
-    expect(within(main).getByText(/📆 Para hoy/)).toBeTruthy()
+    expect(within(main).getByText(/Para hoy/)).toBeTruthy()
     expect(within(main).queryByRole('heading', { name: /^Espacios$/ })).toBeNull()
   })
 
@@ -164,7 +162,7 @@ describe('E2-F2 — Selector «Espacio activo» + filtro de contexto (TDD, tests
     const main = await screen.findByRole('main')
     await activarEspacio(main, 'Trabajo')
     irAVista('Hoy')
-    await waitFor(() => expect(within(main).getByText(/📆 Para hoy/)).toBeTruthy())
+    await waitFor(() => expect(within(main).getByText(/Para hoy/)).toBeTruthy())
     // `normalizar` asigna hora 08:00 a las tareas con fecha hoy → aparecen en «Para hoy» Y en la
     // «Cronología»; por eso usamos getAllByText/queryAllByText (robusto a duplicados).
     expect(within(main).getAllByText('Revisar contrato').length).toBeGreaterThan(0) // p-reporte → Trabajo

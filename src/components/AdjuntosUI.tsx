@@ -3,7 +3,7 @@ import { toast } from 'sonner'
 import type { Adjunto } from '@/types'
 import { esImagen, eliminarAdjunto, formatoTamano, subirAdjunto, urlAdjunto } from '@/lib/adjuntos'
 import { Button } from '@/components/ui/button'
-import { Paperclip, X, FileText, Loader2, Download } from 'lucide-react'
+import { Paperclip, X, FileText, Loader2, Download, Camera } from 'lucide-react'
 
 export function Miniatura({ a }: { a: Adjunto }) {
   const [url, setUrl] = useState<string | null>(a.dataUrl || null)
@@ -34,10 +34,14 @@ export default function AdjuntosUI({
 }: { adjuntos: Adjunto[]; taskId: string; onChange: (a: Adjunto[]) => void; compact?: boolean }) {
   const [subiendo, setSubiendo] = useState(false)
 
-  const elegir = () => {
+  const elegir = (camara = false) => {
     const inp = document.createElement('input')
     inp.type = 'file'
-    inp.multiple = true
+    inp.multiple = !camara
+    // Sin `accept`, en móvil el picker abre solo el selector de documentos y nunca ofrece la
+    // cámara. Con `accept="image/*"` (y, forzándolo, `capture`) sí aparece "Tomar foto"/galería.
+    inp.accept = 'image/*'
+    if (camara) inp.capture = 'environment'
     inp.onchange = async () => {
       const files = Array.from(inp.files || [])
       if (!files.length) return
@@ -71,11 +75,19 @@ export default function AdjuntosUI({
             {!compact && <div className="mt-0.5 w-16 truncate text-[9px] text-muted-foreground" title={a.nombre}>{a.nombre}</div>}
           </div>
         ))}
-        <Button type="button" variant="secondary" onClick={elegir} disabled={subiendo}
+        <div className="flex gap-2">
+        <Button type="button" variant="secondary" onClick={() => elegir(false)} disabled={subiendo}
           className="h-16 w-16 flex-col gap-1 text-[10px]">
           {subiendo ? <Loader2 size={16} className="animate-spin" /> : <Paperclip size={16} />}
           {subiendo ? '' : 'Adjuntar'}
         </Button>
+        <Button type="button" variant="secondary" onClick={() => elegir(true)} disabled={subiendo}
+          title="Tomar foto con la cámara"
+          className="h-16 w-16 flex-col gap-1 text-[10px]">
+          <Camera size={16} />
+          Cámara
+        </Button>
+      </div>
       </div>
       {adjuntos.length > 0 && !compact && (
         <p className="mt-1 text-[10px] text-muted-foreground">{adjuntos.length} archivo(s) · {formatoTamano(adjuntos.reduce((s, a) => s + a.tamano, 0))}</p>

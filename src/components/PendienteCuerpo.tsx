@@ -4,7 +4,7 @@ import { PROYECTO_COLORES } from '@/types'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useApp } from '@/store'
 import { useUI } from '@/ui-store'
-import { googleCalendarUrl, progresoSub, vencido, describirRepeticion } from '@/lib/app-utils'
+import { googleCalendarUrl, progresoSub, vencido, describirRepeticion, isoAFechaLegible } from '@/lib/app-utils'
 import { columnaDe, colorColumna, idColumnaCompletado } from '@/lib/columnas'
 import { subirAdjunto } from '@/lib/adjuntos'
 import { Button } from '@/components/ui/button'
@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
 import AdjuntosUI, { Miniatura } from '@/components/AdjuntosUI'
-import { StickyNote, Calendar, CalendarPlus, Send, User, ImagePlus, X, Plus, CornerDownRight, Play, Pause, Timer, FolderUp, ArrowUpRight } from 'lucide-react'
+import { StickyNote, Calendar, CalendarPlus, Send, User, ImagePlus, X, Plus, CornerDownRight, Play, Pause, Timer, FolderUp, ArrowUpRight, Camera } from 'lucide-react'
 
 /** Resalta `@nombre` dentro de un comentario ya publicado (Fase 11.2) — puramente visual, no
     dispara nada (no hay push server; ver decisión de alcance en CHANGELOG.md Fase 11). */
@@ -99,7 +99,7 @@ function FilaSubtarea({ s, pid, nivel, permitirAgregar }: { s: Subtarea; pid: st
           {(s.responsable || s.fechaLimite) && (
             <div className="mt-0.5 flex flex-wrap gap-2 text-[10px] text-muted-foreground">
               {s.responsable && <span className="inline-flex items-center gap-0.5"><User size={9} />{s.responsable}</span>}
-              {s.fechaLimite && <span className="inline-flex items-center gap-0.5"><Calendar size={9} />{s.fechaLimite}</span>}
+              {s.fechaLimite && <span className="inline-flex items-center gap-0.5"><Calendar size={9} />{isoAFechaLegible(s.fechaLimite)}</span>}
             </div>
           )}
         </div>
@@ -181,8 +181,10 @@ export default function PendienteCuerpo({
       if (it.type.startsWith('image/')) { const f = it.getAsFile(); if (f) adjuntarImagenCom(f) }
     }
   }
-  const elegirImagenCom = () => {
+  const elegirImagenCom = (camara = false) => {
     const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*'
+    // `capture` obliga al móvil a ofrecer la cámara directamente (sin él solo abre la galería).
+    if (camara) inp.capture = 'environment'
     inp.onchange = () => { const f = inp.files?.[0]; if (f) adjuntarImagenCom(f) }
     inp.click()
   }
@@ -231,7 +233,7 @@ export default function PendienteCuerpo({
       <div className="grid grid-cols-2 gap-2 text-xs">
         {p.responsable && <div><span className="text-muted-foreground">Responsable:</span> {p.responsable}</div>}
         {p.solicitante && <div><span className="text-muted-foreground">Solicita:</span> {p.solicitante}</div>}
-        {p.fechaLimite && <div className="col-span-2"><span className="text-muted-foreground">Fecha límite:</span> {p.fechaLimite}{p.hora ? ' ' + p.hora : ''} {vencido(p, idCompletado) && <span className="font-medium text-red-500">(vencido)</span>}</div>}
+        {p.fechaLimite && <div className="col-span-2"><span className="text-muted-foreground">Fecha límite:</span> {isoAFechaLegible(p.fechaLimite)}{p.hora ? ' ' + p.hora : ''} {vencido(p, idCompletado) && <span className="font-medium text-red-500">(vencido)</span>}</div>}
         {mostrarCreado && <div className="col-span-2"><span className="text-muted-foreground">Creado:</span> {new Date(p.creado).toLocaleDateString()}</div>}
       </div>
 
@@ -319,7 +321,8 @@ export default function PendienteCuerpo({
           <Input value={com} onChange={e => onChangeCom(e.target.value)} onPaste={onPasteCom}
             onKeyDown={e => { if (e.key === 'Enter' && !sugerenciasMencion.length) enviarCom() }}
             placeholder="Comenta… @menciona a alguien, pega una captura con Ctrl+V" className="h-8 text-xs" />
-          <Button size="sm" variant="secondary" onClick={elegirImagenCom} title="Adjuntar captura"><ImagePlus size={13} /></Button>
+          <Button size="sm" variant="secondary" onClick={() => elegirImagenCom(false)} title="Adjuntar imagen"><ImagePlus size={13} /></Button>
+          <Button size="sm" variant="secondary" onClick={() => elegirImagenCom(true)} title="Tomar foto con la cámara"><Camera size={13} /></Button>
           <Button size="sm" onClick={enviarCom}><Send size={13} /></Button>
           {sugerenciasMencion.length > 0 && (
             <div className="absolute bottom-full left-0 mb-1 w-40 overflow-hidden rounded-lg border bg-popover shadow-lg">

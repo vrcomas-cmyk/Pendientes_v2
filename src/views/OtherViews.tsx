@@ -12,13 +12,28 @@ import TaskRow from '@/components/TaskRow'
 import ProgressRing from '@/components/ProgressRing'
 import KanbanDnd from '@/components/KanbanDnd'
 import { Card } from '@/components/ui/card'
-import { ChevronDown, StickyNote, X, Clock } from 'lucide-react'
+import { ChevronDown, StickyNote, X, Clock, AlertTriangle, CalendarCheck, CalendarDays, Inbox, History, Briefcase, CalendarClock } from 'lucide-react'
 
 /* ============ HOY ============ */
-function Seccion({ titulo, color, items, vacio }: { titulo: string; color: string; items: Pendiente[]; vacio: string }) {
+/** Encabezado de sección consistente en toda la vista Hoy: icono vectorial (no emoji),
+    título en `text-display-sm` y contador opcional en segundo plano. Reemplaza las cuatro
+    convenciones sueltas que convivían (emoji inline, font-display, text-xs, botón plegable). */
+function EncabezadoSeccion({ icono, titulo, cantidad, tono }: { icono: React.ReactNode; titulo: string; cantidad?: number; tono?: string }) {
+  return (
+    <h3 className="mb-2 flex items-center gap-1.5 text-display-sm">
+      <span className={'shrink-0 ' + (tono ?? 'text-primary')}>{icono}</span>
+      {titulo}
+      {cantidad !== undefined && cantidad > 0 && (
+        <span className="rounded-full bg-muted px-1.5 text-[10px] font-medium text-muted-foreground">{cantidad}</span>
+      )}
+    </h3>
+  )
+}
+
+function Seccion({ titulo, color, icono, items, vacio }: { titulo: string; color: string; icono?: React.ReactNode; items: Pendiente[]; vacio: string }) {
   return (
     <div>
-      <h3 className={'mb-2 text-xs font-bold ' + color}>{titulo} <span className="font-normal text-muted-foreground">({items.length})</span></h3>
+      <EncabezadoSeccion icono={icono ?? <ChevronDown size={15} />} titulo={titulo} cantidad={items.length} tono={color} />
       <div className="space-y-1.5">
         {items.map(p => <TaskRow key={p.id} p={p} />)}
         {!items.length && <p className="text-xs text-muted-foreground">{vacio}</p>}
@@ -55,7 +70,7 @@ function Registro({ items }: { items: Pendiente[] }) {
     <div>
       <button onClick={() => setAbierto(v => !v)} className="flex items-center gap-1.5 text-xs font-bold text-muted-foreground">
         <ChevronDown size={13} className={'transition-transform ' + (abierto ? '' : '-rotate-90')} />
-        📜 Registro <span className="font-normal">({items.length} en los últimos 14 días)</span>
+        <History size={13} /> Registro <span className="font-normal">({items.length} en los últimos 14 días)</span>
       </button>
       {abierto && (
         <div className="mt-2 space-y-3">
@@ -114,7 +129,7 @@ function ResumenProyectos() {
   if (!proyectos.length) return null
   return (
     <div>
-      <h3 className="mb-2 font-display text-sm font-semibold">Proyectos</h3>
+      <h3 className="mb-2 flex items-center gap-1.5 text-display-sm"><Briefcase size={15} className="text-primary" /> Proyectos</h3>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         {proyectos.map((p, i) => {
           const items = pendientes.filter(x => x.proyectoId === p.id)
@@ -154,7 +169,7 @@ function NotasRecientes() {
   if (!recientes.length) return null
   return (
     <div>
-      <h3 className="mb-2 font-display text-sm font-semibold">Notas recientes</h3>
+      <h3 className="mb-2 flex items-center gap-1.5 text-display-sm"><StickyNote size={15} className="text-primary" /> Notas recientes</h3>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {recientes.map((n, i) => {
           const vinculados = pendientes.filter(p => p.origenNota?.notaId === n.id).length
@@ -196,7 +211,7 @@ function AgendaGoogleHoy() {
   if (!visibles.length) return null
   return (
     <Card className="p-3">
-      <h3 className="mb-2 font-display text-sm font-semibold">De Google Calendar hoy</h3>
+      <h3 className="mb-2 flex items-center gap-1.5 text-display-sm"><CalendarClock size={15} className="text-primary" /> De Google Calendar hoy</h3>
       <div className="space-y-1">
         {visibles.map(ev => (
           <div key={ev.cuentaId + '/' + ev.id} className="flex items-center gap-1.5 rounded-lg bg-muted px-2 py-1 text-xs text-muted-foreground">
@@ -225,7 +240,7 @@ function TimelineHoy({ pendientesHoy }: { pendientesHoy: Pendiente[] }) {
   if (!items.length) return null
   return (
     <div className="glass rounded-2xl p-4">
-      <h3 className="mb-3 flex items-center gap-1.5 text-display-sm"><Clock size={15} className="text-primary" /> Cronología de hoy</h3>
+      <EncabezadoSeccion icono={<Clock size={15} />} titulo="Cronología de hoy" />
       <div className="space-y-1.5">
         {items.map(item => item.tipo === 'pendiente' ? (
           <div key={item.key} className="flex items-start gap-2">
@@ -315,10 +330,10 @@ export function TodayView() {
       <AgendaGoogleHoy />
 
       <div className="space-y-5">
-        <Seccion titulo="⚠ Vencidos" color="text-red-500" items={venc} vacio="Nada vencido 🎉" />
-        <Seccion titulo="📆 Para hoy" color="text-amber-600" items={hoy} vacio="Nada para hoy." />
-        <Seccion titulo="🔜 Próximos 7 días" color="text-blue-600" items={proximos} vacio="Nada agendado esta semana." />
-        <Seccion titulo="📥 Sin fecha / Bandeja" color="text-muted-foreground" items={inbox} vacio="Bandeja vacía." />
+        <Seccion titulo="Vencidos" color="text-destructive" icono={<AlertTriangle size={15} />} items={venc} vacio="Nada vencido 🎉" />
+        <Seccion titulo="Para hoy" color="text-amber-600" icono={<CalendarCheck size={15} />} items={hoy} vacio="Nada para hoy." />
+        <Seccion titulo="Próximos 7 días" color="text-primary" icono={<CalendarDays size={15} />} items={proximos} vacio="Nada agendado esta semana." />
+        <Seccion titulo="Sin fecha / Bandeja" color="text-muted-foreground" icono={<Inbox size={15} />} items={inbox} vacio="Bandeja vacía." />
         <Registro items={registro} />
       </div>
     </div>

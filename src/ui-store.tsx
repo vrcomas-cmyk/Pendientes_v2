@@ -61,7 +61,7 @@ export function UIProvider({ children }: { children: ReactNode }) {
   const [peekId, setPeekId] = useState<string | null>(null)
   const [notaActualId, setNotaActualId] = useState<string | null>(null)
   const [proyectoAbiertoId, setProyectoAbiertoId] = useState<string | null>(null)
-  const [filtroFecha, setFiltroFecha] = useState<FiltroFecha>('todos')
+  const [filtroFecha, setFiltroFecha] = useState<FiltroFecha>('abiertos')
   const [espacioActualId, setEspacioActualIdState] = useState<string | null>(() => {
     try { return localStorage.getItem(LS_ESPACIO_ACTIVO) } catch { return null }
   })

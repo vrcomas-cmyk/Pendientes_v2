@@ -70,7 +70,7 @@ async function traerTodo<T>(sb: SupabaseClient, tabla: string): Promise<{ data: 
   const filas: T[] = []
   let desde = 0
   for (;;) {
-    const { data, error } = await sb.from(tabla).select('data').range(desde, desde + TAM_PAGINA - 1)
+    const { data, error } = await sb.from(tabla).select('data').order('id', { ascending: true }).range(desde, desde + TAM_PAGINA - 1)
     if (error) return { data: filas, error }
     filas.push(...((data || []) as T[]))
     if (!data || data.length < TAM_PAGINA) break

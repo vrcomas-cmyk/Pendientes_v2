@@ -608,14 +608,11 @@ function Shell() {
             </DropdownMenuContent>
           </DropdownMenu>
           <div className="my-2 border-t" />
-          {/* Sistema: consulta ocasional (PDS.md §5.3) — no compite visualmente con los 5
-              destinos primarios de uso diario de arriba. Solo «Pendientes» queda como fila
-              directa aquí: Panel y Papelera (el resto de `VISTAS_SISTEMA`) viven dentro del
-              menú «Sistema» de más abajo — navegación secundaria de verdad, no una segunda
-              lista permanente. `VISTAS_SISTEMA` completo sigue existiendo para los atajos
-              numéricos (7/8) y la Paleta de Comandos, que no cambian. */}
-          <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Sistema</div>
-          {VISTAS_SISTEMA.filter(v => v.id === 'pendientes').map(v => (
+          {/* Vistas de trabajo frecuente (antes agrupadas bajo «Sistema»): Pendientes, Panel,
+              Contactos y Metas salen a filas directas para entrar con un clic en vez de abrir un
+              menú. Papelera y Equipo (consulta ocasional) se quedan en el menú «Sistema» de abajo. */}
+          <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Trabajo</div>
+          {VISTAS_SISTEMA.filter(v => ['pendientes', 'dashboard', 'contactos', 'metas'].includes(v.id)).map(v => (
             <button key={v.id} onClick={() => setVista(v.id)} aria-current={vistaMostrada === v.id ? 'page' : undefined}
               className={'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ' + (vistaMostrada === v.id ? 'bg-primary text-primary-foreground shadow-sm' : 'hover:bg-accent')}>
               <span className="w-5 shrink-0">{v.icon}</span>
@@ -643,10 +640,7 @@ function Shell() {
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" side="right" className="w-56">
-              <DropdownMenuItem onClick={() => setVista('dashboard')}><BarChart3 size={13} className="mr-2" /> Panel</DropdownMenuItem>
               <DropdownMenuItem onClick={() => setVista('papelera')}><Trash2 size={13} className="mr-2" /> Papelera</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setVista('contactos')}><Users size={13} className="mr-2" /> Contactos</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setVista('metas')}><Target size={13} className="mr-2" /> Metas</DropdownMenuItem>
               <DropdownMenuItem onClick={() => setVista('equipo')}><Users2 size={13} className="mr-2" /> Mi Equipo</DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => setAjustesDlg(true)}><Settings2 size={13} className="mr-2" /> Ajustes</DropdownMenuItem>

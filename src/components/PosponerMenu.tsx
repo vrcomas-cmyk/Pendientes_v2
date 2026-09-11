@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useApp } from '@/store'
 import { isoMasDias, isoProximoFinDeSemana, hoyISO } from '@/lib/app-utils'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import CampoFecha from '@/components/CampoFecha'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuLabel } from '@/components/ui/dropdown-menu'
 import { CalendarClock, Sun, CalendarDays, Coffee, X, CalendarCheck, CalendarSearch } from 'lucide-react'
@@ -49,8 +49,7 @@ export default function PosponerMenu({ id, size = 'sm', variant = 'secondary' }:
       <Dialog open={fechaDlg} onOpenChange={setFechaDlg}>
         <DialogContent className="max-w-xs">
           <DialogHeader><DialogTitle className="text-base">Elegir fecha límite</DialogTitle></DialogHeader>
-          <Input type="date" autoFocus value={fechaVal} onChange={e => setFechaVal(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); confirmarFecha() } }} />
+          <CampoFecha value={fechaVal} onChange={setFechaVal} autoFocus />
           <DialogFooter>
             <Button variant="secondary" onClick={() => setFechaDlg(false)}>Cancelar</Button>
             <Button onClick={confirmarFecha}>Posponer</Button>

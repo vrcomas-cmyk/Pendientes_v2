@@ -1,4 +1,4 @@
-import { parsearLinea, describirRepeticion } from '@/lib/app-utils'
+import { parsearLinea, describirRepeticion, isoAFechaLegible } from '@/lib/app-utils'
 import { Calendar, User, Flag, Folder, Repeat } from 'lucide-react'
 
 const COLOR_PRIORIDAD: Record<string, string> = {
@@ -13,7 +13,7 @@ export default function PreviaParseo({ texto }: { texto: string }) {
   if (!p) return null
 
   const chips: { icon: React.ReactNode; label: string; cls?: string }[] = []
-  if (p.fechaLimite) chips.push({ icon: <Calendar size={11} />, label: p.fechaLimite })
+  if (p.fechaLimite) chips.push({ icon: <Calendar size={11} />, label: isoAFechaLegible(p.fechaLimite) })
   if (p.responsable) chips.push({ icon: <User size={11} />, label: p.responsable })
   if (p.prioridad) chips.push({ icon: <Flag size={11} />, label: p.prioridad, cls: COLOR_PRIORIDAD[p.prioridad] })
   if (proyectos.length) chips.push({ icon: <Folder size={11} />, label: proyectos.join(', ') })

@@ -4,6 +4,7 @@ import { META_ICONOS, PROYECTO_COLORES, PROYECTO_COLORES_KEYS } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import CampoFecha from '@/components/CampoFecha'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 
 /** Crea una Meta (Fase 4 del plan de Contactos/Equipos/Metas). Mismo patrón que
@@ -37,7 +38,7 @@ export default function NuevaMetaDialog({ open, onOpenChange }: { open: boolean;
           <Input autoFocus value={nombre} onChange={e => setNombre(e.target.value)} placeholder="Nombre (ej. Lanzar el producto)"
             onKeyDown={e => { if (e.key === 'Enter') guardar() }} />
           <Textarea rows={2} value={descripcion} onChange={e => setDescripcion(e.target.value)} placeholder="Descripción (opcional)" />
-          <Input type="date" value={fechaObjetivo} onChange={e => setFechaObjetivo(e.target.value)} />
+          <CampoFecha value={fechaObjetivo} onChange={setFechaObjetivo} placeholder="Fecha objetivo (dd/mm/aaaa)" />
           <div className="flex flex-wrap gap-1.5">
             {META_ICONOS.map(ic => (
               <button key={ic} type="button" onClick={() => setIcono(ic)}

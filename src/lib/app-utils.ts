@@ -13,6 +13,31 @@ export function hoyISO(): string {
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0')
 }
 
+/** Convierte una fecha ISO (`aaaa-mm-dd`) a formato legible local `dd/mm/aaaa`. Ignora hora/zona:
+    las fechas se tratan como fechas puras (sin `T00:00` para no saltar de día por UTC). */
+export function isoAFechaLegible(iso: string): string {
+  if (!iso || iso.length < 10) return ''
+  const [a, m, d] = iso.slice(0, 10).split('-')
+  if (!a || !m || !d) return ''
+  return `${d}/${m}/${a}`
+}
+
+/** Convierte texto `dd/mm/aaaa` (o `d/m/aa`, etc.) a ISO (`aaaa-mm-dd`); devuelve '' si no es una
+    fecha válida. Acepta separadores `/`, `-` o `.`. */
+export function fechaLegibleAISO(texto: string): string {
+  const t = (texto || '').trim()
+  if (!t) return ''
+  const m = t.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2,4})$/)
+  if (!m) return ''
+  const d = Number(m[1])
+  const mes = Number(m[2])
+  let a = Number(m[3])
+  if (a < 100) a += a < 70 ? 2000 : 1900
+  const dt = new Date(a, mes - 1, d)
+  if (dt.getFullYear() !== a || dt.getMonth() !== mes - 1 || dt.getDate() !== d) return ''
+  return a + '-' + String(mes).padStart(2, '0') + '-' + String(d).padStart(2, '0')
+}
+
 /** `idCompletado`: id de la columna del Kanban marcada `esCompletado` (`useApp().columnas`) — con
     columnas moldeables ya no es el literal fijo `'completado'`. Se mantiene ese valor por defecto
     para no romper llamadas que todavía no lo pasan explícitamente. */

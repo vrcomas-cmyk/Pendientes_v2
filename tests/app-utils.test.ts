@@ -29,6 +29,8 @@ import {
   activo,
   asignarProyecto,
   normalizarNombreProyecto,
+  isoAFechaLegible,
+  fechaLegibleAISO,
 } from "@/lib/app-utils";
 import type { Pendiente } from "@/types";
 
@@ -499,6 +501,34 @@ describe("parsearFechaFlexible", () => {
   });
   it("valida día real (no acepta 31 de febrero)", () => {
     expect(parsearFechaFlexible("31/02/2026")).toBe("");
+  });
+});
+
+describe("isoAFechaLegible / fechaLegibleAISO (formatos de campo de fecha)", () => {
+  it("ISO → dd/mm/aaaa", () => {
+    expect(isoAFechaLegible("2026-08-04")).toBe("04/08/2026");
+    expect(isoAFechaLegible("2026-01-01")).toBe("01/01/2026");
+  });
+  it("ISO vacío o incompleto → ''", () => {
+    expect(isoAFechaLegible("")).toBe("");
+    expect(isoAFechaLegible("2026-08")).toBe("");
+  });
+  it("dd/mm/aaaa → ISO", () => {
+    expect(fechaLegibleAISO("04/08/2026")).toBe("2026-08-04");
+    expect(fechaLegibleAISO("4/8/2026")).toBe("2026-08-04");
+  });
+  it("acepta guiones y puntos como separador", () => {
+    expect(fechaLegibleAISO("04-08-2026")).toBe("2026-08-04");
+    expect(fechaLegibleAISO("04.08.2026")).toBe("2026-08-04");
+  });
+  it("año corto: <70 → 2000+, >=70 → 1900+", () => {
+    expect(fechaLegibleAISO("04/08/26")).toBe("2026-08-04");
+    expect(fechaLegibleAISO("04/08/75")).toBe("1975-08-04");
+  });
+  it("rechaza fechas inválidas", () => {
+    expect(fechaLegibleAISO("31/02/2026")).toBe("");
+    expect(fechaLegibleAISO("hola")).toBe("");
+    expect(fechaLegibleAISO("")).toBe("");
   });
 });
 

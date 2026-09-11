@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react'
 import { useApp } from '@/store'
 import { PROYECTO_COLORES } from '@/types'
-import type { Meta } from '@/types'
+import type { Meta, Proyecto } from '@/types'
+import { isoAFechaLegible } from '@/lib/app-utils'
 import NuevaMetaDialog from '@/components/NuevaMetaDialog'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Target, Plus, Trash2, X } from 'lucide-react'
@@ -12,7 +14,7 @@ import { Target, Plus, Trash2, X } from 'lucide-react'
 /** Vista «Metas» (Fase 4 del plan de Contactos/Equipos/Metas, ver workspace-doctrine): objetivos
     de largo plazo que agrupan Proyectos, con progreso agregado (`progresoMeta` en store.tsx). */
 export default function MetasView() {
-  const { metas, eliminarMeta, proyectos, actualizarProyecto, progresoMeta } = useApp()
+  const { metas, eliminarMeta, proyectos, actualizarProyecto, crearProyecto, progresoMeta } = useApp()
   const [dlgNueva, setDlgNueva] = useState(false)
   const [detalleId, setDetalleId] = useState<string | null>(null)
 
@@ -53,7 +55,7 @@ export default function MetasView() {
                     <span aria-hidden className="text-xl leading-none">{m.icono}</span>
                     <span className="flex-1 truncate text-sm font-semibold">{m.nombre}</span>
                   </div>
-                  {m.fechaObjetivo && <p className="text-[11px] text-muted-foreground">🗓 {m.fechaObjetivo}</p>}
+                  {m.fechaObjetivo && <p className="text-[11px] text-muted-foreground">🗓 {isoAFechaLegible(m.fechaObjetivo)}</p>}
                   <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
                     <div className={'h-full rounded-full transition-[width] duration-300 ease-smooth ' + colores.dot} style={{ width: `${prog.porcentaje}%` }} />
                   </div>
@@ -74,6 +76,7 @@ export default function MetasView() {
         <DialogContent className="max-w-md">
           {detalle && <DetalleMeta detalle={detalle} proyectosDe={proyectosDeDetalle} proyectosSinMeta={proyectosSinMeta}
             progreso={progresoMeta(detalle.id)} onVincular={vincularProyecto} onDesvincular={desvincularProyecto}
+            onCrear={crearProyecto} onAsignarMeta={actualizarProyecto}
             onEliminar={() => { eliminarMeta(detalle.id); setDetalleId(null) }} />}
         </DialogContent>
       </Dialog>
@@ -81,15 +84,25 @@ export default function MetasView() {
   )
 }
 
-function DetalleMeta({ detalle, proyectosDe, proyectosSinMeta, progreso, onVincular, onDesvincular, onEliminar }: {
+function DetalleMeta({ detalle, proyectosDe, proyectosSinMeta, progreso, onVincular, onDesvincular, onCrear, onAsignarMeta, onEliminar }: {
   detalle: Meta
   proyectosDe: { id: string; nombre: string; color: string }[]
   proyectosSinMeta: { id: string; nombre: string; color: string }[]
   progreso: { total: number; completados: number; porcentaje: number }
   onVincular: (proyectoId: string) => void
   onDesvincular: (proyectoId: string) => void
+  onCrear: (nombre: string, color?: string, cuentaGoogleId?: string) => Proyecto
+  onAsignarMeta: (id: string, datos: Partial<Proyecto>) => void
   onEliminar: () => void
 }) {
+  const [nuevoProyecto, setNuevoProyecto] = useState('')
+  const crearProyecto = () => {
+    const n = nuevoProyecto.trim()
+    if (!n) return
+    const p = onCrear(n, detalle.color)
+    onAsignarMeta(p.id, { metaId: detalle.id })
+    setNuevoProyecto('')
+  }
   return (
     <>
       <DialogHeader>
@@ -99,6 +112,9 @@ function DetalleMeta({ detalle, proyectosDe, proyectosSinMeta, progreso, onVincu
       </DialogHeader>
       <div className="space-y-3">
         {detalle.descripcion && <p className="text-sm text-muted-foreground">{detalle.descripcion}</p>}
+        {detalle.fechaObjetivo && (
+          <p className="text-xs text-muted-foreground"><span className="text-muted-foreground/70">Fecha objetivo:</span> {isoAFechaLegible(detalle.fechaObjetivo)}</p>
+        )}
         <div>
           <div className="mb-1 flex items-center justify-between text-[11px] text-muted-foreground">
             <span>Progreso</span><span>{progreso.porcentaje}% ({progreso.completados}/{progreso.total})</span>
@@ -123,9 +139,15 @@ function DetalleMeta({ detalle, proyectosDe, proyectosSinMeta, progreso, onVincu
               ))}
             </div>
           )}
+          <div className="mt-2 flex gap-1.5">
+            <Input value={nuevoProyecto} onChange={e => setNuevoProyecto(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); crearProyecto() } }}
+              placeholder="Crear un proyecto para esta meta…" className="h-8 text-xs" />
+            <Button size="sm" onClick={crearProyecto} disabled={!nuevoProyecto.trim()}><Plus size={14} /></Button>
+          </div>
           {proyectosSinMeta.length > 0 && (
             <Select onValueChange={onVincular}>
-              <SelectTrigger className="mt-2 h-8 text-xs"><SelectValue placeholder="+ Vincular proyecto…" /></SelectTrigger>
+              <SelectTrigger className="mt-2 h-8 text-xs"><SelectValue placeholder="+ Vincular proyecto existente…" /></SelectTrigger>
               <SelectContent>{proyectosSinMeta.map(p => <SelectItem key={p.id} value={p.id}>{p.nombre}</SelectItem>)}</SelectContent>
             </Select>
           )}

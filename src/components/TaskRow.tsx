@@ -3,7 +3,7 @@ import { useApp } from '@/store'
 import { useUI } from '@/ui-store'
 import type { Pendiente } from '@/types'
 import { PRIORIDAD_BORDER, PROYECTO_COLORES } from '@/types'
-import { progresoSub, vencido, describirRepeticion, estaBloqueado } from '@/lib/app-utils'
+import { progresoSub, vencido, describirRepeticion, estaBloqueado, isoAFechaLegible } from '@/lib/app-utils'
 import { columnaDe, colorColumna, idColumnaCompletado } from '@/lib/columnas'
 import { useIsMobile } from '@/hooks/use-is-mobile'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -126,7 +126,7 @@ export default function TaskRow({ p, seleccionado, onClick, modoArchivados, bulk
         onCheckedChange={() => { if (p.estado !== idCompletado) celebrar(); toggleCompletar(p.id) }}
         onClick={e => e.stopPropagation()}
         aria-label={p.estado === idCompletado ? `Marcar "${p.titulo}" como no completado` : `Marcar "${p.titulo}" como completado`}
-        className={'mt-0.5' + (pulso ? ' check-pop' : '')}
+        className={'mt-0.5' + (esMobile ? ' h-6 w-6' : '') + (pulso ? ' check-pop' : '')}
       />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
@@ -147,8 +147,8 @@ export default function TaskRow({ p, seleccionado, onClick, modoArchivados, bulk
               <span className={'h-1.5 w-1.5 rounded-full ' + (PROYECTO_COLORES[proyecto.color]?.dot || '')} />{proyecto.nombre}
             </span>
           ) : p.proyecto && <span className="rounded-full bg-muted px-1.5">📁 {p.proyecto}</span>}
-          {p.fechaLimite && <span className="inline-flex items-center gap-0.5"><Calendar size={10} />{p.fechaLimite}</span>}
-          <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 opacity-0 transition-opacity duration-150 ease-smooth group-hover:opacity-100 group-focus-within:opacity-100">
+          {p.fechaLimite && <span className="inline-flex items-center gap-0.5"><Calendar size={10} />{isoAFechaLegible(p.fechaLimite)}</span>}
+          <span className={'flex flex-wrap items-center gap-x-2 gap-y-0.5 opacity-100 transition-opacity duration-150 ease-smooth ' + (esMobile ? '' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100')}>
             {p.responsable && (
               <span className="inline-flex items-center gap-0.5">
                 {contactoResponsable?.avatar ? <span aria-hidden className="text-[10px] leading-none">{contactoResponsable.avatar}</span> : <User size={10} />}
@@ -164,12 +164,12 @@ export default function TaskRow({ p, seleccionado, onClick, modoArchivados, bulk
       </div>
       <div className="shrink-0 opacity-70 transition-opacity hover:opacity-100 group-hover:opacity-100" onClick={e => e.stopPropagation()}>
         {modoArchivados ? (
-          <Button size="icon" variant="ghost" className="h-8 w-8" title="Desarchivar" onClick={() => desarchivarPendiente(p.id)}>
+          <Button size="icon" variant="ghost" className={esMobile ? 'h-10 w-10' : 'h-8 w-8'} title="Desarchivar" onClick={() => desarchivarPendiente(p.id)}>
             <ArchiveRestore size={14} />
           </Button>
         ) : (
           <div className="flex items-center gap-1">
-            <Button size="icon" variant="ghost" className="h-8 w-8" title="Archivar" onClick={() => archivarPendiente(p.id)}>
+            <Button size="icon" variant="ghost" className={esMobile ? 'h-10 w-10' : 'h-8 w-8'} title="Archivar" onClick={() => archivarPendiente(p.id)}>
               <Archive size={14} />
             </Button>
             <PosponerMenu id={p.id} size="icon" variant="ghost" />

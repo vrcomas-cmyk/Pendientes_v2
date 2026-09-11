@@ -75,14 +75,14 @@ describe("F2.1 — «Espacios» como 5º destino primario (TDD, tests RED)", () 
     expect(etiquetas).toEqual(esperado);
   });
 
-  it("«Pendientes» ya no es destino primario: queda agrupado bajo el encabezado «Sistema»", async () => {
+  it("«Pendientes» ya no es destino primario: queda bajo el encabezado «Trabajo»", async () => {
     renderApp();
     const nav = await screen.findByRole("navigation", { name: /Navegación principal/i });
-    const sistema = within(nav).getAllByText("Sistema", { exact: true })[0];
+    const trabajo = within(nav).getAllByText("Trabajo", { exact: true })[0];
     const pendientes = within(nav).getByRole("button", { name: "Pendientes" });
-    // El botón «Pendientes» debe venir DESPUÉS del encabezado «Sistema» (bit FOLLOWING de
-    // compareDocumentPosition). Hoy está entre los primarios (antes de Sistema) → falla.
-    expect(sistema.compareDocumentPosition(pendientes) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // El botón «Pendientes» debe venir DESPUÉS del encabezado «Trabajo» (bit FOLLOWING de
+    // compareDocumentPosition).
+    expect(trabajo.compareDocumentPosition(pendientes) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("el atajo numérico 5 muestra la vista Espacios con título, «Todos» y tarjetas de espacio", async () => {

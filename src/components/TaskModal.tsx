@@ -11,6 +11,7 @@ import { isGoogleConfigurado } from '@/lib/googleCalendar'
 import { sincronizarEspejoGoogle } from '@/lib/agenda'
 import { idColumnaCompletado } from '@/lib/columnas'
 import AdjuntosUI, { Miniatura } from '@/components/AdjuntosUI'
+import CampoFecha from '@/components/CampoFecha'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -308,7 +309,7 @@ export default function TaskModal() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-[11px] uppercase text-muted-foreground">Fecha límite</Label>
-                <Input type="date" value={fechaLimite} onChange={e => { setFechaLimite(e.target.value); setFechaTocada(true) }} />
+                <CampoFecha value={fechaLimite} onChange={v => { setFechaLimite(v); setFechaTocada(true) }} />
                 {!fechaTocada && <p className="text-[10px] text-muted-foreground">Sugerida por prioridad ({prioridad})</p>}
               </div>
               <div className="space-y-1.5">
@@ -351,7 +352,7 @@ export default function TaskModal() {
                   </div>
                   <div className="mt-1.5 grid grid-cols-2 gap-2 pl-6">
                     <Input list="personas-dl" value={s.responsable || ''} onChange={e => setSub(i, 'responsable', e.target.value)} placeholder="👤 Responsable" className="h-7 text-xs" />
-                    <Input type="date" value={s.fechaLimite || ''} onChange={e => setSub(i, 'fechaLimite', e.target.value)} className="h-7 text-xs" />
+                    <CampoFecha value={s.fechaLimite || ''} onChange={v => setSub(i, 'fechaLimite', v)} />
                   </div>
                 </div>
               ))}

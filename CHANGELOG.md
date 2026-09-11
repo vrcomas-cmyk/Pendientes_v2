@@ -5,6 +5,99 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el v
 [SemVer](https://semver.org/lang/es/). El cache del Service Worker (`public/sw.js`) se
 incrementa por hito funcional-visible al usuario (no así en refactor internos).
 
+### Fix: subir imagen desde la cámara en móvil (2026-09-11)
+
+Reporte del usuario: en móvil no se podía subir una imagen desde la cámara (ni en comentarios ni
+en adjuntos generales). Causa raíz: los `<input type="file">` creados dinámicamente no tenían
+`accept` ni `capture`, así que el navegador móvil abría solo el selector genérico de documentos o
+la galería, sin ofrecer la cámara.
+
+- **Cambiado** `AdjuntosUI.tsx`: el input ahora usa `accept="image/*"`; se agrega un botón "Cámara"
+  que además fija `capture="environment"` para abrir la cámara directamente. El botón "Adjuntar"
+  sigue permitiendo varias imágenes de galería/archivos.
+- **Cambiado** `PendienteCuerpo.tsx` (comentario): el adjuntar imagen ahora tiene dos botones —
+  "Adjuntar imagen" (galería) y "Tomar foto con la cámara" (`capture="environment"`).
+- **Verificado**: `npm run lint`, `npm run build` y `npm run test` en verde.
+
+### Fix: UI/UX de filas de pendientes en móvil (2026-09-11)
+
+Auditoría de usabilidad objetiva (DOM renderizado) encontró dos fricciones reales en las filas de
+pendientes; se corrigen sin tocar lógica de datos:
+
+- **Metadatos invisibles en móvil**: en `TaskRow` el bloque secundario (responsable, subtareas
+  hechas, repetición, ponderación, modalidad) se ocultaba con `opacity-0` y solo se revelaba en
+  hover/foco. En móvil no hay hover, así que esa información nunca se veía. Ahora en móvil se
+  muestra siempre (`opacity-100`), y en escritorio mantiene el reveal en hover.
+- **Objetivos táctiles**: el checkbox de completar y los botones de archivar/desarchivar de las
+  filas crecen en móvil a un área táctil mayor (~44px) para facilitar el toque con el dedo, en
+  lugar de los 16–32px originales.
+- **Contraste**: revisado; el detector inicial marcó falsos positivos por heredar fondos
+  semi-transparentes (`--primary/5`), el contraste real cumple AA en texto de tamaño normal.
+
+### Añadido: navegación más directa + agregar pendientes desde Proyectos (2026-09-11)
+
+Petición del usuario: (1) en Proyectos poder agregar pendientes más fácil y que nazcan en la
+columna «Pendiente»; (2) sacar Pendiente, Meta, Panel y Contactos del menú «Sistema» para entrar
+con un clic; (3) que la vista Pendientes muestre solo los abiertos por defecto.
+
+- **Añadido** `ProyectosView.tsx`: botón «+ Pendiente» en el cabezal del proyecto abierto (tablero
+  y lista) que abre el modal de nuevo pendiente con `proyectoId`/`proyecto` preasignados y `estado`
+  en la primera columna (la «Pendiente» por defecto) — antes solo se podía agregar desde el pequeño
+  botón de cada columna del Kanban o por la captura rápida global.
+- **Cambiado** `App.tsx` (sidebar escritorio): la sección «Sistema» ahora se llama «Trabajo» y
+  lista como filas directas Pendientes, Panel, Contactos y Metas. El menú desplegable «Sistema»
+  queda solo con Papelera, Mi Equipo y los accesos de Ajustes/Datos/Ayuda (que no cambian). Los
+  atajos numéricos 1-8 y la Paleta de Comandos siguen igual.
+- **Cambiado** `ui-store.tsx`: el filtro de fecha inicial pasa de `'todos'` a `'abiertos'`, así la
+  vista Pendientes muestra de entrada solo pendientes abiertos (el chip «Abiertos» queda activo por
+  defecto).
+- **Actualizado** tests de navegación (`navegacion.test.tsx`, `sistema-secundaria.test.tsx`,
+  `espacio-activo.test.tsx`) al nuevo modelo de sidebar (sección «Trabajo» con filas directas).
+- **Verificado**: `npm run lint`, `npm run build` y `npm run test` (240/240) en verde.
+
+### Añadido: fechas dd/mm/aaaa + minicalendario + proyectos desde Metas (2026-09-11)
+
+Pedido del usuario: mostrar las fechas en formato local `dd/mm/aaaa` (no `aaaa-mm-dd`), poder
+elegirlas con un minicalendario además de escribirlas a mano, y generar proyectos directamente
+desde la vista de Metas (antes solo se podían *vincular* proyectos ya existentes).
+
+- **Añadido** `src/lib/app-utils.ts`: `isoAFechaLegible(iso)` → `dd/mm/aaaa` y
+  `fechaLegibleAISO(texto)` → `aaaa-mm-dd` (acepta `/`, `-`, `.`, años de 2 dígitos, valida fechas
+  reales). El almacenamiento sigue en ISO para no tocar la lógica de ordenar/filtrar.
+- **Añadido** `src/components/CampoFecha.tsx`: campo de fecha reutilizable con doble entrada —
+  input de texto `dd/mm/aaaa` + botón que abre un minicalendario ligero (sin dependencia nueva),
+  con navegación de meses, resaltado de hoy/selección y atajos "Hoy"/"Limpiar". El editor interno
+  vive con `key={value}` para re-inicializarse cuando el valor cambia por fuera (ej. "hoy por
+  prioridad") sin efecto con `setState`.
+- **Cambiado**: `TaskModal.tsx` (fecha límite y fecha de subtareas), `NuevaMetaDialog.tsx` (fecha
+  objetivo) y `PosponerMenu.tsx` (elegir fecha) usan `CampoFecha` en lugar del `<Input type="date">`
+  nativo, que mostraba el formato según el locale del navegador.
+- **Cambiado** (display): `TaskRow`, `PendienteCuerpo`, `PreviaParseo`, `ListView` y `MetasView`
+  ahora muestran las fechas con `isoAFechaLegible` (dd/mm/aaaa).
+- **Añadido** `src/views/MetasView.tsx`: en el detalle de una meta hay un input "Crear un proyecto
+  para esta meta…" que crea el proyecto (`crearProyecto`) y lo asigna automáticamente a la meta
+  (`actualizarProyecto(metaId)`), junto al selector existente de vincular proyectos ya existentes.
+  Se muestra además la "Fecha objetivo" en dd/mm/aaaa.
+- **Verificado**: `npm run lint`, `npm run build` y `npm run test` (234/234, incluye 6 casos nuevos
+  en `tests/app-utils.test.ts` para `isoAFechaLegible`/`fechaLegibleAISO`) en verde.
+
+### Fix: "Sincronización interrumpida" al abrir la app (paginación sin orden estable) (2026-09-10)
+
+Reporte del usuario: el toast "Sincronización interrumpida: la nube devolvió muchos
+elementos ausentes de golpe…" aparecía al abrir la app. El fix anterior (H12, paginación
+con `.range()`) corrigió el corte de 1000 filas, pero la paginación resultante seguía sin
+un `ORDER BY` explícito. PostgREST (Supabase) no garantiza orden sin `.order('...')`,
+así que al leer la página 2 (filas 1000-1999) podía saltarse u omitir filas respecto a la
+página 1. Con más de 1000 registros en una cuenta, ese subconjunto inestable hacía que ids
+ya conocidos "faltaran" de golpe en la lectura → disparaba el circuito H12
+(`ausenciasSospechosas`, umbral de 5) en cada ciclo de sync, al abrir la app.
+
+- **Causa raíz**: `traerTodo()` en `src/sync.tsx` paginaba con `.range()` sin `.order('id')`.
+- **Cambiado** `src/sync.tsx`: `traerTodo()` ahora ordena por `id` ascendente antes de paginar
+  (`.order('id', { ascending: true })`), lo que hace el recorrido de páginas determinista y
+  evita ausencias falsas en `pull()`.
+- **Verificado**: `npm run lint`, `npm run build` y `npm run test` (234/234) en verde.
+
 ## [0.1.0-pre.1] — 2026-08-05 — Fase 1: Base técnica
 
 Primera pre-release. Refactor interno sin cambios visibles para el usuario pero que
