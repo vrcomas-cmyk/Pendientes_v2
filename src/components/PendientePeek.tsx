@@ -27,7 +27,7 @@ export default function PendientePeek() {
         {p && (
           <>
             <DialogHeader>
-              <DialogTitle className={p.estado === idCompletado ? 'linea-completada' : ''}>{p.titulo}</DialogTitle>
+              <DialogTitle className={'font-bold ' + (p.estado === idCompletado ? 'linea-completada' : '')}>{p.titulo}</DialogTitle>
             </DialogHeader>
 
             <PendienteCuerpo

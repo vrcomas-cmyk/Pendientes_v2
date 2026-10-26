@@ -69,6 +69,7 @@ export interface Nota {
   etiquetas?: string[]
   comentarios?: Comentario[]
   borrado?: boolean
+  cerrada?: boolean   // nota «cerrada» (terminada): no sale en la lista de abiertas ni en «Notas recientes»; se puede reabrir
   creado: string
   modificado: string
 }

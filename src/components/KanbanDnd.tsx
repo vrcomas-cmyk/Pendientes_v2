@@ -87,7 +87,7 @@ export default function KanbanDnd({ pendientes, defaultsAlAgregar = {}, minColW 
                         }}
                         className={'cursor-pointer rounded-lg border-l-4 bg-card p-2 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-primary ' + (PRIORIDAD_BORDER[p.prioridad] || '')}
                       >
-                        <div className={'text-xs font-medium ' + (col.esCompletado ? 'linea-completada' : '')}>{p.titulo}</div>
+                        <div className={'text-xs font-bold ' + (col.esCompletado ? 'linea-completada' : '')}>{p.titulo}</div>
                         <div className="mt-1 flex flex-wrap items-center gap-x-2 text-[10px] text-muted-foreground">
                           {p.responsable && <span className="inline-flex items-center gap-0.5"><User size={10} />{p.responsable}</span>}
                           {sub && <span className="inline-flex items-center gap-0.5"><CheckSquare size={10} />{sub.hechas}/{sub.total}</span>}

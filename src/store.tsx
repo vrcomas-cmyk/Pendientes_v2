@@ -101,7 +101,7 @@ interface AppCtx {
   restaurarEvento: (id: string) => void
   columnas: ColumnaKanban[]
   setColumnas: (cols: ColumnaKanban[]) => void
-  reemplazarTodo: (p: Pendiente[], n: Nota[], u?: string, pr?: Proyecto[], ev?: EventoCalendario[], esp?: Espacio[], con?: Contacto[], roc?: Roca[]) => void
+  reemplazarTodo: (p: Pendiente[], n: Nota[], u?: string, pr?: Proyecto[], ev?: EventoCalendario[], esp?: Espacio[], con?: Contacto[], roc?: Roca[], extra?: RespaldoExtra) => void
   vaciarPapelera: () => void
   personas: string[]
 }
@@ -109,6 +109,10 @@ interface AppCtx {
 const Ctx = createContext<AppCtx>(null as unknown as AppCtx)
 // eslint-disable-next-line react-refresh/only-export-components -- context hook shared alongside its provider
 export const useApp = () => useContext(Ctx)
+
+/** Colecciones que NO pasan por la sincronización con la nube (viven en este navegador) y que un
+    respaldo completo debe poder restaurar. */
+export interface RespaldoExtra { metas?: Meta[]; etiquetas?: Etiqueta[]; plantillas?: PlantillaPendiente[]; filtrosGuardados?: FiltroGuardado[] }
 
 function semilla(): { p: Pendiente[]; n: Nota[] } {
   const nota: Nota = {
@@ -777,7 +781,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setEventos(prev => prev.map(e => e.id !== id ? e : { ...e, ...datos, modificado: new Date().toISOString() }))
   }
 
-  const reemplazarTodo = (p: Pendiente[], n: Nota[], u?: string, pr?: Proyecto[], ev?: EventoCalendario[], esp?: Espacio[], con?: Contacto[], roc?: Roca[]) => {
+  const reemplazarTodo = (p: Pendiente[], n: Nota[], u?: string, pr?: Proyecto[], ev?: EventoCalendario[], esp?: Espacio[], con?: Contacto[], roc?: Roca[], extra?: RespaldoExtra) => {
     setPendientes(p.map(normalizarConservandoId))
     setNotas(n)
     if (u) setUsuario(u)
@@ -786,6 +790,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (esp) setEspacios(esp)
     if (con) setContactos(con)
     if (roc) setRocas(roc)
+    if (extra?.metas) setMetas(extra.metas)
+    if (extra?.etiquetas) setEtiquetas(extra.etiquetas)
+    if (extra?.plantillas) setPlantillas(extra.plantillas)
+    if (extra?.filtrosGuardados) setFiltrosGuardados(extra.filtrosGuardados)
   }
 
   const personas = useMemo(() => {

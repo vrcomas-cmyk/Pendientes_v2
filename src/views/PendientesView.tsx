@@ -2,25 +2,22 @@ import { useEffect, useState } from 'react'
 import { useUI } from '@/ui-store'
 import ListView from '@/views/ListView'
 import { KanbanView } from '@/views/OtherViews'
-import CalendarioView from '@/views/CalendarioView'
 import { Card } from '@/components/ui/card'
-import { List, Columns3, CalendarDays } from 'lucide-react'
+import { List, Columns3 } from 'lucide-react'
 
-type Modo = 'lista' | 'tablero' | 'calendario'
+type Modo = 'lista' | 'tablero'
 
 const MODOS: { id: Modo; label: string; icon: React.ReactNode }[] = [
   { id: 'lista', label: 'Lista', icon: <List size={14} /> },
   { id: 'tablero', label: 'Tablero', icon: <Columns3 size={14} /> },
-  { id: 'calendario', label: 'Calendario', icon: <CalendarDays size={14} /> },
 ]
 
-/** El modo 'agenda' (Agenda solo-hoy, ya retirada) se migra a 'calendario' para no perder el modo
-    recordado de quien ya lo tenía guardado en localStorage. */
+/** El calendario ya es un módulo propio («Calendario»): los modos guardados 'calendario'/'agenda' se
+    migran a 'lista' para no dejar a nadie con un modo que ya no existe. */
 function leerModoGuardado(): Modo {
   try {
     const v = localStorage.getItem('pn_modo_vista')
-    if (v === 'agenda') return 'calendario'
-    if (v === 'lista' || v === 'tablero' || v === 'calendario') return v
+    if (v === 'lista' || v === 'tablero') return v
   } catch { /* noop */ }
   return 'lista'
 }
@@ -55,7 +52,6 @@ export default function PendientesView() {
       <div className="min-h-0 flex-1">
         {modo === 'lista' && <ListView filtroFecha={filtroFecha} setFiltroFecha={setFiltroFecha} />}
         {modo === 'tablero' && <KanbanView />}
-        {modo === 'calendario' && <CalendarioView />}
       </div>
     </div>
   )

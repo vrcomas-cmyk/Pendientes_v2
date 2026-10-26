@@ -18,7 +18,7 @@ select cron.schedule(
   $$
   select net.http_post(
     url     := 'https://fiplfsuhsqibzrpvjvbx.supabase.co/functions/v1/resumen-correo',
-    headers := jsonb_build_object('Content-Type', 'application/json', 'x-cron-secret', '<Degasa2026*>'),
+    headers := jsonb_build_object('Content-Type', 'application/json', 'x-cron-secret', '<CRON_SECRET>'),
     body    := '{}'::jsonb
   );
   $$

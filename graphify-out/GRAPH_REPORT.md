@@ -1,16 +1,16 @@
 # Graph Report - Pendientes_v2  (2026-10-26)
 
 ## Corpus Check
-- 202 files · ~189,176 words
+- 208 files · ~197,121 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 1742 nodes · 3493 edges · 159 communities (132 shown, 27 thin omitted)
-- Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 48 edges (avg confidence: 0.75)
+- 1802 nodes · 3637 edges · 163 communities (136 shown, 27 thin omitted)
+- Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 52 edges (avg confidence: 0.74)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `e5a4f564`
+- Built from commit: `f117880e`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -157,51 +157,55 @@
 - AjustesDialog.tsx
 - hoyISO
 - useSync
-- ProyectosView.tsx
-- NotesView.tsx
-- ListView.tsx
+- OtherViews.tsx
+- hoyISO
+- CalendarioView.tsx
 - AppProvider
-- button.tsx
+- Pendiente
 - Shell
-- ui-store.test.tsx
+- googleSync.ts
+- ProyectosView.tsx
 - @fontsource/space-grotesk
+- ui-store.tsx
+- columnas.ts
+- @fontsource/jetbrains-mono
 
 ## God Nodes (most connected - your core abstractions)
-1. `useApp()` - 85 edges
+1. `useApp()` - 88 edges
 2. `[Unreleased]` - 72 edges
 3. `useUI()` - 53 edges
 4. `hoyISO()` - 43 edges
-5. `Button` - 34 edges
-6. `idColumnaCompletado()` - 32 edges
-7. `Shell()` - 30 edges
-8. `CalendarioView()` - 30 edges
-9. `Changelog` - 29 edges
-10. `Pendiente` - 28 edges
+5. `Button` - 35 edges
+6. `Changelog` - 35 edges
+7. `CalendarioView()` - 34 edges
+8. `idColumnaCompletado()` - 32 edges
+9. `Shell()` - 30 edges
+10. `isoAFechaLegible()` - 28 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `AppProvider()` --indirect_call--> `proy()`  [INFERRED]
   src/store.tsx → tests/proyectos-metodos.test.ts
+- `Shell()` --indirect_call--> `p()`  [INFERRED]
+  src/App.tsx → tests/enEspacio.test.ts
 - `AjustesDialog()` --indirect_call--> `p()`  [INFERRED]
   src/components/AjustesDialog.tsx → tests/enEspacio.test.ts
 - `KanbanDnd()` --indirect_call--> `p()`  [INFERRED]
   src/components/KanbanDnd.tsx → tests/enEspacio.test.ts
 - `ProximaTareaWidget()` --indirect_call--> `p()`  [INFERRED]
   src/components/widgets/ProximaTareaWidget.tsx → tests/enEspacio.test.ts
-- `pendienteCompletado()` --calls--> `uid()`  [EXTRACTED]
-  tests/app-utils.test.ts → src/lib/app-utils.ts
 
 ## Import Cycles
 - None detected.
 
-## Communities (159 total, 27 thin omitted)
+## Communities (163 total, 27 thin omitted)
 
 ### Community 0 - "App.tsx"
 Cohesion: 0.10
 Nodes (19): Dependencias externas y límites, Hito 0 — Base unificada de captura y enlaces, Hito 1 — Agenda integrada utilizable, Hito 2 — Login Google y calendario bidireccional, Hito 3 — Resúmenes por correo, Hito 4 — Proyectos por método y aviso de estancamiento, Hito 5 — Rocas y registro de actividad, Hito 6 — Encuadres académicos (+11 more)
 
 ### Community 1 - "sync.tsx"
-Cohesion: 0.29
-Nodes (3): ErrorBoundary, Props, State
+Cohesion: 0.25
+Nodes (4): ErrorBoundary, Props, State, descargar()
 
 ### Community 2 - "command.tsx"
 Cohesion: 0.09
@@ -240,24 +244,24 @@ Cohesion: 0.04
 Nodes (47): autoprefixer, eslint, @eslint/js, eslint-plugin-react-hooks, eslint-plugin-react-refresh, globals, jsdom, devDependencies (+39 more)
 
 ### Community 12 - "@hookform/resolvers"
-Cohesion: 0.11
-Nodes (33): EditorCampoFecha(), actividadPorDia(), DIAS_SEMANA, enesimoDiaSemana(), EntradaMinuta, esBullet(), extraerFecha(), extraerSufijos() (+25 more)
+Cohesion: 0.10
+Nodes (25): adivinarPorEncabezado(), ImportarPlanDialog(), parsearModalidad(), sugerirPrioridad(), DIAS_SEMANA, EntradaMinuta, extraerFecha(), fechaRelativa() (+17 more)
 
 ### Community 13 - "package.json"
 Cohesion: 0.25
 Nodes (8): scripts, build, dev, lint, preview, test, test:coverage, test:watch
 
 ### Community 14 - "buffer"
-Cohesion: 0.12
-Nodes (11): abrirSinFecha(), espCasa, espTrabajo, HarnessEspacio(), hoy, irAVista(), iso, pendientesHoy (+3 more)
+Cohesion: 0.13
+Nodes (10): abrirSinFecha(), espCasa, espTrabajo, HarnessEspacio(), hoy, irAVista(), iso, pendientesHoy (+2 more)
 
 ### Community 15 - "graphify reference: extra exports and benchmark"
 Cohesion: 0.22
 Nodes (8): graphify reference: extra exports and benchmark, Step 6b - Wiki (only if --wiki flag), Step 7 - Neo4j export (only if --neo4j or --neo4j-push flag), Step 7a - FalkorDB export (only if --falkordb or --falkordb-push flag), Step 7b - SVG export (only if --svg flag), Step 7c - GraphML export (only if --graphml flag), Step 7d - MCP server (only if --mcp flag), Step 8 - Token reduction benchmark (only if total_words > 5000)
 
 ### Community 16 - "sheet.tsx"
-Cohesion: 0.05
-Nodes (71): RFC-5545, Props, buscarSubtarea(), quitarSubtarea(), dtstampAhora(), escaparICS(), fechaHoraICS(), generarICS() (+63 more)
+Cohesion: 0.27
+Nodes (13): AppCtx, Ctx, RespaldoExtra, semillaCache, Contacto, Espacio, Estado, Etiqueta (+5 more)
 
 ### Community 17 - "table.tsx"
 Cohesion: 0.14
@@ -268,28 +272,28 @@ Cohesion: 0.29
 Nodes (6): compilerOptions, baseUrl, ignoreDeprecations, paths, files, references
 
 ### Community 19 - "breadcrumb.tsx"
-Cohesion: 0.06
-Nodes (32): [0.1.0-pre.1] — 2026-08-05 — Fase 1: Base técnica, Agenda del día en móvil: hoja inferior (2026-10-26), Añadido, Añadido: completado de Hito 0 y Hito 5 (2026-10-25), Añadido: cuentas de Google con dirección de sincronización, propietario confirmado y resumen (2026-10-25), Añadido: fechas dd/mm/aaaa + minicalendario + proyectos desde Metas (2026-09-11), Añadido: Hito 0 — captura universal nota/pendiente/evento (2026-10-25), Añadido: Hito 1 (cierre) — vista Año, conflictos en edición y limpieza de Google (2026-10-25) (+24 more)
+Cohesion: 0.05
+Nodes (38): [0.1.0-pre.1] — 2026-08-05 — Fase 1: Base técnica, Agenda del día en móvil: hoja inferior (2026-10-26), Añadido, Añadido: completado de Hito 0 y Hito 5 (2026-10-25), Añadido: cuentas de Google con dirección de sincronización, propietario confirmado y resumen (2026-10-25), Añadido: fechas dd/mm/aaaa + minicalendario + proyectos desde Metas (2026-09-11), Añadido: Hito 0 — captura universal nota/pendiente/evento (2026-10-25), Añadido: Hito 1 (cierre) — vista Año, conflictos en edición y limpieza de Google (2026-10-25) (+30 more)
 
 ### Community 20 - "drawer.tsx"
-Cohesion: 0.12
-Nodes (28): cicloDeEnvio(), construirDe(), CORS, datosDelRango(), enviarCorreo(), marcar(), PrefsFila, reclamar() (+20 more)
+Cohesion: 0.10
+Nodes (36): cicloDeEnvio(), construirDe(), CORS, CuentaGoogleFila, datosDelRango(), enviarCorreo(), eventosDeGoogle(), FROM (+28 more)
 
 ### Community 21 - "navigation-menu.tsx"
-Cohesion: 0.11
-Nodes (29): AdjuntosUI(), Miniatura(), cargarEtiquetas(), claveEtiquetas(), EspacioDialog(), ResumenCorreoSeccion(), zonaLocal(), eliminarAdjunto() (+21 more)
+Cohesion: 0.20
+Nodes (16): AdjuntosUI(), Miniatura(), formatearMin(), TimerPendiente(), eliminarAdjunto(), esImagen(), formatoTamano(), leerComoDataUrl() (+8 more)
 
 ### Community 22 - "card.tsx"
-Cohesion: 0.15
-Nodes (25): MenuContextoPendiente(), conMenciones(), PendienteCuerpo(), TaskRow(), KanbanRapidoWidget(), ProximaTareaWidget(), useIsMobile(), activo() (+17 more)
+Cohesion: 0.17
+Nodes (19): AjustesProyectoDialog(), GanttProyecto(), ScrumProyecto(), conMenciones(), FilaSubtarea(), PendienteCuerpo(), COLOR_PRIORIDAD, PreviaParseo() (+11 more)
 
 ### Community 23 - "toggle-group.tsx"
 Cohesion: 0.40
 Nodes (4): project, $schema, src/**/*.{ts,tsx}, tests/**/*.ts
 
 ### Community 24 - "alert.tsx"
-Cohesion: 0.23
-Nodes (10): FilaSubtarea(), formatearMin(), TimerPendiente(), Badge(), BadgeProps, badgeVariants, Checkbox, ContextMenuShortcut() (+2 more)
+Cohesion: 0.05
+Nodes (82): CuentasGoogleDialog(), dia(), DIRECCIONES, hora(), DIAS, Fila, hh(), PanelAgenda() (+74 more)
 
 ### Community 25 - "avatar.tsx"
 Cohesion: 0.40
@@ -308,8 +312,8 @@ Cohesion: 0.22
 Nodes (8): Base de datos, Compilar para producción, Cómo actualizar a TODOS los dispositivos, Desarrollo, Desplegar (una sola vez), Estructura (modular, para escalar fácil), Notas de sincronización, Pendientes + Notas Pro — PWA modular
 
 ### Community 30 - "class-variance-authority"
-Cohesion: 0.60
-Nodes (4): AccionOverlay, esOverlay(), overlayReducer(), TipoOverlay
+Cohesion: 0.21
+Nodes (6): AccionOverlay, esOverlay(), overlayReducer(), TipoOverlay, UIProvider(), Harness()
 
 ### Community 31 - "ListView.tsx"
 Cohesion: 0.25
@@ -340,12 +344,12 @@ Cohesion: 0.25
 Nodes (7): After Launch, Before Launch, Common Mistakes, Core PWA Requirements, Project Structure, PWA Development Checklist, PWA Development Skill
 
 ### Community 38 - "html-inline"
-Cohesion: 0.17
-Nodes (15): ATAJOS, SINTAXIS, AVATARES_SUGERIDOS, Modalidad, DialogContent, DialogDescription, DialogFooter(), DialogHeader() (+7 more)
+Cohesion: 0.12
+Nodes (24): ausenciasSospechosas(), CAMPOS_ESCALARES, contenidoIgual(), ItemBase, jsonEstable(), MapaSync, mergeContacto(), mergeEspacio() (+16 more)
 
 ### Community 39 - "lucide-react"
-Cohesion: 0.29
-Nodes (6): Idempotencia y reintentos, Pasos, Piezas, Qué envía, Resúmenes por correo (Hito 3) — puesta en marcha, Seguridad
+Cohesion: 0.25
+Nodes (7): Idempotencia y reintentos, Pasos, Piezas, ¿Por qué el cron corre cada 15 minutos?, Qué envía, Resúmenes por correo (Hito 3) — puesta en marcha, Seguridad
 
 ### Community 41 - "Doctrina del Workspace — Pendientes Pro"
 Cohesion: 0.29
@@ -416,8 +420,8 @@ Cohesion: 0.29
 Nodes (6): Doctrina (no negociable; fuente en `AGENTS.md`), Loop del equipo (en manos del orquestador `team`), Manual del Equipo de Desarrollo, Pipelines de verificación (orden de CI), Roles del equipo, Sistema de memoria
 
 ### Community 60 - "OtherViews.tsx"
-Cohesion: 0.13
-Nodes (20): BulkActionsBar(), EtiquetaRol, ETIQUETAS_ROL, adivinarPorEncabezado(), Columna, FilaPreview, ImportarPlanDialog(), OPCIONES_COLUMNA (+12 more)
+Cohesion: 0.11
+Nodes (36): ATAJOS, SINTAXIS, CampoFecha(), DIAS_CORTOS, MESES, EtiquetaRol, ETIQUETAS_ROL, Columna (+28 more)
 
 ### Community 61 - "Testing PWA"
 Cohesion: 0.50
@@ -440,8 +444,8 @@ Cohesion: 0.11
 Nodes (18): Artículo 10 — Ninguna plataforma (mobile/tablet/desktop) se diseña como una ocurrencia tardía, Artículo 11 — El color semántico de estado nunca se reutiliza para otra cosa, Artículo 12 — Toda captura de contenido tiene una vía sin clasificación previa, Artículo 13 — Ninguna migración de datos es silenciosa, Artículo 14 — Ninguna decisión de arquitectura de datos se toma sin registrar alternativas, Artículo 15 — La identidad visual no se diluye para parecerse a un competidor, Artículo 1 — No agregar funcionalidades por moda, Artículo 2 — No incorporar IA si aumenta la complejidad percibida (+10 more)
 
 ### Community 66 - "App.tsx"
-Cohesion: 0.28
-Nodes (11): WidgetShell(), CONTENIDO, WidgetsLayer(), storage, WIDGET_DEFAULTS, WidgetInstancia, WidgetTipo, Ctx (+3 more)
+Cohesion: 0.31
+Nodes (10): WidgetShell(), CONTENIDO, WidgetsLayer(), storage, WIDGET_DEFAULTS, WidgetInstancia, WidgetTipo, Ctx (+2 more)
 
 ### Community 67 - "button.tsx"
 Cohesion: 0.29
@@ -452,12 +456,12 @@ Cohesion: 0.50
 Nodes (3): For --cluster-only, For --update (incremental re-extraction), graphify reference: incremental update and cluster-only
 
 ### Community 70 - "alert.tsx"
-Cohesion: 0.14
-Nodes (15): conDia(), PosponerMenu(), ItemAgenda, isoMasDias(), DIAS_CORTOS, etiquetaDia(), ExtraAgenda, FilaEvento() (+7 more)
+Cohesion: 0.25
+Nodes (13): actividadPorDia(), enesimoDiaSemana(), esBullet(), extraerSufijos(), isoLocal(), isoProximoFinDeSemana(), isoSumarDias(), medianaTiempoVida() (+5 more)
 
 ### Community 71 - "ImportarPlanDialog.tsx"
-Cohesion: 0.26
-Nodes (11): PaletaComandos(), Vista, Command, CommandDialog(), CommandEmpty, CommandGroup, CommandInput, CommandItem (+3 more)
+Cohesion: 0.29
+Nodes (10): Vista, Command, CommandDialog(), CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList (+2 more)
 
 ### Community 73 - "store.tsx"
 Cohesion: 0.29
@@ -465,7 +469,7 @@ Nodes (6): 2026-08-09 — H4 confirmación de descarte | ✓ aprobado, 2026-08-0
 
 ### Community 74 - "App.tsx"
 Cohesion: 0.07
-Nodes (20): ContactosView, DashboardView, EquipoView, EspaciosView, GRUPO_PLANEAR, MetasView, NotesView, PapeleraView (+12 more)
+Nodes (20): CalendarioView, ContactosView, DashboardView, EquipoView, EspaciosView, MetasView, NotesView, PapeleraView (+12 more)
 
 ### Community 76 - "Engineering Guidelines — Pendientes Pro"
 Cohesion: 0.15
@@ -511,6 +515,10 @@ Nodes (9): Cómo debe sentirse usarlo, Horizonte a 10 años, Horizonte a 5 años
 Cohesion: 0.33
 Nodes (5): Entrada, Memoria, Planificador — Arquitecto técnico, Reglas, Salida (en tu respuesta y mejorada en el ticket)
 
+### Community 94 - "@radix-ui/react-dialog"
+Cohesion: 0.10
+Nodes (30): BulkActionsBar(), MenuContextoPendiente(), NuevoContactoDialog(), NuevoEspacioDialog(), PaletaComandos(), PendientePeek(), Card, CardProps (+22 more)
+
 ### Community 98 - "Data Philosophy — Pendientes Pro"
 Cohesion: 0.25
 Nodes (8): Data Philosophy — Pendientes Pro, Entidades, La idea central, Por qué esto importa más de lo que parece, Reglas del modelo, Relaciones, Representaciones, Vistas
@@ -524,8 +532,8 @@ Cohesion: 0.25
 Nodes (8): Nota sobre el orden de este roadmap, Roadmap — Pendientes Pro, v2.0 — Corrección de fundamentos, v2.1 — Sistema de Widgets v2, v2.2 — Fusión de superficies y velocidad de captura, v2.3 — Accesibilidad transversal y responsive completo, v3.0 — Extensión del modelo: Espacios como contexto real, Perspectivas, Archivos, v4.0 — Personal Operating System
 
 ### Community 102 - "googleCalendar.ts"
-Cohesion: 0.05
-Nodes (86): CuentasGoogleDialog(), dia(), DIRECCIONES, hora(), DIAS, Fila, hh(), PanelAgenda() (+78 more)
+Cohesion: 0.17
+Nodes (16): getConfig(), getSupabase(), isConfigured(), saveConfig(), AuthScreen(), ConfigScreen(), Ctx, EstadoSync (+8 more)
 
 ### Community 103 - "index.ts"
 Cohesion: 0.23
@@ -632,77 +640,89 @@ Cohesion: 0.67
 Nodes (3): Basic Service Worker, Registration, Service Worker Patterns
 
 ### Community 132 - "CalendarioView.tsx"
-Cohesion: 0.20
-Nodes (16): Shell(), GanttProyecto(), ScrumProyecto(), marcarNotificado(), recordatoriosActivos(), useRecordatoriosLocales(), yaNotificado(), descargar() (+8 more)
+Cohesion: 0.26
+Nodes (10): RFC-5545, dtstampAhora(), escaparICS(), fechaHoraICS(), generarHTMLImprimible(), generarICS(), generarMarkdown(), pad2() (+2 more)
 
 ### Community 143 - "espacio-general.test.tsx"
-Cohesion: 0.20
-Nodes (5): espTrabajo, iso, pendientesInbox, pnd(), proyectos
+Cohesion: 0.22
+Nodes (4): espTrabajo, iso, pendientesInbox, proyectos
 
 ### Community 145 - "KanbanDnd.tsx"
 Cohesion: 0.33
 Nodes (5): Cómo aplicarlas, Estado, Línea base (anterior a esta convención), Migraciones de Supabase, Reglas
 
 ### Community 146 - "store.tsx"
-Cohesion: 0.17
-Nodes (13): AjustesProyectoDialog(), NuevaMetaDialog(), NuevoContactoDialog(), NuevoEspacioDialog(), useApp(), ContactosView(), EspaciosView(), KanbanView() (+5 more)
+Cohesion: 0.21
+Nodes (20): RespaldoAutomatico(), SeccionRespaldo(), useDatosActuales(), useRestaurar(), abrir(), Coleccion, COLECCIONES, contar() (+12 more)
 
 ### Community 147 - "ImportarCsvDialog.tsx"
-Cohesion: 0.26
-Nodes (12): RFC-4180, ImportarCsvDialog(), NOMBRE_FORMATO, LineaParseada, detectarFormato(), FilaImportada, FormatoCSV, mapearFilas() (+4 more)
+Cohesion: 0.27
+Nodes (12): RFC-4180, ImportarCsvDialog(), NOMBRE_FORMATO, fechaPorPrioridad(), normalizarNombreProyecto(), detectarFormato(), FilaImportada, FormatoCSV (+4 more)
 
 ### Community 148 - "AjustesDialog.tsx"
-Cohesion: 0.20
-Nodes (18): AjustesDialog(), ColumnaHeader(), KanbanDnd(), Props, setRecordatoriosActivos(), esNotaDeEjemplo(), esPendienteDeEjemplo(), colorColumna() (+10 more)
+Cohesion: 0.23
+Nodes (12): EditorCampoFecha(), conDia(), PosponerMenu(), KanbanRapidoWidget(), ProximaTareaWidget(), marcarNotificado(), recordatoriosActivos(), useRecordatoriosLocales() (+4 more)
 
 ### Community 149 - "hoyISO"
-Cohesion: 0.21
-Nodes (12): COLOR_PRIORIDAD, PreviaParseo(), describirRepeticion(), isoAFechaLegible(), parsearLinea(), EventoRapido, extraerDuracion(), extraerHora() (+4 more)
+Cohesion: 0.36
+Nodes (7): parsearLinea(), EventoRapido, extraerDuracion(), extraerHora(), ModoCaptura, pad(), parsearEventoRapido()
 
 ### Community 150 - "useSync"
-Cohesion: 0.26
-Nodes (9): CampoFecha(), DIAS_CORTOS, MESES, DIAS, Prefs, Input, Textarea, DialogoRoca() (+1 more)
+Cohesion: 0.20
+Nodes (12): actividadesActivas(), actividadesDelPeriodo(), fmt(), informeRocaMarkdown(), mergeRoca(), resumenRoca(), trimestreDe(), ActividadRoca (+4 more)
 
-### Community 151 - "ProyectosView.tsx"
-Cohesion: 0.27
-Nodes (11): ContextMenuCheckboxItem, ContextMenuContent, ContextMenuItem, ContextMenuLabel, ContextMenuRadioItem, ContextMenuSeparator, ContextMenuSubContent, ContextMenuSubTrigger (+3 more)
+### Community 151 - "OtherViews.tsx"
+Cohesion: 0.12
+Nodes (22): agruparAgenda(), esHoraPorDefecto(), ItemAgenda, enEspacio(), isoMasDias(), vencido(), cargarFiltros(), ListView() (+14 more)
 
-### Community 152 - "NotesView.tsx"
-Cohesion: 0.23
-Nodes (9): DIAS, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuSubContent (+1 more)
+### Community 152 - "hoyISO"
+Cohesion: 0.33
+Nodes (8): cargarEtiquetas(), claveEtiquetas(), EspacioDialog(), canjearInvitacion(), codigoAleatorio(), crearInvitacion(), Invitacion, quitarMiembro()
 
-### Community 153 - "ListView.tsx"
-Cohesion: 0.21
-Nodes (8): Card, CardProps, FiltroFecha, ModalState, UIContext, UIState, FiltrosGuardados, filtrosPorDefecto
+### Community 153 - "CalendarioView.tsx"
+Cohesion: 0.20
+Nodes (14): AjustesDialog(), DIAS, Prefs, ResumenCorreoSeccion(), zonaLocal(), setRecordatoriosActivos(), esNotaDeEjemplo(), esPendienteDeEjemplo() (+6 more)
 
 ### Community 154 - "AppProvider"
-Cohesion: 0.36
-Nodes (11): TaskModal(), asignarProyecto(), defaultsHorario(), fechaPorPrioridad(), normalizar(), pendientesDesdeSubtareas(), uid(), AppProvider() (+3 more)
+Cohesion: 0.18
+Nodes (15): buscarSubtarea(), defaultsHorario(), normalizar(), pendientesDesdeSubtareas(), quitarSubtarea(), uid(), AppProvider(), normalizarConservandoId() (+7 more)
 
-### Community 155 - "button.tsx"
-Cohesion: 0.31
-Nodes (6): PendientePeek(), Button, ButtonProps, buttonVariants, NotaRapidaWidget(), subtareasFaltantes
+### Community 155 - "Pendiente"
+Cohesion: 0.19
+Nodes (12): Props, Props, abierto(), BarraGantt, barrasGantt(), dividirSprint(), estancamiento(), ultimaActividad() (+4 more)
 
 ### Community 156 - "Shell"
-Cohesion: 0.60
-Nodes (4): fijarAgendaAbierta(), leerAgendaAbierta(), pantallaAncha(), useAgendaLateral()
+Cohesion: 0.31
+Nodes (8): GRUPO_PLANEAR, Shell(), VISTAS, fijarAgendaAbierta(), leerAgendaAbierta(), pantallaAncha(), useAgendaLateral(), asignarProyecto()
+
+### Community 157 - "googleSync.ts"
+Cohesion: 0.25
+Nodes (8): Badge(), BadgeProps, badgeVariants, ContextMenuShortcut(), DropdownMenuShortcut(), Label, labelVariants, cn()
+
+### Community 159 - "ProyectosView.tsx"
+Cohesion: 0.18
+Nodes (15): ContextMenuCheckboxItem, ContextMenuContent, ContextMenuItem, ContextMenuLabel, ContextMenuRadioItem, ContextMenuSeparator, ContextMenuSubContent, ContextMenuSubTrigger (+7 more)
+
+### Community 163 - "columnas.ts"
+Cohesion: 0.17
+Nodes (18): ColumnaHeader(), KanbanDnd(), DIAS, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioItem (+10 more)
 
 ## Knowledge Gaps
-- **895 isolated node(s):** `$schema`, `style`, `rsc`, `tsx`, `config` (+890 more)
+- **914 isolated node(s):** `$schema`, `style`, `rsc`, `tsx`, `config` (+909 more)
   These have ≤1 connection - possible missing edges or undocumented components.
 - **27 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `useApp()` connect `store.tsx` to `CalendarioView.tsx`, `@hookform/resolvers`, `sheet.tsx`, `ImportarCsvDialog.tsx`, `AjustesDialog.tsx`, `navigation-menu.tsx`, `card.tsx`, `ProyectosView.tsx`, `useSync`, `ListView.tsx`, `alert.tsx`, `AppProvider`, `button.tsx`, `NotesView.tsx`, `html-inline`, `OtherViews.tsx`, `alert.tsx`, `ImportarPlanDialog.tsx`, `App.tsx`, `googleCalendar.ts`?**
-  _High betweenness centrality (0.013) - this node is a cross-community bridge._
+- **Why does `useApp()` connect `@radix-ui/react-dialog` to `@hookform/resolvers`, `sheet.tsx`, `store.tsx`, `ImportarCsvDialog.tsx`, `AjustesDialog.tsx`, `navigation-menu.tsx`, `card.tsx`, `OtherViews.tsx`, `alert.tsx`, `CalendarioView.tsx`, `useSync`, `Shell`, `ProyectosView.tsx`, `columnas.ts`, `OtherViews.tsx`, `alert.tsx`, `ImportarPlanDialog.tsx`, `App.tsx`, `googleCalendar.ts`?**
+  _High betweenness centrality (0.022) - this node is a cross-community bridge._
 - **Why does `Product Design Specification — Pendientes Pro v2.0` connect `Product Design Specification — Pendientes Pro v2.0` to `6. Design System`, `DOCS_INDEX.md`, `9. User Flows completos`, `5. Sistema de Layout universal`, `7. Sistema de Motion`, `4. Sistema de Widgets`, `1. Crítica brutal de la captura de referencia`?**
-  _High betweenness centrality (0.008) - this node is a cross-community bridge._
-- **Why does `Product Principles — Pendientes Pro` connect `Product Principles — Pendientes Pro` to `DOCS_INDEX.md`?**
-  _High betweenness centrality (0.005) - this node is a cross-community bridge._
+  _High betweenness centrality (0.007) - this node is a cross-community bridge._
+- **Why does `useUI()` connect `@radix-ui/react-dialog` to `App.tsx`, `columnas.ts`, `ImportarPlanDialog.tsx`, `App.tsx`, `OtherViews.tsx`, `buffer`, `navigation-menu.tsx`, `card.tsx`, `OtherViews.tsx`, `alert.tsx`, `Shell`, `class-variance-authority`, `ProyectosView.tsx`?**
+  _High betweenness centrality (0.006) - this node is a cross-community bridge._
 - **What connects `$schema`, `style`, `rsc` to the rest of the system?**
-  _895 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _914 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `App.tsx` be split into smaller, more focused modules?**
   _Cohesion score 0.1 - nodes in this community are weakly interconnected._
 - **Should `command.tsx` be split into smaller, more focused modules?**

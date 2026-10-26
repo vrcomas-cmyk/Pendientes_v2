@@ -14,10 +14,10 @@ Complementa a `workspace-doctrine` (que fija el *qué no romper*). Esta skill fi
 | Módulo | Entidad / datos | Vista(s) | Lógica pura | Notas de integración |
 |---|---|---|---|---|
 | Captura rápida | crea `Pendiente`/`Nota`/`EventoCalendario` | barra superior en `App.tsx` (`/`) | `lib/captura.ts`, `parsearLinea` (`lib/app-utils.ts`) | Enter=pendiente, Shift+Enter=nota, Ctrl+Enter=evento, Alt+Enter=salto de línea. 1.ª línea=título. |
-| Notas | `Nota` | `views/NotesView.tsx` | `parsearMinuta` | «Extraer viñetas» y «Selección → pendientes» crean `Pendiente` con `origenNota` (no copian texto). |
+| Notas (se pueden **cerrar/reabrir**: `cerrada`) | `Nota` | `views/NotesView.tsx` | `parsearMinuta` | «Extraer viñetas» y «Selección → pendientes» crean `Pendiente` con `origenNota` (no copian texto). |
 | Pendientes (incluye la antigua bandeja Inbox = filtro «Sin fecha») | `Pendiente` | Lista/Tablero/Calendario en `views/PendientesView.tsx` | `lib/app-utils.ts`, `lib/columnas.ts` | Núcleo. Todo lo demás lo referencia. |
 | Proyectos (pestaña de «Planear» junto a Metas y rocas y Espacios) | `Proyecto` (+`metodo`, `sprint`, `estancamientoDias`) | `views/ProyectosView.tsx`, `components/MetodoProyecto.tsx` | `lib/proyectos.ts` | Tablero/Lista/Scrum/Gantt son *perspectivas* de los mismos pendientes. |
-| Agenda | `EventoCalendario` + pendientes con fecha/hora + eventos Google | `views/CalendarioView.tsx` y **panel lateral derecho** `components/PanelAgenda.tsx` | `lib/agenda.ts` (conflictos, dedupe), `lib/googleSync.ts` | Google solo si el usuario marca «Enviar a Google Calendar». |
+| Agenda / Calendario (módulo propio en la navegación; arrastra para crear evento, pendiente o agendar uno existente) | `EventoCalendario` + pendientes con fecha/hora + eventos Google | `views/CalendarioView.tsx` y **panel lateral derecho** `components/PanelAgenda.tsx` | `lib/agenda.ts` (conflictos, dedupe), `lib/googleSync.ts` | Google solo si el usuario marca «Enviar a Google Calendar». |
 | Rocas | `Roca` con `actividades[]` embebidas | pestaña «Rocas» de «Planear» → `views/RocasView.tsx` | `lib/rocas.ts` | Bitácora = registro, no tareas. `pendienteId` opcional. |
 | Metas | `Meta` | `views/MetasView.tsx` | `progresoMeta` (store) | Agrupa proyectos. |
 | Contactos / Equipo | `Contacto` | `ContactosView`, `EquipoView` | — | Referenciados por `responsableId`/`solicitanteId`. |

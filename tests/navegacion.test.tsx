@@ -62,12 +62,12 @@ beforeEach(() => {
 });
 
 describe("F2.1 — «Espacios» como 5º destino primario (TDD, tests RED)", () => {
-  it("el sidebar de escritorio lista los 4 destinos primarios en orden: Hoy, Pendientes, Planear, Notas", async () => {
+  it("el sidebar de escritorio lista los 5 destinos primarios en orden: Hoy, Pendientes, Calendario, Planear, Notas", async () => {
     renderApp();
     const nav = await screen.findByRole("navigation", { name: /Navegación principal/i });
     // Filtramos las etiquetas exactas de los destinos primarios sobre TODOS los botones del
     // sidebar (en orden de aparición en el DOM) y exigimos la secuencia exacta del PDS.
-    const esperado = ["Hoy", "Pendientes", "Planear", "Notas"];
+    const esperado = ["Hoy", "Pendientes", "Calendario", "Planear", "Notas"];
     const etiquetas = within(nav)
       .getAllByRole("button")
       .map(b => b.textContent!.trim().replace(/\d+$/, "")) // «Pendientes» lleva un contador al final

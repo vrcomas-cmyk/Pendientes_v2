@@ -150,12 +150,16 @@
   "148": "AjustesDialog.tsx",
   "149": "hoyISO",
   "150": "useSync",
-  "151": "ProyectosView.tsx",
-  "152": "NotesView.tsx",
-  "153": "ListView.tsx",
+  "151": "OtherViews.tsx",
+  "152": "hoyISO",
+  "153": "CalendarioView.tsx",
   "154": "AppProvider",
-  "155": "button.tsx",
+  "155": "Pendiente",
   "156": "Shell",
-  "157": "ui-store.test.tsx",
-  "160": "@fontsource/space-grotesk"
+  "157": "googleSync.ts",
+  "159": "ProyectosView.tsx",
+  "160": "@fontsource/space-grotesk",
+  "161": "ui-store.tsx",
+  "163": "columnas.ts",
+  "167": "@fontsource/jetbrains-mono"
 }

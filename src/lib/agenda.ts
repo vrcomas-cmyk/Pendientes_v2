@@ -202,3 +202,10 @@ export function agruparAgenda(
     return { fecha, items }
   })
 }
+
+/** Pendientes que aún no ocupan un horario real (sin fecha, sin hora o con el marcador 08:00/≤5 min) y no
+    están completados: son los candidatos a «agendar» desde el calendario. Ordenados por título. */
+export function pendientesAgendables(pendientes: Pendiente[], idCompletado?: string): Pendiente[] {
+  const lista = pendientes.filter(p => !p.borrado && !p.archivado && p.estado !== idCompletado && (!p.fechaLimite || !p.hora || esHoraPorDefecto(p.hora, p.duracionMin)))
+  return lista.sort((x, y) => x.titulo.localeCompare(y.titulo))
+}

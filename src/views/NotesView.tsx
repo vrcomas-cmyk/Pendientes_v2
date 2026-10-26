@@ -10,7 +10,7 @@ import { Card } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuLabel } from '@/components/ui/dropdown-menu'
 import { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem, ContextMenuSeparator } from '@/components/ui/context-menu'
-import { Plus, Image as ImageIcon, ListChecks, Trash2, Search, StickyNote, ChevronLeft, Lock, Pencil, Check, Folder, FolderPlus, Bold, Italic, Heading2, MoreVertical, Send, X } from 'lucide-react'
+import { Plus, Image as ImageIcon, ListChecks, Trash2, Search, StickyNote, ChevronLeft, Lock, Pencil, Check, Folder, FolderPlus, Bold, Italic, Heading2, Archive, ArchiveRestore, MoreVertical, Send, X } from 'lucide-react'
 import { useIsMobile } from '@/hooks/use-is-mobile'
 import { subirAdjunto, urlAdjunto } from '@/lib/adjuntos'
 import PreviaParseo from '@/components/PreviaParseo'
@@ -36,12 +36,13 @@ export default function NotesView() {
   const app = useApp()
   const ui = useUI()
   const { notas, pendientes, crearNota, actualizarNota, agregarComentarioNota, eliminarNota, duplicarNota, crearPendiente, actualizarPendiente, agregarSubtarea, toggleCompletar, colorDeEtiqueta } = app
-  const { notaActualId, setNotaActualId, abrirPeek } = ui
+  const { notaActualId, setNotaActualId, abrirPeek, abrirModal } = ui
   const isMobile = useIsMobile()
   const [filtro, setFiltro] = useState('')
   const [etiquetaVal, setEtiquetaVal] = useState('')
   const [comVal, setComVal] = useState('')
   const [carpetaSel, setCarpetaSel] = useState<string>('todas')
+  const [verCerradas, setVerCerradas] = useState(false)
   const [estadoGuardado, setEstadoGuardado] = useState('')
   const [editando, setEditando] = useState(false)
   const [carpetaDlg, setCarpetaDlg] = useState(false)
@@ -86,12 +87,22 @@ export default function NotesView() {
   function hidratarTareas() {
     const ed = editorRef.current
     if (!ed) return
+    let cambioTexto = false
     ed.querySelectorAll<HTMLElement>('.nota-task[data-pid]').forEach(div => {
       const p = pendientesRef.current.find(x => x.id === div.dataset.pid)
       if (!p) return
       div.dataset.prio = p.prioridad
       div.classList.toggle('done', p.estado === 'completado')
+      // Si el título del pendiente cambió en otro lado (modal, panel…), la línea de la nota lo refleja.
+      // Solo el título y solo cuando no contiene «:» (que la sintaxis usa para separar la descripción).
+      const texto = div.textContent || ''
+      const parsed = parsearLinea(texto)
+      if (parsed && parsed.titulo && parsed.titulo !== p.titulo && !/[:\n]/.test(p.titulo) && texto.includes(parsed.titulo)) {
+        div.textContent = texto.replace(parsed.titulo, p.titulo)
+        cambioTexto = true
+      }
     })
+    if (cambioTexto && cargadaRef.current) programarGuardado()
   }
 
   /* Editor -> store: reparsea el texto de cada tarea y actualiza el pendiente si cambió */
@@ -195,6 +206,7 @@ export default function NotesView() {
 
   function onKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
     if (e.ctrlKey && e.key === 'Enter') { e.preventDefault(); guardarYBloquear(); return }
+    if (e.ctrlKey && e.shiftKey && (e.key === 't' || e.key === 'T')) { e.preventDefault(); convertirLineasEnPendientes(); return }
     if (e.ctrlKey && e.shiftKey && (e.key === 'a' || e.key === 'A')) { e.preventDefault(); abrirCarpetaDlg(); return }
     if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'b') { e.preventDefault(); formatear('bold'); return }
     if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'i') { e.preventDefault(); formatear('italic'); return }
@@ -257,27 +269,57 @@ export default function NotesView() {
     programarGuardado()
   }
 
-  /* Convertir la selección: cada línea seleccionada (con o sin viñeta) se vuelve un pendiente ligado
-     a esta nota (`origenNota`). El texto de la nota no se toca, así no se duplica contenido. */
-  function convertirSeleccion() {
+  /* Cerrar / reabrir: una nota cerrada (p. ej. una minuta ya trabajada) sale de la lista de abiertas y de
+     «Notas recientes», pero no se pierde; sus pendientes siguen donde están. */
+  function cerrarNota() {
+    if (!nota) return
+    guardarAhora()
+    actualizarNota(nota.id, { cerrada: true })
+    const id = nota.id
+    setNotaActualId(null)
+    toast('Nota cerrada', { action: { label: 'Deshacer', onClick: () => { actualizarNota(id, { cerrada: false }); setNotaActualId(id) } } })
+  }
+  function reabrirNota() {
+    if (!nota) return
+    actualizarNota(nota.id, { cerrada: false })
+    setVerCerradas(false)
+    toast.success('Nota reabierta')
+  }
+
+  /* Línea/selección → pendiente(s) VINCULADOS: cada línea tocada por el cursor o la selección (con o sin
+     viñeta) se convierte en una tarea de la nota (`.nota-task`) con su pendiente (`origenNota`): editar la
+     línea en la nota actualiza el pendiente, y doble clic sobre ella abre el pendiente completo. */
+  function convertirLineasEnPendientes() {
     const ed = editorRef.current
     const sel = window.getSelection()
-    if (!ed || !nota || !sel || sel.isCollapsed || !ed.contains(sel.anchorNode)) { toast.info('Selecciona primero el texto que quieres convertir en pendientes'); return }
-    const lineas = sel.toString().split(/\r?\n/).map(l => l.trim()).filter(Boolean)
+    if (!ed || !nota || !sel || !sel.rangeCount || !ed.contains(sel.anchorNode)) { toast.info('Coloca el cursor en una línea (o selecciona varias) de la nota'); return }
+    const rango = sel.getRangeAt(0)
     let creados = 0
-    for (const linea of lineas) {
-      const parsed = parsearLinea(linea)
+    for (const b of Array.from(ed.childNodes)) {
+      if (!rango.intersectsNode(b)) continue
+      const esEl = b.nodeType === Node.ELEMENT_NODE
+      const el = esEl ? b as HTMLElement : null
+      if (el && (el.dataset.pid || el.classList.contains('nota-sub') || el.querySelector('img,table'))) continue
+      const raw = (b.textContent || '').trim()
+      if (!raw) continue
+      const parsed = parsearLinea(raw)
       if (!parsed) continue
       const prioridad = parsed.prioridad || 'Media'
-      crearPendiente({
+      const p = crearPendiente({
         titulo: parsed.titulo, descripcion: parsed.descripcion, responsable: parsed.responsable, prioridad,
         fechaLimite: parsed.fechaLimite || fechaPorPrioridad(prioridad), repetir: parsed.repetir,
         origenNota: { notaId: notaActualId! },
       })
+      const div = document.createElement('div')
+      div.textContent = raw.replace(strip, '')
+      div.className = 'nota-task'
+      div.dataset.pid = p.id
+      div.dataset.prio = p.prioridad
+      ;(b as ChildNode).replaceWith(div)
       creados++
     }
-    if (creados) toast.success(creados === 1 ? 'Pendiente creado desde la selección' : `${creados} pendientes creados desde la selección`)
-    else toast.info('No se encontró texto para convertir')
+    if (creados) { guardarAhora(); toast.success(creados === 1 ? 'Pendiente creado y vinculado a la nota' : `${creados} pendientes creados y vinculados a la nota`) }
+    else toast.info('Esa línea ya es un pendiente (o está vacía). Doble clic sobre ella para editarlo.')
   }
 
   /* Extraer viñetas: pendientes para «- » de nivel superior y subtareas para las indentadas.
@@ -319,6 +361,14 @@ export default function NotesView() {
 
   /* Click en el checkbox (área izquierda de la tarjeta) → completar.
      Click en el resto del chip, con la nota bloqueada (solo lectura) → abre el detalle rápido. */
+  /* Doble clic sobre una línea vinculada: abre el pendiente completo para modificarlo. */
+  function abrirPendienteDeLinea(e: React.MouseEvent<HTMLDivElement>) {
+    const div = (e.target as HTMLElement).closest<HTMLElement>('.nota-task')
+    if (!div?.dataset.pid) return
+    e.preventDefault()
+    abrirModal(div.dataset.pid)
+  }
+
   function onClickEditor(e: React.MouseEvent<HTMLDivElement>) {
     const div = (e.target as HTMLElement).closest<HTMLElement>('.nota-task')
     if (div?.dataset.pid) {
@@ -418,6 +468,7 @@ export default function NotesView() {
     .filter(n => !n.borrado)
     .filter(n => (n.titulo + ' ' + n.contenidoHTML.replace(/<[^>]+>/g, '')).toLowerCase().includes(filtro.toLowerCase()))
     .filter(n => carpetaSel === 'todas' || (carpetaSel === SIN_CARPETA ? !n.carpeta : n.carpeta === carpetaSel))
+    .filter(n => (verCerradas ? !!n.cerrada : !n.cerrada))
     .sort((a, b) => new Date(b.modificado).getTime() - new Date(a.modificado).getTime())
 
   const barraCarpetas = (
@@ -452,6 +503,12 @@ export default function NotesView() {
           <Search size={12} className="absolute left-2 top-2 text-muted-foreground" />
           <Input value={filtro} onChange={e => setFiltro(e.target.value)} placeholder="Filtrar..." className="h-7 pl-7 text-xs" />
         </div>
+      </div>
+      <div role="tablist" aria-label="Estado de las notas" className="flex gap-1 px-2 pb-1.5">
+        {([[false, 'Abiertas', notas.filter(n => !n.borrado && !n.cerrada).length], [true, 'Cerradas', notas.filter(n => !n.borrado && n.cerrada).length]] as const).map(([v, label, n]) => (
+          <button key={label} role="tab" aria-selected={verCerradas === v} onClick={() => setVerCerradas(v)}
+            className={'rounded-full px-2.5 py-0.5 text-[11px] ' + (verCerradas === v ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-accent')}>{label} ({n})</button>
+        ))}
       </div>
       {barraCarpetas}
       <div className="flex-1 space-y-1 overflow-y-auto border-t p-1 scroll-thin">
@@ -497,7 +554,7 @@ export default function NotesView() {
             </ContextMenu>
           )
         })}
-        {!notasFiltradas.length && <p className="p-4 text-center text-xs text-muted-foreground">No hay notas.</p>}
+        {!notasFiltradas.length && <p className="p-4 text-center text-xs text-muted-foreground">{verCerradas ? 'No hay notas cerradas.' : 'No hay notas abiertas.'}</p>}
       </div>
     </Card>
   )
@@ -536,6 +593,9 @@ export default function NotesView() {
               ? <Button size="sm" className="h-7 shrink-0 text-xs" onClick={guardarYBloquear} title="Guardar y bloquear (Ctrl+Enter)"><Check size={13} className="mr-1" /> Guardar</Button>
               : <Button size="sm" variant="secondary" className="h-7 shrink-0 text-xs" onClick={() => setEditando(true)}><Pencil size={13} className="mr-1" /> Editar</Button>}
 
+            {nota.cerrada
+              ? <Button size="sm" variant="secondary" className="h-7 shrink-0 text-xs" onClick={reabrirNota} title="Reabrir: vuelve a las notas abiertas y a «Notas recientes»"><ArchiveRestore size={13} className="mr-1" /> Reabrir</Button>
+              : <Button size="sm" variant="ghost" className="h-7 shrink-0 text-xs" onClick={cerrarNota} title="Cerrar: la nota deja de aparecer en la lista de abiertas y en «Notas recientes»"><Archive size={13} className="mr-1" /> Cerrar</Button>}
             <button onClick={() => eliminarNota(nota.id)} aria-label="Eliminar nota" className="shrink-0 px-1 text-muted-foreground hover:text-destructive" title="Eliminar nota"><Trash2 size={15} /></button>
           </div>
 
@@ -548,8 +608,8 @@ export default function NotesView() {
               <Button size="sm" variant="secondary" className="h-7 text-xs" onClick={extraerTodas} title="Convertir viñetas en pendientes">
                 <ListChecks size={13} className="mr-1" /> Extraer viñetas
               </Button>
-              <Button size="sm" variant="secondary" className="h-7 text-xs" onMouseDown={e => e.preventDefault()} onClick={convertirSeleccion} title="Convertir el texto seleccionado en pendientes (uno por línea)">
-                <ListChecks size={13} className="mr-1" /> Selección → pendientes
+              <Button size="sm" variant="secondary" className="h-7 text-xs" onMouseDown={e => e.preventDefault()} onClick={convertirLineasEnPendientes} title="Convierte la línea del cursor (o las seleccionadas) en pendientes vinculados · Ctrl+Shift+T">
+                <ListChecks size={13} className="mr-1" /> Línea → pendiente
               </Button>
               <span className="ml-auto hidden text-[10px] text-muted-foreground md:inline">Ctrl+Enter guarda · Ctrl+Shift+A archiva</span>
             </div>
@@ -573,6 +633,7 @@ export default function NotesView() {
             onInput={onInputEditor}
             onKeyDown={onKeyDown}
             onClick={onClickEditor}
+            onDoubleClick={abrirPendienteDeLinea}
             onPaste={onPaste}
             onFocus={() => { editorEnfoco.current = true }}
             onBlur={() => { editorEnfoco.current = false; if (editando) guardarAhora(); hidratarTareas() }}

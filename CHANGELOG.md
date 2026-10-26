@@ -1,5 +1,33 @@
 # Changelog
 
+### Sync: fin del «aparece y desaparece» (2026-10-26)
+
+Diagnóstico con los registros de Supabase (últimas horas): 3 clientes sincronizando la misma cuenta (VS Code/Electron, Chrome de escritorio y Chrome Android) con **cientos de POST por hora** (77–212/h de la misma docena de pendientes/notas/contactos) y los **mismos ids de rocas borrados una y otra vez** por dispositivos distintos, minuto tras minuto.
+- **Causa 1 — re-subida infinita:** Postgres `jsonb` reordena las claves de los objetos; `contenidoIgual` comparaba `JSON.stringify` sin ordenar, así que un elemento idéntico en local y en la nube parecía distinto, jamás quedaba «sincronizado» y se re-subía en cada ciclo (y los borrados de otros dispositivos nunca «pegaban»). Ahora la comparación es estable (`jsonEstable`, claves ordenadas).
+- **Causa 2 — borrados por inferencia:** si un dispositivo «perdía» datos locales pero conservaba su marca de sincronizado, el siguiente `flush` los borraba de la NUBE y los demás dispositivos aceptaban ese «borrado». Para pendientes, notas, eventos, contactos y rocas (que solo se borran con `borrado: true`) ahora: lo ACTIVO que falte en local se **restaura** desde la nube y lo ACTIVO que falte en la nube se **re-sube**; solo se borra físicamente lo que ya estaba en la papelera.
+- Pendiente: proyectos y espacios aún se borran físicamente (conservan la lógica anterior). Pruebas: `tests/sync-convergencia.test.ts` (simulación de dos dispositivos). **Hay que desplegar** (Vercel) para que el teléfono y demás navegadores dejen de provocar el vaivén. SW → v46.
+
+### Respaldo automático contra pérdidas de datos locales (2026-10-26)
+
+- Si los datos «desaparecen» del navegador (otro programa en el mismo `localhost:puerto` ejecutó `localStorage.clear()`, limpieza del navegador, etc.) ya no se pierden sin remedio: la app guarda una **segunda copia en IndexedDB** (que no se borra con `localStorage.clear()`) 5 s después de cada cambio, con los **últimos 7 días**, de pendientes, notas, proyectos, eventos, espacios, contactos, metas, **rocas con su bitácora**, etiquetas, plantillas y filtros.
+- Al abrir, si faltan datos respecto al respaldo, avisa («Parece que faltan datos… tiene 3 rocas…») con botón **Restaurar** (nunca restaura sola). Ajustes → «Respaldo automático» lista los respaldos diarios para restaurar a mano. No guarda un estado vacío ni una caída de más de la mitad encima de un respaldo bueno.
+- Código: `lib/respaldo-local.ts` (lógica probada en `tests/respaldo-local.test.ts`) y `components/RespaldoAutomatico.tsx`. SW → v45. Revisados los proyectos hermanos de `Reportes`: solo sus pruebas llaman a `localStorage.clear()`.
+
+### Respaldo completo (rocas y todo lo local) (2026-10-26)
+
+- «Exportar JSON» solo guardaba pendientes y notas: las **rocas (con su bitácora), proyectos, eventos, metas, espacios, contactos, etiquetas, plantillas y filtros** no salían en ningún respaldo y no se podían mover a otro navegador/puerto. Ahora el archivo (`respaldo_pendientes_<fecha>.json`, versión 2) los incluye todos e «Importar JSON» los restaura (muestra qué trae antes de reemplazar); un archivo antiguo solo reemplaza pendientes y notas y NO borra el resto. Pruebas: `tests/respaldo-completo.test.tsx`. SW → v44.
+- Contexto: los datos de este navegador viven en el `localStorage` de **cada origen** (puerto/dominio). Cambiar de `localhost:5173` a otro puerto, o abrir la versión de Vercel, muestra datos distintos. En la nube (`pnp_ctx_rocas`) no había rocas guardadas.
+
+### Captura rápida, Calendario propio, notas más ágiles (2026-10-26)
+
+1. **Nuevo pendiente en 2 modos.** Por defecto abre en **modo rápido**: solo Título y Descripción (Tab baja a la descripción; Enter en cualquiera de los dos guarda; Shift+Enter = nueva línea en la descripción). «Más opciones» muestra el formulario completo de siempre y «Modo rápido» regresa; se recuerda la última elección (`pn_modal_rapido`). Al editar un pendiente siempre sale el formulario completo.
+2. **Cambios en notas ↔ pendientes.** Editar la línea vinculada en la nota actualiza el pendiente (como ya hacía); ahora también al revés: si cambias el **título** del pendiente en otro lado (modal, panel…), la línea de la nota lo refleja.
+3. **Títulos en negritas** en la lista de pendientes, el tablero y el detalle; la **descripción** aparece debajo en una línea gris para separarlos.
+4. **Calendario = módulo independiente** en la navegación (escritorio y móvil «Agenda»); sale de Pendientes (que queda con Lista y Tablero; un modo guardado «calendario» migra a Lista). **Arrastra sobre la rejilla** para elegir hora de inicio y duración, o usa «Nuevo»: el alta ofrece **Evento · Pendiente · Agendar existente** (elige un pendiente sin hora y le pone fecha/hora), con fecha y hora editables, aviso de cruces y «Enviar a Google». El texto admite «Junta 3pm por 1h» o «>viernes». También se arrastran pendientes sin fecha desde la barra lateral (vista Día).
+5. **Pendientes desde notas, más fáciles:** botón **Línea → pendiente** (o `Ctrl+Shift+T`): convierte la línea del cursor o todas las seleccionadas en pendientes **vinculados** (sin necesidad de «- »); **doble clic** sobre una línea vinculada abre el pendiente completo para modificarlo.
+6. **Notas cerradas/abiertas:** botón **Cerrar / Reabrir** en la nota; pestañas **Abiertas (n) · Cerradas (n)** en la lista; una nota cerrada no sale en «Notas recientes» de Hoy ni en la lista de abiertas (sus pendientes se conservan). Además «Notas recientes» ya no muestra notas de la papelera.
+- Pruebas nuevas: `tests/captura-y-calendario.test.tsx`; navegación actualizada. SW → `pendientes-pro-v43`.
+
 ### Correo: incluye Google Calendar, vencidos y proyecto (2026-10-26)
 
 - El resumen diario/semanal ahora mezcla **eventos de Google Calendar** con los pendientes y eventos de la app (en la zona del usuario; los de todo el día primero y repetidos en cada día que abarcan), sin repetir lo que la app ya espejó ni el mismo evento de varias cuentas; omite las cuentas «Solo enviar» y, si una cuenta falla, manda el correo con una nota. Añade la sección **Vencidos** y el proyecto de cada pendiente. Lógica pura probada (`eventosGoogleAItems`); función `resumen-correo` desplegada (v7). Sin cambios en la app.

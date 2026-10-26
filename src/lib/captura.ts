@@ -8,6 +8,11 @@ export interface EventoRapido {
   fecha: string       // YYYY-MM-DD
   hora: string        // HH:MM
   duracionMin: number
+  // Qué venía escrito de verdad en el texto (el resto son valores por defecto): sirve para no pisar
+  // la fecha/hora/duración ya elegidas en un formulario cuando el texto no las menciona.
+  conFecha: boolean
+  conHora: boolean
+  conDuracion: boolean
 }
 
 const DURACION_DEFECTO = 60
@@ -51,5 +56,8 @@ export function parsearEventoRapido(raw: string): EventoRapido | null {
     fecha: p.fechaLimite || hoyISO(),
     hora,
     duracionMin: duracionMin || DURACION_DEFECTO,
+    conFecha: !!p.fechaLimite,
+    conHora: !!hora,
+    conDuracion: !!duracionMin,
   }
 }

@@ -1,13 +1,13 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useApp } from '@/store'
 import { useUI } from '@/ui-store'
 import { useSync } from '@/sync'
 import type { EventoCalendario } from '@/types'
-import { activo, hoyISO, nombreMes } from '@/lib/app-utils'
+import { activo, hoyISO, isoAFechaLegible, nombreMes } from '@/lib/app-utils'
 import { columnaDe, colorColumna, idColumnaCompletado } from '@/lib/columnas'
 import { listarCuentasGoogle, listarEventosRango, type CuentaGoogle, type EventoGCal } from '@/lib/googleCalendar'
 import { sincronizarIncremental, enRango, cacheCaliente } from '@/lib/googleSync'
-import { sincronizarEspejoGoogle, sinDuplicarLocal, buscarConflictos, horaCorta, asignarColumnas } from '@/lib/agenda'
+import { sincronizarEspejoGoogle, sinDuplicarLocal, buscarConflictos, horaCorta, asignarColumnas, pendientesAgendables } from '@/lib/agenda'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import { Button } from '@/components/ui/button'
@@ -16,8 +16,10 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem } from '@/components/ui/context-menu'
 import MenuContextoPendiente from '@/components/MenuContextoPendiente'
-import { ChevronLeft, ChevronRight, GripVertical, X, CalendarOff } from 'lucide-react'
+import { ChevronLeft, ChevronRight, GripVertical, X, CalendarOff, Plus } from 'lucide-react'
 import { toast } from 'sonner'
+import { parsearEventoRapido } from '@/lib/captura'
+import CampoFecha from '@/components/CampoFecha'
 
 type ModoCal = 'dia' | 'semana' | 'mes' | 'anio'
 const HORA_INICIO = 6
@@ -62,7 +64,7 @@ const altoPx = (duracionMin: number) => Math.max(16, (duracionMin / 60) * PX_HOR
     Sigue reflejando todo en Google Calendar (vía `sincronizarEspejoGoogle`), pero ahora la fuente
     de verdad para editar/mover es la app: los eventos ya no viven solo en Google. */
 export default function CalendarioView() {
-  const { pendientes: todosPendientes, eventos: todosEventos, proyectos, actualizarPendiente, crearEvento, actualizarEvento, eliminarEvento, columnas } = useApp()
+  const { pendientes: todosPendientes, eventos: todosEventos, proyectos, actualizarPendiente, crearPendiente, crearEvento, actualizarEvento, eliminarEvento, columnas } = useApp()
   const { abrirPeek } = useUI()
   const idCompletado = idColumnaCompletado(columnas)
   const { modoLocal } = useSync()
@@ -75,6 +77,12 @@ export default function CalendarioView() {
   const [eventosGoogle, setEventosGoogle] = useState<EventoGCal[]>([])
   const [sincronizando, setSincronizando] = useState(false)
   const [nuevo, setNuevo] = useState<{ fecha: string; hora: string } | null>(null)
+  const [nuevoModo, setNuevoModo] = useState<'evento' | 'pendiente' | 'existente'>('evento')
+  const [nuevoPendienteId, setNuevoPendienteId] = useState('')
+  // Selección por arrastre sobre la rejilla (como el calendario de referencia): índices de cuartos de hora.
+  const [sel, setSel] = useState<{ iso: string; a: number; b: number } | null>(null)
+  const selRef = useRef(sel)
+  const arrastroRef = useRef(false)
   const [nuevoTitulo, setNuevoTitulo] = useState('')
   const [nuevoDuracion, setNuevoDuracion] = useState('30')
   const [nuevoEnviar, setNuevoEnviar] = useState(false)
@@ -211,18 +219,77 @@ export default function CalendarioView() {
     }
   }
 
-  const abrirNuevo = (fechaSlot: string, horaSlot: string) => { setNuevo({ fecha: fechaSlot, hora: horaSlot }); setNuevoTitulo(''); setNuevoDuracion('30'); setNuevoEnviar(false) }
+  const abrirNuevo = (fechaSlot: string, horaSlot: string, duracion = 30, modo: 'evento' | 'pendiente' | 'existente' = 'evento') => {
+    setNuevo({ fecha: fechaSlot, hora: horaSlot }); setNuevoTitulo(''); setNuevoDuracion(String(duracion)); setNuevoEnviar(false)
+    setNuevoModo(modo); setNuevoPendienteId('')
+  }
+  const aHora = (idx: number) => { const m = HORA_INICIO * 60 + idx * 15; return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}` }
 
-  const crearEventoSuelto = async () => {
-    const titulo = nuevoTitulo.trim()
-    if (!titulo || !nuevo) return
-    const duracionMin = Number(nuevoDuracion) || 30
-    const creado = crearEvento({ titulo, fecha: nuevo.fecha, hora: nuevo.hora, duracionMin })
-    setNuevo(null)
+  // Arrastrar sobre la rejilla elige el rango (inicio–fin) y abre el alta con esa duración.
+  useEffect(() => { selRef.current = sel }, [sel])
+  useEffect(() => {
+    if (!sel) return
+    const terminar = () => {
+      const s = selRef.current
+      setSel(null)
+      if (!s || s.a === s.b) return // un clic simple lo resuelve onClick (30 min)
+      arrastroRef.current = true
+      const ini = Math.min(s.a, s.b), n = Math.abs(s.b - s.a) + 1
+      abrirNuevo(s.iso, aHora(ini), n * 15)
+    }
+    window.addEventListener('mouseup', terminar, { once: true })
+    return () => window.removeEventListener('mouseup', terminar)
+  }, [!!sel]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Pendientes que aún no ocupan un horario real (sin fecha o con el marcador 08:00/≤5 min): candidatos a «agendar».
+  const agendables = nuevo && nuevoModo === 'existente' ? pendientesAgendables(pendientes, idCompletado) : [] // solo se calcula con el diálogo abierto en ese modo
+
+  const espejar = async (id: string, datos: { titulo: string; fecha: string; hora: string; duracionMin: number; descripcion?: string }, proyectoId?: string) => {
     if (!conectado || !nuevoEnviar) return
     setSincronizando(true)
     try {
-      const r = await sincronizarEspejoGoogle({}, { titulo, fecha: nuevo.fecha, hora: nuevo.hora, duracionMin })
+      const origenCuentaId = proyectos.find(x => x.id === proyectoId)?.cuentaGoogleId
+      const r = await sincronizarEspejoGoogle({}, datos, origenCuentaId)
+      actualizarPendiente(id, { googleEventos: r.googleEventos })
+      avisarErrores(r.errores)
+      refrescarGoogle()
+    } catch (err) { toast.error(err instanceof Error ? err.message : 'No se pudo enviar a Google Calendar') }
+    finally { setSincronizando(false) }
+  }
+
+  /** Alta rápida desde el calendario: evento, pendiente nuevo o agendar uno que ya existe. */
+  const crearDesdeDialogo = async () => {
+    if (!nuevo) return
+    const dur = Number(nuevoDuracion) || 30
+    if (nuevoModo === 'existente') {
+      const p = pendientes.find(x => x.id === nuevoPendienteId)
+      if (!p) return
+      actualizarPendiente(p.id, { fechaLimite: nuevo.fecha, hora: nuevo.hora, duracionMin: dur })
+      toast.success(`«${p.titulo}» agendado el ${isoAFechaLegible(nuevo.fecha)} a las ${nuevo.hora}`)
+      setNuevo(null)
+      await espejar(p.id, { titulo: p.titulo, fecha: nuevo.fecha, hora: nuevo.hora, duracionMin: dur, descripcion: p.descripcion }, p.proyectoId)
+      return
+    }
+    const texto = nuevoTitulo.trim()
+    if (!texto) return
+    // Escribir «Junta 3pm por 1h» o «>viernes» ajusta hora/duración/fecha; si el texto no las menciona, manda lo elegido.
+    const ev = parsearEventoRapido(texto)
+    const titulo = ev?.titulo || texto
+    const fecha = ev?.conFecha ? ev.fecha : nuevo.fecha
+    const hora = ev?.conHora ? ev.hora : nuevo.hora
+    const duracionMin = ev?.conDuracion ? ev.duracionMin : dur
+    setNuevo(null)
+    if (nuevoModo === 'pendiente') {
+      const p = crearPendiente({ titulo, descripcion: ev?.descripcion || '', fechaLimite: fecha, hora, duracionMin })
+      toast.success(`Pendiente creado para el ${isoAFechaLegible(fecha)} a las ${hora}`)
+      await espejar(p.id, { titulo, fecha, hora, duracionMin })
+      return
+    }
+    const creado = crearEvento({ titulo, descripcion: ev?.descripcion || undefined, fecha, hora, duracionMin })
+    if (!conectado || !nuevoEnviar) return
+    setSincronizando(true)
+    try {
+      const r = await sincronizarEspejoGoogle({}, { titulo, fecha, hora, duracionMin })
       actualizarEvento(creado.id, { googleEventos: r.googleEventos })
       avisarErrores(r.errores)
       refrescarGoogle()
@@ -292,16 +359,25 @@ export default function CalendarioView() {
         <div className="absolute inset-0 flex flex-col">
           {horas.map(h => (
             <div key={h} style={{ height: PX_HORA }} className="border-b">
-              {CUARTOS.map(q => (
-                <div key={q} style={{ height: PX_HORA / 4 }}
-                  onDragOver={e => e.preventDefault()}
-                  onDrop={e => mover(iso, `${String(h).padStart(2, '0')}:${String(q).padStart(2, '0')}`, e)}
-                  onClick={() => abrirNuevo(iso, `${String(h).padStart(2, '0')}:${String(q).padStart(2, '0')}`)}
-                  className="hover:bg-accent/40" />
-              ))}
+              {CUARTOS.map(q => {
+                const idx = (h - HORA_INICIO) * 4 + q / 15
+                return (
+                  <div key={q} style={{ height: PX_HORA / 4 }}
+                    onDragOver={e => e.preventDefault()}
+                    onDrop={e => mover(iso, `${String(h).padStart(2, '0')}:${String(q).padStart(2, '0')}`, e)}
+                    onMouseDown={e => { if (e.button === 0) setSel({ iso, a: idx, b: idx }) }}
+                    onMouseEnter={() => setSel(s => (s && s.iso === iso ? { ...s, b: idx } : s))}
+                    onClick={() => { if (arrastroRef.current) { arrastroRef.current = false; return } abrirNuevo(iso, `${String(h).padStart(2, '0')}:${String(q).padStart(2, '0')}`) }}
+                    className="select-none hover:bg-accent/40" />
+                )
+              })}
             </div>
           ))}
         </div>
+        {sel && sel.iso === iso && (
+          <div className="pointer-events-none absolute inset-x-1 rounded bg-primary/25 ring-1 ring-primary/60"
+            style={{ top: (Math.min(sel.a, sel.b) * PX_HORA) / 4, height: ((Math.abs(sel.b - sel.a) + 1) * PX_HORA) / 4 }} />
+        )}
         {gs.map(ev => (
           <div key={ev.cuentaId + '/' + ev.id} onClick={() => setVerGoogle(ev)}
             className="absolute left-1 right-1 flex cursor-pointer items-center gap-1 overflow-hidden rounded bg-muted px-1.5 text-[10px] text-muted-foreground hover:bg-muted-foreground/20"
@@ -356,6 +432,9 @@ export default function CalendarioView() {
         <div className="flex items-center gap-2">
           <Button variant="secondary" size="sm" onClick={() => navegar(-1)}><ChevronLeft size={15} /></Button>
           <Button variant="secondary" size="sm" onClick={() => setFecha(hoyISO())}>Hoy</Button>
+          <Button size="sm" onClick={() => { const d = new Date(); abrirNuevo(fecha, `${String(Math.min(HORA_FIN - 1, Math.max(HORA_INICIO, d.getHours() + 1))).padStart(2, '0')}:00`) }} aria-label="Nuevo en el calendario">
+            <Plus size={14} className="mr-1" /> Nuevo
+          </Button>
           <span className="min-w-[10rem] text-center text-sm font-bold capitalize">{etiquetaRango()}</span>
           <Button variant="secondary" size="sm" onClick={() => navegar(1)}><ChevronRight size={15} /></Button>
           {cargandoGoogle && <span className="text-[11px] text-muted-foreground">Cargando Google Calendar…</span>}
@@ -521,36 +600,58 @@ export default function CalendarioView() {
 
       <Dialog open={!!nuevo} onOpenChange={o => { if (!o) setNuevo(null) }}>
         <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle className="text-base">Nuevo evento {nuevo ? `· ${nuevo.hora}` : ''}</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <Input autoFocus value={nuevoTitulo} onChange={e => setNuevoTitulo(e.target.value)} placeholder="Ej: Junta con el equipo" onKeyDown={e => { if (e.key === 'Enter') crearEventoSuelto() }} />
-            <Select value={nuevoDuracion} onValueChange={setNuevoDuracion}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="15">15 min</SelectItem>
-                <SelectItem value="30">30 min</SelectItem>
-                <SelectItem value="60">1 hora</SelectItem>
-                <SelectItem value="90">1.5 horas</SelectItem>
-                <SelectItem value="120">2 horas</SelectItem>
-              </SelectContent>
-            </Select>
-            {conectado && puedeEnviar && (
-              <label className="flex items-center gap-2 text-xs">
-                <input type="checkbox" checked={nuevoEnviar} onChange={e => setNuevoEnviar(e.target.checked)} />
-                Enviar también a Google Calendar
-              </label>
-            )}
-            {conflictosNuevo.length > 0 && (
-              <div role="alert" className="rounded-lg border border-amber-500/50 bg-amber-500/10 p-2 text-xs text-amber-700 dark:text-amber-300">
-                <p className="font-semibold">Se cruza con {conflictosNuevo.length === 1 ? '1 elemento' : `${conflictosNuevo.length} elementos`}:</p>
-                <ul className="list-disc pl-4">{conflictosNuevo.slice(0, 4).map(c => <li key={c.origen + c.id}>{describir(c)}</li>)}</ul>
-                <p className="mt-1 text-[11px]">Puedes cerrar y elegir otro horario, o crear el evento de todos modos.</p>
+          <DialogHeader><DialogTitle className="text-base">Nuevo en el calendario</DialogTitle></DialogHeader>
+          {nuevo && (
+            <div className="space-y-3">
+              <div role="tablist" aria-label="Qué crear" className="flex gap-1">
+                {([['evento', 'Evento'], ['pendiente', 'Pendiente'], ['existente', 'Agendar existente']] as const).map(([id, label]) => (
+                  <button key={id} role="tab" aria-selected={nuevoModo === id} onClick={() => setNuevoModo(id)}
+                    className={'rounded-full px-3 py-1 text-xs font-medium ' + (nuevoModo === id ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-accent')}>{label}</button>
+                ))}
               </div>
-            )}
-          </div>
+              {nuevoModo === 'existente' ? (
+                <select autoFocus value={nuevoPendienteId} onChange={e => setNuevoPendienteId(e.target.value)} aria-label="Pendiente a agendar"
+                  className="h-9 w-full rounded-md border bg-background px-2 text-sm">
+                  <option value="">Elige un pendiente…</option>
+                  {agendables.map(p => <option key={p.id} value={p.id}>{p.titulo.slice(0, 70)}</option>)}
+                </select>
+              ) : (
+                <Input autoFocus value={nuevoTitulo} onChange={e => setNuevoTitulo(e.target.value)}
+                  placeholder={nuevoModo === 'evento' ? 'Ej: Junta con el equipo   (admite «3pm por 1h», «>viernes»)' : 'Ej: Enviar cotización'}
+                  onKeyDown={e => { if (e.key === 'Enter') crearDesdeDialogo() }} />
+              )}
+              <div className="grid grid-cols-2 gap-2">
+                <CampoFecha value={nuevo.fecha} onChange={v => setNuevo({ ...nuevo, fecha: v })} placeholder="Fecha" />
+                <Input type="time" value={nuevo.hora} onChange={e => setNuevo({ ...nuevo, hora: e.target.value })} aria-label="Hora" />
+              </div>
+              <Select value={nuevoDuracion} onValueChange={setNuevoDuracion}>
+                <SelectTrigger aria-label="Duración"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {[...new Set(['15', '30', '45', '60', '90', '120', nuevoDuracion])].sort((x, y) => Number(x) - Number(y)).map(m => (
+                    <SelectItem key={m} value={m}>{Number(m) % 60 === 0 ? `${Number(m) / 60} h` : Number(m) > 60 ? `${Math.floor(Number(m) / 60)} h ${Number(m) % 60} min` : `${m} min`}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {conectado && puedeEnviar && (
+                <label className="flex items-center gap-2 text-xs">
+                  <input type="checkbox" checked={nuevoEnviar} onChange={e => setNuevoEnviar(e.target.checked)} />
+                  Enviar también a Google Calendar
+                </label>
+              )}
+              {conflictosNuevo.length > 0 && (
+                <div role="alert" className="rounded-lg border border-amber-500/50 bg-amber-500/10 p-2 text-xs text-amber-700 dark:text-amber-300">
+                  <p className="font-semibold">Se cruza con {conflictosNuevo.length === 1 ? '1 elemento' : `${conflictosNuevo.length} elementos`}:</p>
+                  <ul className="list-disc pl-4">{conflictosNuevo.slice(0, 4).map(c => <li key={c.origen + c.id}>{describir(c)}</li>)}</ul>
+                  <p className="mt-1 text-[11px]">Puedes cambiar el horario, o crearlo de todos modos.</p>
+                </div>
+              )}
+            </div>
+          )}
           <DialogFooter>
             <Button variant="secondary" onClick={() => setNuevo(null)}>Cancelar</Button>
-            <Button onClick={crearEventoSuelto} disabled={!nuevoTitulo.trim()}>{conflictosNuevo.length ? 'Crear de todos modos' : 'Crear evento'}</Button>
+            <Button onClick={crearDesdeDialogo} disabled={nuevoModo === 'existente' ? !nuevoPendienteId : !nuevoTitulo.trim()}>
+              {conflictosNuevo.length ? 'Crear de todos modos' : nuevoModo === 'existente' ? 'Agendar' : nuevoModo === 'pendiente' ? 'Crear pendiente' : 'Crear evento'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

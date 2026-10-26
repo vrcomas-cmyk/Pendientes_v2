@@ -45,6 +45,9 @@ const Ctx = createContext<SyncCtx>({
 // eslint-disable-next-line react-refresh/only-export-components -- context hook shared alongside its provider
 export const useSync = () => useContext(Ctx)
 
+// Colecciones que solo se borran con `borrado: true` (papelera): lo activo que falte en local se restaura, no se borra de la nube.
+const SOFT = { restaurarActivos: true } as const
+
 interface UltimoSync { pendientes: MapaSync; notas: MapaSync; proyectos: MapaSync; eventos: MapaSync; espacios: MapaSync; contactos: MapaSync; rocas: MapaSync }
 const vacio = (): UltimoSync => ({ pendientes: {}, notas: {}, proyectos: {}, eventos: {}, espacios: {}, contactos: {}, rocas: {} })
 
@@ -470,13 +473,13 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       const protegidoEsp = (id: string) => sospechosoEsp || (subidoReciente.current.get(id) ?? 0) >= limite || (ausenciaEsp.current.get(id) ?? 0) < 2
       const protegidoCon = (id: string) => sospechosoCon || (subidoReciente.current.get(id) ?? 0) >= limite || (ausenciaCon.current.get(id) ?? 0) < 2
       const protegidoRoc = (id: string) => sospechosoRoc || (subidoReciente.current.get(id) ?? 0) >= limite || (ausenciaRoc.current.get(id) ?? 0) < 2
-      const resP = reconciliar(pendientes, remoteP, L.pendientes, mergePendiente, protegidoP)
-      const resN = reconciliar(notas, remoteN, L.notas, mergeNota, protegidoN)
+      const resP = reconciliar(pendientes, remoteP, L.pendientes, mergePendiente, protegidoP, SOFT)
+      const resN = reconciliar(notas, remoteN, L.notas, mergeNota, protegidoN, SOFT)
       const resPr = reconciliar(proyectos, remotePr, L.proyectos, mergeProyecto, protegidoPr)
-      const resEv = reconciliar(eventos, remoteEv, L.eventos, mergeEvento, protegidoEv)
+      const resEv = reconciliar(eventos, remoteEv, L.eventos, mergeEvento, protegidoEv, SOFT)
       const resEsp = reconciliar(espacios, remoteEsp, L.espacios, mergeEspacio, protegidoEsp)
-      const resCon = reconciliar(contactos, remoteCon, L.contactos, mergeContacto, protegidoCon)
-      const resRoc = reconciliar(rocas, remoteRoc, L.rocas, mergeRoca, protegidoRoc)
+      const resCon = reconciliar(contactos, remoteCon, L.contactos, mergeContacto, protegidoCon, SOFT)
+      const resRoc = reconciliar(rocas, remoteRoc, L.rocas, mergeRoca, protegidoRoc, SOFT)
       L.pendientes = resP.nextLast
       L.notas = resN.nextLast
       L.proyectos = resPr.nextLast

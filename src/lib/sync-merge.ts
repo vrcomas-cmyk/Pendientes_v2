@@ -82,10 +82,24 @@ export function mergeContacto(local: Contacto, remote: Contacto): { merged: Cont
   return { merged: localNewer ? local : remote, conflicto }
 }
 
+/** JSON estable: claves ordenadas recursivamente (las matrices conservan su orden) y sin claves `undefined`.
+    Postgres `jsonb` NO conserva el orden de las claves, así que comparar con `JSON.stringify` directo hacía que
+    un elemento idéntico en local y en la nube pareciera distinto: nunca se marcaba como sincronizado y se
+    re-subía en CADA ciclo (cientos de POST por hora), y los borrados de otros dispositivos nunca «pegaban». */
+export function jsonEstable(v: unknown): string {
+  if (v === undefined) return 'null'
+  if (Array.isArray(v)) return '[' + v.map(jsonEstable).join(',') + ']'
+  if (v && typeof v === 'object') {
+    const o = v as Record<string, unknown>
+    return '{' + Object.keys(o).filter(k => o[k] !== undefined).sort().map(k => JSON.stringify(k) + ':' + jsonEstable(o[k])).join(',') + '}'
+  }
+  return JSON.stringify(v)
+}
+
 function sinVolatil<T extends ItemBase>(x: T): string {
   const clon = { ...x } as Record<string, unknown>
   delete clon.modificado
-  return JSON.stringify(clon)
+  return jsonEstable(clon)
 }
 export function contenidoIgual<T extends ItemBase>(a: T, b: T): boolean {
   return sinVolatil(a) === sinVolatil(b)
@@ -133,6 +147,14 @@ export function reconciliar<T extends ItemBase>(
    * tratan como borrado remoto, para no perder pendientes recién creados.
    */
   protegido?: (id: string) => boolean,
+  /**
+   * `restaurarActivos`: para colecciones que se borran SIEMPRE con `borrado: true` (pendientes, notas, eventos,
+   * contactos, rocas). Si un elemento ya conocido falta en local pero la nube lo tiene ACTIVO (no `borrado`), no
+   * se interpreta como «lo borré aquí» (eso lo haría borrarlo de la nube y otro dispositivo lo volvería a subir:
+   * el vaivén de «aparece y desaparece»); se trae de vuelta. Solo se borra físicamente lo que ya está en la
+   * papelera (`borrado: true`).
+   */
+  opciones?: { restaurarActivos?: boolean },
 ): ResultadoReconcilia<T> {
   const mapL = new Map(local.map(x => [x.id, x]))
   const mapR = new Map(remote.map(x => [x.id, x]))
@@ -155,7 +177,11 @@ export function reconciliar<T extends ItemBase>(
       // si no, queda "sucio" (fuera de nextLast) y flush lo reenvía
       if (conflicto && dirtyAntes && cambioRemoto && conocido) conflictos.push(id)
     } else if (r && !l) {
-      if (conocido) {
+      if (conocido && opciones?.restaurarActivos && !(r as { borrado?: boolean }).borrado) {
+        // faltaba en local pero en la nube sigue activo: restaurarlo en vez de borrarlo de la nube
+        resultado.push(r)
+        nextLast[id] = r.modificado
+      } else if (conocido) {
         // lo borramos localmente y aún sigue en la nube -> conservar marca para que flush lo borre allá
         nextLast[id] = last[id]
       } else {
@@ -166,7 +192,11 @@ export function reconciliar<T extends ItemBase>(
     } else if (l && !r) {
       if (conocido) {
         const dirty = l.modificado !== last[id]
-        if (dirty) resultado.push(l) // editado local tras borrado remoto -> gana la edición y se re-sube
+        if (opciones?.restaurarActivos && !(l as { borrado?: boolean }).borrado) {
+          // Un elemento ACTIVO nunca se borra físicamente en estas colecciones (se manda a la papelera con
+          // `borrado`): que falte en la nube es una pérdida de la nube, no un borrado. Se conserva y se re-sube.
+          resultado.push(l)
+        } else if (dirty) resultado.push(l) // editado local tras borrado remoto -> gana la edición y se re-sube
         else if (protegido?.(id)) { resultado.push(l); nextLast[id] = last[id] } // ausencia incierta (lag / recién subido): conservar SIN re-subir ni borrar hasta confirmar
         // si no estaba sucio ni protegido: aceptar borrado remoto (no se agrega, no entra a nextLast)
       } else {

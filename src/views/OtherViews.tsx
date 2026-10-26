@@ -199,7 +199,7 @@ function ResumenProyectos() {
 function NotasRecientes() {
   const { notas, pendientes } = useApp()
   const { setNotaActualId } = useUI()
-  const recientes = [...notas].sort((a, b) => b.modificado.localeCompare(a.modificado)).slice(0, 4)
+  const recientes = notas.filter(n => !n.borrado && !n.cerrada).sort((a, b) => b.modificado.localeCompare(a.modificado)).slice(0, 4)
   if (!recientes.length) return null
   return (
     <div>

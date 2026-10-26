@@ -130,11 +130,13 @@ export default function TaskRow({ p, seleccionado, onClick, modoArchivados, bulk
       />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
-          <span className={'truncate text-body font-semibold ' + (p.estado === idCompletado ? 'linea-completada' : '')}>{p.titulo}</span>
+          <strong className={'truncate text-body font-bold ' + (p.estado === idCompletado ? 'linea-completada' : '')}>{p.titulo}</strong>
           {p.origenNota && <StickyNote size={12} className="shrink-0 text-primary" />}
           {bloqueado && <span title="Bloqueado por otro pendiente sin completar" className="inline-flex items-center gap-0.5 rounded bg-slate-100 px-1 text-meta text-slate-600 dark:bg-slate-800 dark:text-slate-300"><Lock size={9} />bloqueado</span>}
           {vencido(p, idCompletado) && <span className="rounded bg-red-100 px-1 text-meta text-red-700 dark:bg-red-900/40 dark:text-red-300">vencido</span>}
         </div>
+        {/* Descripción: una línea en gris debajo del título en negritas, para separar «qué es» de «el detalle». */}
+        {p.descripcion?.trim() && <p className="mt-0.5 line-clamp-1 text-meta font-normal text-muted-foreground">{p.descripcion.trim().split('\n')[0]}</p>}
         {/* Metadata esencial: siempre visible (Card §6.3 — proyecto y fecha son lo que se
             necesita para escanear la lista sin abrir la fila). El resto (responsable,
             subtareas, repetición, ponderación, modalidad) es secundario y se revela recién

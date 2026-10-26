@@ -39,6 +39,10 @@ export default function TaskModal() {
   const [fechaTocada, setFechaTocada] = useState(false)
   const [hora, setHora] = useState('')
   const [enviarGoogle, setEnviarGoogle] = useState(false)
+  // Captura rápida: al crear un pendiente nuevo solo se piden Título y Descripción (Tab baja, Enter guarda).
+  // «Más opciones» muestra el formulario completo; la última elección se recuerda.
+  const [rapido, setRapido] = useState(() => { try { return localStorage.getItem('pn_modal_rapido') !== '0' } catch { return true } })
+  const cambiarRapido = (v: boolean) => { setRapido(v); try { localStorage.setItem('pn_modal_rapido', v ? '1' : '0') } catch { /* noop */ } }
   const [fechaInicio, setFechaInicio] = useState('')
   // Aviso de cruce con lo ya agendado en la app y con Google Calendar (si ya se sincronizó en esta sesión).
   const cruces = useMemo(
@@ -230,6 +234,7 @@ export default function TaskModal() {
   }
 
   const faltanSub = subtareas.filter(s => !s.completada).length
+  const modoRapido = rapido && !editando
 
   const guardarComoPlantilla = () => {
     const t = titulo.trim()
@@ -248,13 +253,31 @@ export default function TaskModal() {
       <Dialog open={modal.open} onOpenChange={o => { if (!o && overlay === 'modal') cerrarModal() }}>
       <DialogContent className="max-w-xl max-h-[92vh] overflow-y-auto scroll-thin"
         onKeyDown={e => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); guardar() } }}>
-        <DialogHeader><DialogTitle>{editando ? 'Editar pendiente' : 'Nuevo pendiente'}</DialogTitle></DialogHeader>
+        <DialogHeader>
+          <div className="flex items-center justify-between gap-2 pr-6">
+            <DialogTitle>{editando ? 'Editar pendiente' : 'Nuevo pendiente'}</DialogTitle>
+            {!editando && (
+              <button type="button" onClick={() => cambiarRapido(!rapido)} className="shrink-0 text-xs font-medium text-primary hover:underline">
+                {rapido ? 'Más opciones' : 'Modo rápido'}
+              </button>
+            )}
+          </div>
+        </DialogHeader>
 
         <div className="space-y-4">
           <div className="space-y-1.5">
             <Label className="text-[11px] uppercase text-muted-foreground">Título *</Label>
-            <Input value={titulo} onChange={e => setTitulo(e.target.value)} placeholder="¿Qué hay que hacer?" autoFocus />
+            <Input value={titulo} onChange={e => setTitulo(e.target.value)} placeholder="¿Qué hay que hacer?" autoFocus
+              onKeyDown={e => { if (modoRapido && e.key === 'Enter') { e.preventDefault(); guardar() } }} />
           </div>
+          {modoRapido ? (
+            <div className="space-y-1.5">
+              <Label className="text-[11px] uppercase text-muted-foreground">Descripción</Label>
+              <Textarea rows={3} value={descripcion} onChange={e => setDescripcion(e.target.value)} placeholder="Detalle (Enter guarda · Shift+Enter nueva línea)"
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); guardar() } }} />
+              <p className="text-[10px] text-muted-foreground">Tab pasa de Título a Descripción. Fecha, prioridad y demás quedan con sus valores por defecto; edítalos con «Más opciones».</p>
+            </div>
+          ) : (<>
           <datalist id="personas-dl">
             {/* Une los strings sueltos legacy (`personas`, derivado de responsable/solicitante ya
                 usados) con los nombres de Contacto reales — un nombre nuevo tipeado acá se
@@ -499,6 +522,7 @@ export default function TaskModal() {
               {editando?.origenNota && <p className="flex items-center gap-1 text-xs text-muted-foreground"><StickyNote size={13} /> Vinculado a una nota.</p>}
             </div>
           )}
+          </>)}
         </div>
 
         <DialogFooter className="flex items-center sm:justify-between">

@@ -13,6 +13,7 @@ import PendientePeek from '@/components/PendientePeek'
 import PreviaParseo from '@/components/PreviaParseo'
 import PanelAgenda from '@/components/PanelAgenda'
 import HojaInferior from '@/components/HojaInferior'
+import RespaldoAutomatico from '@/components/RespaldoAutomatico'
 import { useAgendaLateral, fijarAgendaAbierta } from '@/lib/agendaLateral'
 import AyudaAtajos from '@/components/AyudaAtajos'
 import ErrorBoundary from '@/components/ErrorBoundary'
@@ -35,12 +36,13 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import {
   Star, ListTodo, BarChart3, StickyNote, Briefcase,
-  Plus, Moon, Sun, Download, Upload, FileSpreadsheet, AlertTriangle, User, MoreVertical, LogOut, LogIn, HelpCircle, CalendarClock, Users, Users2, Target, Settings2, Trash2, Search, LayoutGrid, Timer, Columns3, PenLine, ArrowRightCircle, FileText, ChevronDown,
+  Plus, Moon, Sun, CalendarDays, Download, Upload, FileSpreadsheet, AlertTriangle, User, MoreVertical, LogOut, LogIn, HelpCircle, CalendarClock, Users, Users2, Target, Settings2, Trash2, Search, LayoutGrid, Timer, Columns3, PenLine, ArrowRightCircle, FileText, ChevronDown,
 } from 'lucide-react'
 
 const TodayView = lazy(() => import('@/views/OtherViews').then(m => ({ default: m.TodayView })))
 const DashboardView = lazy(() => import('@/views/OtherViews').then(m => ({ default: m.DashboardView })))
 const PendientesView = lazy(() => import('@/views/PendientesView'))
+const CalendarioView = lazy(() => import('@/views/CalendarioView'))
 const NotesView = lazy(() => import('@/views/NotesView'))
 const ProyectosView = lazy(() => import('@/views/ProyectosView'))
 const EspaciosView = lazy(() => import('@/views/EspaciosView'))
@@ -56,9 +58,9 @@ const LS_VISTA = 'pn_vista'
 // lugar correría los atajos ya aprendidos de espacios/pendientes/dashboard/papelera. Sin atajo
 // numérico propio por ahora, solo accesibles desde el menú "Sistema".
 // Orden = atajos numéricos 1-8. «inbox» ya no es una vista aparte: es un alias que abre Pendientes con el filtro «Sin fecha».
-const VISTAS_VALIDAS = ['hoy', 'pendientes', 'proyectos', 'notas', 'espacios', 'inbox', 'dashboard', 'papelera', 'contactos', 'metas', 'equipo', 'rocas'] as const
+const VISTAS_VALIDAS = ['hoy', 'pendientes', 'proyectos', 'notas', 'espacios', 'inbox', 'dashboard', 'papelera', 'contactos', 'metas', 'equipo', 'rocas', 'calendario'] as const
 
-type Vista = 'hoy' | 'inbox' | 'proyectos' | 'notas' | 'espacios' | 'pendientes' | 'dashboard' | 'papelera' | 'contactos' | 'metas' | 'equipo' | 'rocas'
+type Vista = 'hoy' | 'inbox' | 'proyectos' | 'notas' | 'espacios' | 'pendientes' | 'dashboard' | 'papelera' | 'contactos' | 'metas' | 'equipo' | 'rocas' | 'calendario'
 
 function ViewSkeleton() {
   return (
@@ -79,6 +81,7 @@ function ViewSkeleton() {
 const VISTAS_PRIMARIAS: { id: Vista; label: string; corto: string; icon: React.ReactNode }[] = [
   { id: 'hoy', label: 'Hoy', corto: 'Hoy', icon: <Star size={18} /> },
   { id: 'pendientes', label: 'Pendientes', corto: 'Pendientes', icon: <ListTodo size={18} /> },
+  { id: 'calendario', label: 'Calendario', corto: 'Agenda', icon: <CalendarDays size={18} /> }, // módulo propio: agenda + crear eventos/pendientes
   // «Planear» agrupa Proyectos · Metas · Rocas · Espacios en una sola entrada con pestañas (id = vista inicial).
   { id: 'proyectos', label: 'Planear', corto: 'Planear', icon: <Briefcase size={18} /> },
   { id: 'notas', label: 'Notas', corto: 'Notas', icon: <StickyNote size={18} /> },
@@ -109,7 +112,7 @@ const WIDGET_ICONOS: Record<WidgetTipo, React.ReactNode> = {
 function Shell() {
   const app = useApp()
   const ui = useUI()
-  const { pendientes, notas, proyectos, espacios, eventos, usuario, setUsuario, crearPendiente, crearNota, actualizarNota, crearEvento, reemplazarTodo, filtrosGuardados } = app
+  const { pendientes, notas, proyectos, espacios, eventos, usuario, setUsuario, crearPendiente, crearNota, actualizarNota, crearEvento, reemplazarTodo, filtrosGuardados, contactos, metas, rocas, etiquetas, plantillas } = app
   const { abrirModal, paletaAbierta, abrirPaleta, cerrarPaleta, notaActualId, setNotaActualId, proyectoAbiertoId, setProyectoAbiertoId, setFiltroFecha, setFiltroActivoId, espacioActualId, setEspacioActualId } = ui
   const sync = useSync()
   const { abrirWidget } = useWidgets()
@@ -155,7 +158,8 @@ function Shell() {
   const quickRef = useRef<HTMLTextAreaElement>(null)
   const quickMovilRef = useRef<HTMLTextAreaElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
-  const importPendiente = useRef<{ pendientes: unknown[]; notas: unknown[]; usuario?: string } | null>(null)
+  const importPendiente = useRef<Record<string, unknown> & { pendientes: unknown[]; notas: unknown[]; usuario?: string } | null>(null)
+  const [resumenImport, setResumenImport] = useState('')
 
   const abrirNombreDlg = () => { setNombreVal(usuario); setNombreDlg(true) }
   const confirmarNombre = () => { const n = nombreVal.trim(); if (n) setUsuario(n); setNombreDlg(false) }
@@ -190,11 +194,7 @@ function Shell() {
   const navActiva = (id: Vista) => (id === 'proyectos' ? GRUPO_PLANEAR.includes(vistaMostrada) : vistaMostrada === id)
   const navIr = (id: Vista) => (id === 'proyectos' ? abrirPlanear() : setVista(id))
 
-  const abrirCalendarioCompleto = () => {
-    try { localStorage.setItem('pn_modo_vista', 'calendario') } catch { /* noop */ }
-    setVista('pendientes')
-    window.dispatchEvent(new Event('pn-modo-vista'))
-  }
+  const abrirCalendarioCompleto = () => setVista('calendario')
   const verVencidos = () => { setNotaActualId(null); setVista('pendientes'); setFiltroFecha('vencidos') }
 
   // notaActualId/proyectoAbiertoId son globales: así una tarjeta de "Hoy" puede abrir directamente
@@ -345,7 +345,10 @@ function Shell() {
     else quickAdd()
   }
 
-  const exportarJSON = () => descargar('pendientes_notas_' + hoyISO() + '.json', JSON.stringify({ pendientes, notas, usuario }, null, 2), 'application/json')
+  // Respaldo COMPLETO: todo lo que vive en este navegador (pendientes, notas, proyectos, eventos, espacios,
+  // contactos, metas, rocas con su bitácora, etiquetas, plantillas y filtros). Antes solo salían pendientes y notas.
+  const exportarJSON = () => descargar('respaldo_pendientes_' + hoyISO() + '.json',
+    JSON.stringify({ version: 2, usuario, pendientes, notas, proyectos, eventos, espacios, contactos, metas, rocas, etiquetas, plantillas, filtrosGuardados }, null, 2), 'application/json')
   const exportarCSV = () => {
     const cab = ['Titulo', 'Solicitante', 'Responsable', 'Prioridad', 'Estado', 'FechaLimite', 'Proyecto', 'Subtareas', 'Descripcion']
     const filas = pendientes.map(p => [
@@ -365,7 +368,9 @@ function Shell() {
     r.onload = ev => {
       try {
         const d = JSON.parse(String(ev.target?.result))
-        importPendiente.current = { pendientes: d.pendientes || [], notas: d.notas || [], usuario: d.usuario }
+        importPendiente.current = { ...d, pendientes: d.pendientes || [], notas: d.notas || [], usuario: d.usuario }
+        const n = (k: string) => (Array.isArray(d[k]) ? d[k].length : 0)
+        setResumenImport(`${n('pendientes')} pendientes, ${n('notas')} notas` + (d.version >= 2 ? `, ${n('proyectos')} proyectos, ${n('eventos')} eventos, ${n('metas')} metas, ${n('rocas')} rocas, ${n('contactos')} contactos` : ' (archivo antiguo: solo pendientes y notas)'))
         setImportDlg(true)
       } catch { toast.error('Archivo inválido') }
     }
@@ -376,7 +381,12 @@ function Shell() {
     const d = importPendiente.current
     setImportDlg(false)
     if (!d) return
-    reemplazarTodo(d.pendientes as Parameters<typeof reemplazarTodo>[0], d.notas as Parameters<typeof reemplazarTodo>[1], d.usuario)
+    const lista = <T,>(k: string) => (Array.isArray(d[k]) ? d[k] as T[] : undefined) // solo reemplaza lo que el archivo trae
+    reemplazarTodo(
+      d.pendientes as Parameters<typeof reemplazarTodo>[0], d.notas as Parameters<typeof reemplazarTodo>[1], d.usuario,
+      lista('proyectos'), lista('eventos'), lista('espacios'), lista('contactos'), lista('rocas'),
+      { metas: lista('metas'), etiquetas: lista('etiquetas'), plantillas: lista('plantillas'), filtrosGuardados: lista('filtrosGuardados') },
+    )
     toast.success('Datos importados')
   }
 
@@ -389,6 +399,7 @@ function Shell() {
     <Suspense fallback={<ViewSkeleton />}>
       {vistaMostrada === 'hoy' && <TodayView />}
       {vistaMostrada === 'pendientes' && <PendientesView />}
+      {vistaMostrada === 'calendario' && <CalendarioView />}
       {vistaMostrada === 'notas' && <NotesView />}
       {vistaMostrada === 'proyectos' && <ProyectosView />}
       {vistaMostrada === 'espacios' && <EspaciosView onEntrar={() => setVista('proyectos')} />}
@@ -500,13 +511,14 @@ function Shell() {
       <Dialog open={importDlg} onOpenChange={setImportDlg}>
         <DialogContent className="max-w-xs">
           <DialogHeader><DialogTitle className="text-base">Importar datos</DialogTitle></DialogHeader>
-          <p className="text-sm text-muted-foreground">Esto reemplazará tus pendientes y notas actuales. ¿Continuar?</p>
+          <p className="text-sm text-muted-foreground">Esto reemplazará tus datos actuales por los del archivo: {resumenImport}. ¿Continuar?</p>
           <DialogFooter>
             <Button variant="secondary" onClick={() => setImportDlg(false)}>Cancelar</Button>
             <Button onClick={confirmarImportacion}>Reemplazar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <RespaldoAutomatico />
       <AyudaAtajos open={ayudaAbierta} onOpenChange={setAyudaAbierta} />
       <CuentasGoogleDialog open={cuentasGoogleDlg} onOpenChange={setCuentasGoogleDlg} cuentas={cuentasGoogle} onCambio={recargarCuentasGoogle} />
       <EspacioDialog open={espacioDlg} onOpenChange={setEspacioDlg} />
@@ -633,7 +645,7 @@ function Shell() {
 
         {/* Barra inferior de vistas — solo los 5 destinos primarios; Pendientes/Panel/Papelera
             viven en «⋮» (agrupación Sistema, PDS §5.3) */}
-        <nav className="grid shrink-0 grid-cols-4 border-t bg-card">
+        <nav className="grid shrink-0 grid-cols-5 border-t bg-card">
           {VISTAS_PRIMARIAS.map(v => (
             <button key={v.id} onClick={() => navIr(v.id)} aria-current={navActiva(v.id) ? 'page' : undefined}
               className={'flex flex-col items-center gap-0.5 py-2 text-[10px] ' + (navActiva(v.id) ? 'text-primary' : 'text-muted-foreground')}>

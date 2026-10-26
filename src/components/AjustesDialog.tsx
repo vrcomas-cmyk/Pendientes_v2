@@ -11,6 +11,7 @@ import { Moon, Sun, Settings2, Tag, X, Plus, Bookmark, Bell, Mail } from 'lucide
 import { recordatoriosActivos, setRecordatoriosActivos } from '@/hooks/use-recordatorios-locales'
 import { toast } from 'sonner'
 import ResumenCorreoSeccion from '@/components/ResumenCorreoSeccion'
+import { SeccionRespaldo } from '@/components/RespaldoAutomatico'
 
 /** Panel centralizado de personalización: tema, color de acento, y un resumen de las columnas del
     Kanban (edición completa — renombrar/recolorear/reordenar/añadir/eliminar — vive en el propio
@@ -116,6 +117,11 @@ export default function AjustesDialog({
             </Button>
           </div>
         )}
+
+        <div className="space-y-1.5">
+          <p className="text-[11px] uppercase text-muted-foreground">Respaldo automático</p>
+          <SeccionRespaldo />
+        </div>
 
         <div className="space-y-1.5">
           <p className="flex items-center gap-1 text-[11px] uppercase text-muted-foreground"><Mail size={11} /> Resumen por correo</p>
