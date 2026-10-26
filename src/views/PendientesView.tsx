@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useUI } from '@/ui-store'
 import ListView from '@/views/ListView'
 import { KanbanView } from '@/views/OtherViews'
@@ -28,6 +28,13 @@ function leerModoGuardado(): Modo {
 export default function PendientesView() {
   const [modo, setModo] = useState<Modo>(leerModoGuardado)
   const { filtroFecha, setFiltroFecha } = useUI()
+
+  // El panel lateral de agenda pide abrir el calendario completo aunque esta vista ya esté montada.
+  useEffect(() => {
+    const h = () => setModo(leerModoGuardado())
+    window.addEventListener('pn-modo-vista', h)
+    return () => window.removeEventListener('pn-modo-vista', h)
+  }, [])
 
   const cambiar = (m: Modo) => {
     setModo(m)

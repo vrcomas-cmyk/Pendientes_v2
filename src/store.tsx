@@ -1,8 +1,9 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
-import type { Nota, Pendiente, Estado, Proyecto, EventoCalendario, ColumnaKanban, Espacio, Etiqueta, Contacto, Meta, FiltroGuardado, Subtarea, PlantillaPendiente } from '@/types'
+import type { Nota, Pendiente, Estado, Proyecto, EventoCalendario, ColumnaKanban, Espacio, Etiqueta, Contacto, Meta, Roca, ActividadRoca, FiltroGuardado, Subtarea, PlantillaPendiente } from '@/types'
 import { PROYECTO_COLORES_KEYS, COLUMNAS_DEFECTO, ESPACIO_ICONOS } from '@/types'
-import { hoyISO, normalizar, storage, uid, describirRepeticion, defaultsHorario, fechaPorPrioridad, proximaInstanciaRepeticion, asignarProyecto, normalizarNombreProyecto, buscarSubtarea, quitarSubtarea, pendientesDesdeSubtareas } from '@/lib/app-utils'
+import { esPendienteDeEjemplo, esNotaDeEjemplo, hoyISO, normalizar, storage, uid, describirRepeticion, defaultsHorario, fechaPorPrioridad, proximaInstanciaRepeticion, asignarProyecto, normalizarNombreProyecto, buscarSubtarea, quitarSubtarea, pendientesDesdeSubtareas } from '@/lib/app-utils'
+import { trimestreDe } from '@/lib/rocas'
 
 const DEBOUNCE_MS = 300
 
@@ -49,6 +50,7 @@ interface AppCtx {
   agregarComentario: (pid: string, texto: string, adjuntos?: import('@/types').Adjunto[]) => void
   moverEstado: (id: string, estado: Estado) => void
   crearNota: () => Nota
+  quitarDatosDeEjemplo: () => number
   actualizarNota: (id: string, datos: Partial<Nota>) => void
   agregarComentarioNota: (id: string, texto: string) => void
   eliminarNota: (id: string) => void
@@ -77,6 +79,13 @@ interface AppCtx {
   actualizarMeta: (id: string, datos: Partial<Meta>) => void
   eliminarMeta: (id: string) => void
   progresoMeta: (metaId: string) => { total: number; completados: number; porcentaje: number }
+  rocas: Roca[]
+  crearRoca: (nombre: string, datos?: Partial<Roca>) => Roca
+  actualizarRoca: (id: string, datos: Partial<Roca>) => void
+  eliminarRoca: (id: string) => void
+  agregarActividadRoca: (rocaId: string, datos: Pick<ActividadRoca, 'descripcion'> & Partial<ActividadRoca>) => void
+  actualizarActividadRoca: (rocaId: string, actividadId: string, datos: Partial<ActividadRoca>) => void
+  eliminarActividadRoca: (rocaId: string, actividadId: string) => void
   filtrosGuardados: FiltroGuardado[]
   crearFiltroGuardado: (nombre: string, criterios: FiltroGuardado['criterios'], atajo?: FiltroGuardado['atajo']) => FiltroGuardado
   actualizarFiltroGuardado: (id: string, datos: Partial<FiltroGuardado>) => void
@@ -92,7 +101,7 @@ interface AppCtx {
   restaurarEvento: (id: string) => void
   columnas: ColumnaKanban[]
   setColumnas: (cols: ColumnaKanban[]) => void
-  reemplazarTodo: (p: Pendiente[], n: Nota[], u?: string, pr?: Proyecto[], ev?: EventoCalendario[], esp?: Espacio[], con?: Contacto[]) => void
+  reemplazarTodo: (p: Pendiente[], n: Nota[], u?: string, pr?: Proyecto[], ev?: EventoCalendario[], esp?: Espacio[], con?: Contacto[], roc?: Roca[]) => void
   vaciarPapelera: () => void
   personas: string[]
 }
@@ -183,6 +192,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } catch { /* noop */ }
     return []
   })
+  const [rocas, setRocas] = useState<Roca[]>(() => {
+    try {
+      const raw = storage.get('pn_rocas')
+      if (raw) return JSON.parse(raw) as Roca[]
+    } catch { /* noop */ }
+    return []
+  })
   const [filtrosGuardados, setFiltrosGuardados] = useState<FiltroGuardado[]>(() => {
     try {
       const raw = storage.get('pn_filtros_guardados')
@@ -208,6 +224,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useDebouncedStorage('pn_etiquetas', etiquetas)
   useDebouncedStorage('pn_contactos', contactos)
   useDebouncedStorage('pn_metas', metas)
+  useDebouncedStorage('pn_rocas', rocas)
   useDebouncedStorage('pn_filtros_guardados', filtrosGuardados)
   useDebouncedStorage('pn_plantillas', plantillas)
 
@@ -226,6 +243,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setEventos(prev => { const e = purgar(prev); return e.length === prev.length ? prev : e })
     setContactos(prev => { const c = purgar(prev); return c.length === prev.length ? prev : c })
     setMetas(prev => { const m = purgar(prev); return m.length === prev.length ? prev : m })
+    setRocas(prev => { const r = purgar(prev); return r.length === prev.length ? prev : r })
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [])
 
@@ -489,6 +507,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return nuevo
   }
 
+  /** Manda a la papelera los pendientes y la nota de ejemplo que la app siembra al estrenar; devuelve cuántos. */
+  const quitarDatosDeEjemplo = (): number => {
+    const ahora = new Date().toISOString()
+    const idsP = new Set(pendientes.filter(p => !p.borrado && esPendienteDeEjemplo(p)).map(p => p.id))
+    const idsN = new Set(notas.filter(n => !n.borrado && esNotaDeEjemplo(n)).map(n => n.id))
+    if (idsP.size) setPendientes(prev => prev.map(p => idsP.has(p.id) ? { ...p, borrado: true, modificado: ahora } : p))
+    if (idsN.size) setNotas(prev => prev.map(n => idsN.has(n.id) ? { ...n, borrado: true, modificado: ahora } : n))
+    return idsP.size + idsN.size
+  }
+
   const crearNota = (): Nota => {
     const n: Nota = { id: uid(), titulo: 'Nueva nota', contenidoHTML: '', creado: new Date().toISOString(), modificado: new Date().toISOString() }
     setNotas(prev => [n, ...prev])
@@ -637,6 +665,38 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setMetas(prev => prev.map(m => m.id !== id ? m : { ...m, borrado: true, modificado: new Date().toISOString() }))
     setProyectos(prev => prev.map(p => p.metaId === id ? { ...p, metaId: undefined, modificado: new Date().toISOString() } : p))
   }
+  const crearRoca = (nombre: string, datos?: Partial<Roca>): Roca => {
+    const { inicio, fin } = trimestreDe(hoyISO())
+    const ahora = new Date().toISOString()
+    const r: Roca = {
+      id: uid(), nombre: nombre.trim(), fechaInicio: inicio, fechaFin: fin, estado: 'activa', actividades: [],
+      creado: ahora, modificado: ahora, ...datos,
+    }
+    setRocas(prev => [...prev, r])
+    return r
+  }
+  const actualizarRoca = (id: string, datos: Partial<Roca>) => {
+    setRocas(prev => prev.map(r => r.id !== id ? r : { ...r, ...datos, modificado: new Date().toISOString() }))
+  }
+  const eliminarRoca = (id: string) => {
+    setRocas(prev => prev.map(r => r.id !== id ? r : { ...r, borrado: true, modificado: new Date().toISOString() }))
+  }
+  const agregarActividadRoca = (rocaId: string, datos: Pick<ActividadRoca, 'descripcion'> & Partial<ActividadRoca>) => {
+    const ahora = new Date().toISOString()
+    const a: ActividadRoca = { id: uid(), fecha: hoyISO(), creado: ahora, modificado: ahora, ...datos, descripcion: datos.descripcion.trim() }
+    if (!a.descripcion) return
+    setRocas(prev => prev.map(r => r.id !== rocaId ? r : { ...r, actividades: [...(r.actividades || []), a], modificado: ahora }))
+  }
+  const actualizarActividadRoca = (rocaId: string, actividadId: string, datos: Partial<ActividadRoca>) => {
+    const ahora = new Date().toISOString()
+    setRocas(prev => prev.map(r => r.id !== rocaId ? r : {
+      ...r, modificado: ahora,
+      actividades: (r.actividades || []).map(a => a.id !== actividadId ? a : { ...a, ...datos, modificado: ahora }),
+    }))
+  }
+  // Soft-delete (tombstone) para que el borrado se propague al unir bitácoras de varios dispositivos.
+  const eliminarActividadRoca = (rocaId: string, actividadId: string) => actualizarActividadRoca(rocaId, actividadId, { borrado: true })
+
   /** Progreso agregado (Fase Metas): % de pendientes completados entre todos los proyectos
       vinculados a la meta. Cuenta pendientes activos (no borrados, no archivados) de esos
       proyectos — mismo criterio de "activo" que ya usa el resto de la app. */
@@ -699,6 +759,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setEventos(prev => prev.filter(e => !e.borrado))
     setContactos(prev => prev.filter(c => !c.borrado))
     setMetas(prev => prev.filter(m => !m.borrado))
+    setRocas(prev => prev.filter(r => !r.borrado))
   }
 
   const crearEvento = (datos: Partial<EventoCalendario>): EventoCalendario => {
@@ -716,7 +777,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setEventos(prev => prev.map(e => e.id !== id ? e : { ...e, ...datos, modificado: new Date().toISOString() }))
   }
 
-  const reemplazarTodo = (p: Pendiente[], n: Nota[], u?: string, pr?: Proyecto[], ev?: EventoCalendario[], esp?: Espacio[], con?: Contacto[]) => {
+  const reemplazarTodo = (p: Pendiente[], n: Nota[], u?: string, pr?: Proyecto[], ev?: EventoCalendario[], esp?: Espacio[], con?: Contacto[], roc?: Roca[]) => {
     setPendientes(p.map(normalizarConservandoId))
     setNotas(n)
     if (u) setUsuario(u)
@@ -724,6 +785,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (ev) setEventos(ev.map(normalizarEventoConservandoId))
     if (esp) setEspacios(esp)
     if (con) setContactos(con)
+    if (roc) setRocas(roc)
   }
 
   const personas = useMemo(() => {
@@ -735,11 +797,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const value: AppCtx = {
     pendientes, notas, usuario, setUsuario,
     crearPendiente, actualizarPendiente, eliminarPendiente, restaurarPendiente, duplicarPendiente, archivarPendiente, desarchivarPendiente, toggleCompletar, toggleSubtarea, agregarSubtarea, agregarSubSubtarea, promoverPendienteAProyecto, promoverSubtarea, iniciarTimer, pausarTimer, agregarComentario, moverEstado,
-    crearNota, actualizarNota, agregarComentarioNota, eliminarNota, restaurarNota, duplicarNota, proyectos, crearProyecto, actualizarProyecto, eliminarProyecto,
+    crearNota, quitarDatosDeEjemplo, actualizarNota, agregarComentarioNota, eliminarNota, restaurarNota, duplicarNota, proyectos, crearProyecto, actualizarProyecto, eliminarProyecto,
     espacios, crearEspacio, actualizarEspacio, eliminarEspacio,
     etiquetas, crearEtiqueta, actualizarEtiqueta, eliminarEtiqueta, colorDeEtiqueta,
     contactos, crearContacto, actualizarContacto, eliminarContacto, contactoPorId,
     metas, crearMeta, actualizarMeta, eliminarMeta, progresoMeta,
+    rocas, crearRoca, actualizarRoca, eliminarRoca, agregarActividadRoca, actualizarActividadRoca, eliminarActividadRoca,
     filtrosGuardados, crearFiltroGuardado, actualizarFiltroGuardado, eliminarFiltroGuardado,
     plantillas, crearPlantilla, eliminarPlantilla, crearPendienteDesdePlantilla,
     eventos, crearEvento, actualizarEvento, eliminarEvento, restaurarEvento, columnas, setColumnas, reemplazarTodo, vaciarPapelera,

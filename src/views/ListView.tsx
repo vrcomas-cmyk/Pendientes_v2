@@ -128,12 +128,15 @@ export default function ListView({ filtroFecha, setFiltroFecha }: { filtroFecha:
   }, [fEstado, fPrioridad, fResp, orden, grupo, verSub])
 
   const hayFiltrosActivos = q !== '' || fEstado !== 'todos' || fPrioridad !== 'todos' || fResp !== 'todos' || filtroFecha !== 'todos'
+  const hayOtrosFiltros = q !== '' || fEstado !== 'todos' || fPrioridad !== 'todos' || fResp !== 'todos'
   const limpiarFiltros = () => { setQ(''); setFEstado('todos'); setFPrioridad('todos'); setFResp('todos'); setFiltroFecha('todos') }
 
   const pasaFecha = (p: Pendiente) => {
     const h = hoyISO()
     if (filtroFecha === 'abiertos') return p.estado !== idCompletado
     if (filtroFecha === 'vencidos') return vencido(p, idCompletado)
+    // «Sin fecha» = la antigua bandeja Inbox: lo capturado sin clasificar, aún abierto.
+    if (filtroFecha === 'sin_fecha') return !p.fechaLimite && p.estado !== idCompletado
     if (filtroFecha === 'hoy') return p.fechaLimite === h
     if (filtroFecha === 'semana') {
       if (!p.fechaLimite) return false
@@ -241,9 +244,13 @@ export default function ListView({ filtroFecha, setFiltroFecha }: { filtroFecha:
     </div>
   )
 
+  // Conteos (respetan el Espacio activo, igual que la lista) para que «Sin fecha» y «Vencidos» avisen sin abrirse.
+  const nSinFecha = pendientes.filter(p => !p.fechaLimite && p.estado !== idCompletado).length
+  const nVencidos = pendientes.filter(p => vencido(p, idCompletado)).length
   const chips: { f: FiltroFecha; label: string }[] = [
     { f: 'todos', label: 'Todos' }, { f: 'abiertos', label: 'Abiertos' },
-    { f: 'vencidos', label: '⚠ Vencidos' }, { f: 'hoy', label: 'Hoy' }, { f: 'semana', label: 'Semana' },
+    { f: 'sin_fecha', label: nSinFecha ? `📥 Sin fecha (${nSinFecha})` : '📥 Sin fecha' },
+    { f: 'vencidos', label: nVencidos ? `⚠ Vencidos (${nVencidos})` : '⚠ Vencidos' }, { f: 'hoy', label: 'Hoy' }, { f: 'semana', label: 'Semana' },
   ]
 
   const filtrosAvanzados = (
@@ -261,7 +268,7 @@ export default function ListView({ filtroFecha, setFiltroFecha }: { filtroFecha:
     <div className="flex-1 space-y-1 overflow-y-auto pr-1 scroll-thin">
       {!filtrados.length && (
         <div className="flex flex-col items-center gap-2 p-6 text-center text-xs text-muted-foreground">
-          <p>Sin pendientes que coincidan.</p>
+          <p>{filtroFecha === 'sin_fecha' && !hayOtrosFiltros ? 'Nada sin clasificar: todo lo capturado ya tiene fecha. 🎉' : 'Sin pendientes que coincidan.'}</p>
           <div className="flex gap-2">
             {hayFiltrosActivos && <Button size="sm" variant="secondary" onClick={limpiarFiltros}>Limpiar filtros</Button>}
             <Button size="sm" onClick={() => abrirModal()}>Crear pendiente</Button>

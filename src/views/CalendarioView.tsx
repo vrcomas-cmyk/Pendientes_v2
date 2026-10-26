@@ -6,7 +6,8 @@ import type { EventoCalendario } from '@/types'
 import { activo, hoyISO, nombreMes } from '@/lib/app-utils'
 import { columnaDe, colorColumna, idColumnaCompletado } from '@/lib/columnas'
 import { listarCuentasGoogle, listarEventosRango, type CuentaGoogle, type EventoGCal } from '@/lib/googleCalendar'
-import { sincronizarEspejoGoogle, sinDuplicarLocal } from '@/lib/agenda'
+import { sincronizarIncremental, enRango, cacheCaliente } from '@/lib/googleSync'
+import { sincronizarEspejoGoogle, sinDuplicarLocal, buscarConflictos, horaCorta, asignarColumnas } from '@/lib/agenda'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import { Button } from '@/components/ui/button'
@@ -18,7 +19,7 @@ import MenuContextoPendiente from '@/components/MenuContextoPendiente'
 import { ChevronLeft, ChevronRight, GripVertical, X, CalendarOff } from 'lucide-react'
 import { toast } from 'sonner'
 
-type ModoCal = 'dia' | 'semana' | 'mes'
+type ModoCal = 'dia' | 'semana' | 'mes' | 'anio'
 const HORA_INICIO = 6
 const HORA_FIN = 22
 const PX_HORA = 48
@@ -76,12 +77,14 @@ export default function CalendarioView() {
   const [nuevo, setNuevo] = useState<{ fecha: string; hora: string } | null>(null)
   const [nuevoTitulo, setNuevoTitulo] = useState('')
   const [nuevoDuracion, setNuevoDuracion] = useState('30')
+  const [nuevoEnviar, setNuevoEnviar] = useState(false)
   const [editando, setEditando] = useState<EventoCalendario | null>(null)
   const [verGoogle, setVerGoogle] = useState<EventoGCal | null>(null)
   const [cargandoGoogle, setCargandoGoogle] = useState(false)
   const [eventoAEliminar, setEventoAEliminar] = useState<EventoCalendario | null>(null)
 
   const conectado = cuentas.length > 0
+  const puedeEnviar = cuentas.some(c => (c.direccion ?? 'ambas') !== 'leer') // alguna cuenta acepta escritura
   const cambiarModo = (m: ModoCal) => { setModoVista(m); try { localStorage.setItem('pn_calendario_modo', m) } catch { /* noop */ } }
 
   useEffect(() => {
@@ -92,6 +95,7 @@ export default function CalendarioView() {
   }, [modoLocal])
 
   const diasVisibles = useMemo(() => {
+    if (modoVista === 'anio') return [] // resumen anual: no se cargan eventos de Google de todo el año
     if (modoVista === 'dia') return [fecha]
     if (modoVista === 'semana') { const ini = inicioSemana(fecha); return Array.from({ length: 7 }, (_, i) => sumarDias(ini, i)) }
     const [anio, mes] = fecha.split('-').map(Number)
@@ -107,13 +111,43 @@ export default function CalendarioView() {
     const desdeISO = new Date(diasVisibles[0] + 'T00:00:00').toISOString()
     const hastaISO = new Date(diasVisibles[diasVisibles.length - 1] + 'T23:59:59').toISOString()
     Promise.resolve().then(() => setCargandoGoogle(true))
-    listarEventosRango(desdeISO, hastaISO).then(r => setEventosGoogle(r.eventos)).catch(() => setEventosGoogle([])).finally(() => setCargandoGoogle(false))
+    const porRango = () => listarEventosRango(desdeISO, hastaISO).then(r => setEventosGoogle(r.eventos)).catch(() => setEventosGoogle([]))
+    // Camino principal: copia incremental por syncToken (solo baja lo que cambió). Si la Edge Function
+    // aún no soporta la acción, falla, o el rango visible queda fuera de la ventana sincronizada,
+    // se cae al listado por rango de siempre.
+    // Primera carga (copia fría): pinta ya con el listado por rango y calienta la copia en segundo plano.
+    if (!cacheCaliente()) {
+      porRango().finally(() => setCargandoGoogle(false))
+      sincronizarIncremental().catch(() => { /* sin soporte: se mantiene el listado por rango */ })
+      return
+    }
+    sincronizarIncremental()
+      .then(r => {
+        if (desdeISO < r.ventana.desde || hastaISO > r.ventana.hasta) return porRango()
+        const vivas = new Set(cuentas.map(c => c.id))
+        setEventosGoogle(enRango(r.eventos, desdeISO, hastaISO).filter(e => vivas.has(e.cuentaId)))
+        if (r.errores) Object.values(r.errores).forEach(m => toast.error(m))
+      })
+      .catch(porRango)
+      .finally(() => setCargandoGoogle(false))
   }
   useEffect(refrescarGoogle, [conectado, claveRango]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Eventos remotos que ya están representados localmente (pendiente agendado o EventoCalendario
   // con espejo): se ocultan para no duplicar el chip — el local es el editable/movible.
   const eventosGoogleVisibles = useMemo(() => sinDuplicarLocal(eventosGoogle, pendientes, eventos), [eventosGoogle, pendientes, eventos])
+
+  const fuentesConflicto = { pendientes, eventos, google: eventosGoogleVisibles, idCompletado }
+  const conflictosNuevo = useMemo(
+    () => (nuevo ? buscarConflictos({ fecha: nuevo.fecha, hora: nuevo.hora, duracionMin: Number(nuevoDuracion) || 30 }, fuentesConflicto) : []),
+    [nuevo, nuevoDuracion, pendientes, eventos, eventosGoogleVisibles, idCompletado], // eslint-disable-line react-hooks/exhaustive-deps
+  )
+  const conflictosEdicion = useMemo(
+    () => (editando ? buscarConflictos({ fecha: editando.fecha, hora: editando.hora, duracionMin: editando.duracionMin }, fuentesConflicto, editando.id) : []),
+    [editando, pendientes, eventos, eventosGoogleVisibles, idCompletado], // eslint-disable-line react-hooks/exhaustive-deps
+  )
+  const describir = (c: { titulo: string; inicio: Date; fin: Date; origen: string }) =>
+    `${c.origen === 'google' ? '🔒 ' : ''}${c.titulo} (${horaCorta(c.inicio)}–${horaCorta(c.fin)})`
 
   const avisarErrores = (errores?: Record<string, string>) => {
     if (!errores) return
@@ -122,7 +156,10 @@ export default function CalendarioView() {
 
   const pasoDias = modoVista === 'dia' ? 1 : modoVista === 'semana' ? 7 : 0
   const navegar = (dir: -1 | 1) => {
-    if (modoVista === 'mes') {
+    if (modoVista === 'anio') {
+      const [a, m] = fecha.split('-').map(Number)
+      setFecha(fechaISO(new Date(a + dir, m - 1, 1)))
+    } else if (modoVista === 'mes') {
       const [a, m] = fecha.split('-').map(Number)
       setFecha(fechaISO(new Date(a, m - 1 + dir, 1)))
     } else setFecha(f => sumarDias(f, dir * pasoDias))
@@ -136,8 +173,14 @@ export default function CalendarioView() {
     if (pid) {
       const p = pendientes.find(x => x.id === pid); if (!p) return
       const duracion = p.duracionMin || 15
+      const previo = { fechaLimite: p.fechaLimite, hora: p.hora, duracionMin: p.duracionMin }
+      const choques = buscarConflictos({ fecha: fechaDestino, hora: horaDestino, duracionMin: duracion }, fuentesConflicto, p.id)
       actualizarPendiente(p.id, { fechaLimite: fechaDestino, hora: horaDestino, duracionMin: duracion })
-      if (!conectado) return
+      if (choques.length) toast.warning('Se cruza con: ' + choques.slice(0, 3).map(describir).join(', '), {
+        action: { label: 'Deshacer', onClick: () => actualizarPendiente(p.id, previo) },
+      })
+      // Solo se actualiza en Google si el usuario ya lo había enviado allá (decisión explícita).
+      if (!conectado || !p.googleEventos || !Object.keys(p.googleEventos).length) return
       const origenCuentaId = proyectos.find(x => x.id === p.proyectoId)?.cuentaGoogleId
       setSincronizando(true)
       try {
@@ -151,8 +194,12 @@ export default function CalendarioView() {
     }
     if (eid) {
       const ev = eventos.find(x => x.id === eid); if (!ev) return
+      const choques = buscarConflictos({ fecha: fechaDestino, hora: horaDestino, duracionMin: ev.duracionMin }, fuentesConflicto, ev.id)
       actualizarEvento(ev.id, { fecha: fechaDestino, hora: horaDestino })
-      if (!conectado) return
+      if (choques.length) toast.warning('Se cruza con: ' + choques.slice(0, 3).map(describir).join(', '), {
+        action: { label: 'Deshacer', onClick: () => actualizarEvento(ev.id, { fecha: ev.fecha, hora: ev.hora }) },
+      })
+      if (!conectado || !ev.googleEventos || !Object.keys(ev.googleEventos).length) return
       setSincronizando(true)
       try {
         const r = await sincronizarEspejoGoogle({ hora: ev.hora, googleEventos: ev.googleEventos }, { titulo: ev.titulo, fecha: fechaDestino, hora: horaDestino, duracionMin: ev.duracionMin, descripcion: ev.descripcion }, ev.cuentaGoogleId, ev.soloEstaCuenta)
@@ -164,7 +211,7 @@ export default function CalendarioView() {
     }
   }
 
-  const abrirNuevo = (fechaSlot: string, horaSlot: string) => { setNuevo({ fecha: fechaSlot, hora: horaSlot }); setNuevoTitulo(''); setNuevoDuracion('30') }
+  const abrirNuevo = (fechaSlot: string, horaSlot: string) => { setNuevo({ fecha: fechaSlot, hora: horaSlot }); setNuevoTitulo(''); setNuevoDuracion('30'); setNuevoEnviar(false) }
 
   const crearEventoSuelto = async () => {
     const titulo = nuevoTitulo.trim()
@@ -172,7 +219,7 @@ export default function CalendarioView() {
     const duracionMin = Number(nuevoDuracion) || 30
     const creado = crearEvento({ titulo, fecha: nuevo.fecha, hora: nuevo.hora, duracionMin })
     setNuevo(null)
-    if (!conectado) return
+    if (!conectado || !nuevoEnviar) return
     setSincronizando(true)
     try {
       const r = await sincronizarEspejoGoogle({}, { titulo, fecha: nuevo.fecha, hora: nuevo.hora, duracionMin })
@@ -188,7 +235,7 @@ export default function CalendarioView() {
     const antes = eventos.find(x => x.id === editando.id)
     actualizarEvento(editando.id, { titulo: editando.titulo, hora: editando.hora, duracionMin: editando.duracionMin })
     setEditando(null)
-    if (!conectado || !antes) return
+    if (!conectado || !antes?.googleEventos || !Object.keys(antes.googleEventos).length) return
     setSincronizando(true)
     try {
       const r = await sincronizarEspejoGoogle({ hora: antes.hora, googleEventos: antes.googleEventos }, { titulo: editando.titulo, fecha: editando.fecha, hora: editando.hora, duracionMin: editando.duracionMin, descripcion: editando.descripcion }, editando.cuentaGoogleId, editando.soloEstaCuenta)
@@ -223,6 +270,7 @@ export default function CalendarioView() {
   const etiquetaRango = () => {
     if (modoVista === 'dia') { const d = new Date(fecha + 'T00:00:00'); return `${DIAS_CORTOS[d.getDay()]} ${d.getDate()} de ${nombreMes(d.getMonth())}` }
     if (modoVista === 'semana') { const ini = diasVisibles[0], fin = diasVisibles[6]; return `${ini.slice(8)} – ${fin.slice(8)} de ${nombreMes(Number(fin.slice(5, 7)) - 1)} ${fin.slice(0, 4)}` }
+    if (modoVista === 'anio') return fecha.slice(0, 4)
     const [a, m] = fecha.split('-').map(Number); return `${nombreMes(m - 1)} ${a}`
   }
 
@@ -230,6 +278,15 @@ export default function CalendarioView() {
 
   const renderColumnaDia = (iso: string) => {
     const { pends, evs, gs } = bloquesDelDia(iso)
+    // Bloques que se cruzan: lado a lado en columnas en vez de apilados uno sobre otro (ilegibles).
+    const lanes = asignarColumnas([
+      ...pends.map(p => ({ id: 'p' + p.id, ini: minDesdeInicio(p.hora!), fin: minDesdeInicio(p.hora!) + Math.max(p.duracionMin || 15, 20) })),
+      ...evs.map(e => ({ id: 'e' + e.id, ini: minDesdeInicio(e.hora), fin: minDesdeInicio(e.hora) + Math.max(e.duracionMin, 20) })),
+    ])
+    const carril = (id: string): React.CSSProperties => {
+      const l = lanes.get(id) ?? { col: 0, cols: 1 }
+      return { left: `calc(${(l.col / l.cols) * 100}% + 4px)`, width: `calc(${100 / l.cols}% - 8px)` }
+    }
     return (
       <div key={iso} className="relative flex-1" style={{ height: (HORA_FIN - HORA_INICIO) * PX_HORA, minWidth: anchoMinCol }}>
         <div className="absolute inset-0 flex flex-col">
@@ -257,8 +314,8 @@ export default function CalendarioView() {
             <ContextMenuTrigger asChild>
               <div draggable onDragStart={e => e.dataTransfer.setData('text/pendiente-id', p.id)}
                 onClick={() => abrirPeek(p.id)}
-                className="absolute left-1 right-1 cursor-grab overflow-hidden rounded-lg border border-primary/40 bg-primary/10 px-1.5 py-0.5 text-[11px] active:cursor-grabbing"
-                style={{ top: topPx(p.hora!), height: altoPx(p.duracionMin || 15) }}>
+                className="absolute cursor-grab overflow-hidden rounded-lg border border-primary/40 bg-primary/10 px-1.5 py-0.5 text-[11px] active:cursor-grabbing"
+                style={{ top: topPx(p.hora!), height: altoPx(p.duracionMin || 15), ...carril('p' + p.id) }}>
                 <span className="font-medium">{p.titulo}</span>
               </div>
             </ContextMenuTrigger>
@@ -270,8 +327,8 @@ export default function CalendarioView() {
             <ContextMenuTrigger asChild>
               <div draggable onDragStart={ev => ev.dataTransfer.setData('text/evento-id', e.id)}
                 onClick={() => setEditando(e)}
-                className="absolute left-1 right-1 cursor-grab overflow-hidden rounded-lg border border-accent2/50 bg-accent2/15 px-1.5 py-0.5 text-[11px] active:cursor-grabbing"
-                style={{ top: topPx(e.hora), height: altoPx(e.duracionMin) }}>
+                className="absolute cursor-grab overflow-hidden rounded-lg border border-accent2/50 bg-accent2/15 px-1.5 py-0.5 text-[11px] active:cursor-grabbing"
+                style={{ top: topPx(e.hora), height: altoPx(e.duracionMin), ...carril('e' + e.id) }}>
                 <span className="font-medium">{e.titulo}</span>
               </div>
             </ContextMenuTrigger>
@@ -289,10 +346,10 @@ export default function CalendarioView() {
     <div className="flex h-full flex-col gap-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <Card className="flex items-center gap-1 p-1 w-fit">
-          {(['dia', 'semana', 'mes'] as ModoCal[]).map(m => (
+          {(['dia', 'semana', 'mes', 'anio'] as ModoCal[]).map(m => (
             <button key={m} onClick={() => cambiarModo(m)}
               className={'rounded-md px-3 py-1 text-xs font-medium capitalize ' + (modoVista === m ? 'bg-primary text-primary-foreground' : 'hover:bg-accent')}>
-              {m}
+              {m === 'anio' ? 'año' : m}
             </button>
           ))}
         </Card>
@@ -311,7 +368,41 @@ export default function CalendarioView() {
         </div>
       )}
 
-      {modoVista === 'mes' ? (
+      {modoVista === 'anio' ? (
+        <Card className="min-h-0 flex-1 overflow-y-auto p-3 scroll-thin">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: 12 }, (_, mi) => {
+              const anio = Number(fecha.slice(0, 4))
+              const primero = new Date(anio, mi, 1)
+              const nDias = new Date(anio, mi + 1, 0).getDate()
+              const total = (iso: string) => pendientes.filter(p => p.fechaLimite === iso).length + eventos.filter(e => e.fecha === iso).length
+              const prefijo = `${anio}-${String(mi + 1).padStart(2, '0')}`
+              const delMes = pendientes.filter(p => p.fechaLimite?.startsWith(prefijo)).length + eventos.filter(e => e.fecha.startsWith(prefijo)).length
+              return (
+                <div key={mi}>
+                  <button onClick={() => { setFecha(`${prefijo}-01`); cambiarModo('mes') }} className="mb-1 flex w-full items-baseline justify-between text-left text-xs font-bold capitalize hover:text-primary">
+                    <span>{nombreMes(mi)}</span><span className="text-[10px] font-normal text-muted-foreground">{delMes} elemento{delMes === 1 ? '' : 's'}</span>
+                  </button>
+                  <div className="grid grid-cols-7 gap-0.5 text-center text-[9px]">
+                    {DIAS_CORTOS.map(d => <div key={d} className="text-muted-foreground">{d[0]}</div>)}
+                    {Array.from({ length: primero.getDay() }, (_, i) => <div key={'v' + i} />)}
+                    {Array.from({ length: nDias }, (_, i) => {
+                      const iso = `${prefijo}-${String(i + 1).padStart(2, '0')}`
+                      const n = total(iso)
+                      return (
+                        <button key={iso} onClick={() => irADia(iso)} title={n ? `${n} elemento${n === 1 ? '' : 's'}` : undefined}
+                          className={'rounded py-0.5 ' + (iso === hoyISO() ? 'ring-1 ring-primary ' : '') + (n === 0 ? 'hover:bg-accent' : n < 3 ? 'bg-primary/20 hover:bg-primary/30' : 'bg-primary/50 text-primary-foreground hover:bg-primary/60')}>
+                          {i + 1}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </Card>
+      ) : modoVista === 'mes' ? (
         <Card className="min-h-0 flex-1 overflow-y-auto p-2 scroll-thin">
           <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-bold text-muted-foreground">
             {DIAS_CORTOS.map(d => <div key={d}>{d}</div>)}
@@ -443,10 +534,23 @@ export default function CalendarioView() {
                 <SelectItem value="120">2 horas</SelectItem>
               </SelectContent>
             </Select>
+            {conectado && puedeEnviar && (
+              <label className="flex items-center gap-2 text-xs">
+                <input type="checkbox" checked={nuevoEnviar} onChange={e => setNuevoEnviar(e.target.checked)} />
+                Enviar también a Google Calendar
+              </label>
+            )}
+            {conflictosNuevo.length > 0 && (
+              <div role="alert" className="rounded-lg border border-amber-500/50 bg-amber-500/10 p-2 text-xs text-amber-700 dark:text-amber-300">
+                <p className="font-semibold">Se cruza con {conflictosNuevo.length === 1 ? '1 elemento' : `${conflictosNuevo.length} elementos`}:</p>
+                <ul className="list-disc pl-4">{conflictosNuevo.slice(0, 4).map(c => <li key={c.origen + c.id}>{describir(c)}</li>)}</ul>
+                <p className="mt-1 text-[11px]">Puedes cerrar y elegir otro horario, o crear el evento de todos modos.</p>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="secondary" onClick={() => setNuevo(null)}>Cancelar</Button>
-            <Button onClick={crearEventoSuelto} disabled={!nuevoTitulo.trim()}>Crear evento</Button>
+            <Button onClick={crearEventoSuelto} disabled={!nuevoTitulo.trim()}>{conflictosNuevo.length ? 'Crear de todos modos' : 'Crear evento'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -470,6 +574,12 @@ export default function CalendarioView() {
                   </SelectContent>
                 </Select>
               </div>
+              {conflictosEdicion.length > 0 && (
+                <div role="alert" className="rounded-lg border border-amber-500/50 bg-amber-500/10 p-2 text-xs text-amber-700 dark:text-amber-300">
+                  <p className="font-semibold">Se cruza con:</p>
+                  <ul className="list-disc pl-4">{conflictosEdicion.slice(0, 4).map(c => <li key={c.origen + c.id}>{describir(c)}</li>)}</ul>
+                </div>
+              )}
             </div>
           )}
           <DialogFooter className="flex items-center sm:justify-between">

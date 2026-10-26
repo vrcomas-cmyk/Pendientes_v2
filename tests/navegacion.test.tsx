@@ -62,27 +62,51 @@ beforeEach(() => {
 });
 
 describe("F2.1 — «Espacios» como 5º destino primario (TDD, tests RED)", () => {
-  it("el sidebar de escritorio lista los 5 destinos primarios en orden: Hoy, Inbox, Proyectos, Notas, Espacios", async () => {
+  it("el sidebar de escritorio lista los 4 destinos primarios en orden: Hoy, Pendientes, Planear, Notas", async () => {
     renderApp();
     const nav = await screen.findByRole("navigation", { name: /Navegación principal/i });
     // Filtramos las etiquetas exactas de los destinos primarios sobre TODOS los botones del
     // sidebar (en orden de aparición en el DOM) y exigimos la secuencia exacta del PDS.
-    const esperado = ["Hoy", "Inbox", "Proyectos", "Notas", "Espacios"];
+    const esperado = ["Hoy", "Pendientes", "Planear", "Notas"];
     const etiquetas = within(nav)
       .getAllByRole("button")
-      .map(b => b.textContent!.trim())
+      .map(b => b.textContent!.trim().replace(/\d+$/, "")) // «Pendientes» lleva un contador al final
       .filter(t => (esperado as string[]).includes(t));
     expect(etiquetas).toEqual(esperado);
   });
 
-  it("«Pendientes» ya no es destino primario: queda bajo el encabezado «Trabajo»", async () => {
+  it("«Pendientes» unifica la antigua bandeja Inbox: es destino primario (antes del encabezado «Trabajo») y ya no hay botón «Inbox»", async () => {
     renderApp();
     const nav = await screen.findByRole("navigation", { name: /Navegación principal/i });
     const trabajo = within(nav).getAllByText("Trabajo", { exact: true })[0];
-    const pendientes = within(nav).getByRole("button", { name: "Pendientes" });
-    // El botón «Pendientes» debe venir DESPUÉS del encabezado «Trabajo» (bit FOLLOWING de
-    // compareDocumentPosition).
-    expect(trabajo.compareDocumentPosition(pendientes) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const pendientes = within(nav).getByRole("button", { name: /^Pendientes/ });
+    // «Pendientes» debe venir ANTES del encabezado «Trabajo» (bit PRECEDING de compareDocumentPosition).
+    expect(trabajo.compareDocumentPosition(pendientes) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
+    expect(within(nav).queryByRole("button", { name: /^Inbox/ })).toBeNull();
+  });
+
+  it("«Planear» agrupa Proyectos · Metas · Rocas · Espacios con pestañas planas y recuerda la última usada", async () => {
+    renderApp();
+    const main = await screen.findByRole("main");
+    const user = (await import("@testing-library/user-event")).default.setup();
+    await user.click(await screen.findByRole("button", { name: /^Planear/ }));
+    const tabs = await screen.findByRole("tablist", { name: "Planear" });
+    expect(within(tabs).getAllByRole("tab").map(t => t.textContent)).toEqual(["Proyectos", "Metas", "Rocas", "Espacios"]);
+    await user.click(within(tabs).getByRole("tab", { name: "Metas" }));
+    await waitFor(() => expect(within(main).getByText(/Todavía no tienes metas/)).toBeTruthy());
+    await user.click(within(tabs).getByRole("tab", { name: "Rocas" }));
+    expect(await within(main).findByText(/Crea una roca por cada KPI/, {}, { timeout: 4000 })).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: /^Hoy/ }));
+    await user.click(screen.getByRole("button", { name: /^Planear/ })); // vuelve a la última pestaña (Rocas)
+    expect(await within(main).findByText(/Crea una roca por cada KPI/, {}, { timeout: 4000 })).toBeTruthy();
+  });
+
+  it("el atajo 6 (alias de Inbox) abre Pendientes con el filtro «Sin fecha» activo", async () => {
+    renderApp();
+    const main = await screen.findByRole("main");
+    pulsarNumero("6");
+    const chip = await within(main).findByRole("button", { name: /Sin fecha/ });
+    await waitFor(() => expect(chip.className).toMatch(/bg-primary/));
   });
 
   it("el atajo numérico 5 muestra la vista Espacios con título, «Todos» y tarjetas de espacio", async () => {

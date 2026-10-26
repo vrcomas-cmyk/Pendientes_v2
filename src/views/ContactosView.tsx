@@ -57,7 +57,7 @@ export default function ContactosView() {
         {filtrados.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-sm text-muted-foreground">
             <Users size={28} className="text-muted-foreground/50" />
-            <p>{activos.length === 0 ? 'Todavía no tenés contactos. Creá el primero.' : 'Sin resultados para esa búsqueda.'}</p>
+            <p>{activos.length === 0 ? 'Todavía no tienes contactos. Crea el primero.' : 'Sin resultados para esa búsqueda.'}</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">

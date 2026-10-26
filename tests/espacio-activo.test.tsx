@@ -83,11 +83,19 @@ async function elegirEnMenu(menu: HTMLElement, texto: string | RegExp) {
     fija `espacioActualId` en el store y entra en Proyectos. Aísla el RED al filtro/sidebar. */
 async function activarEspacio(main: HTMLElement, nombre: string) {
   const user = userEvent.setup()
-  await user.click(screen.getByRole('button', { name: /^Espacios$/ }))
+  await user.click(screen.getByRole('button', { name: /^Planear/ }))
+  await user.click(screen.getByRole('tab', { name: /^Espacios$/ }))
   await waitFor(() => expect(within(main).getByRole('heading', { name: /^Espacios$/ })).toBeTruthy())
   await user.click(within(main).getByText(nombre))
   // ProyectosView tiene DOS headings "Proyectos" (header de vista + título del panel de lista).
   await waitFor(() => expect(within(main).getAllByRole('heading', { name: /^Proyectos$/ }).length).toBeGreaterThan(0))
+}
+
+// La antigua bandeja Inbox ahora es Pendientes con el filtro «Sin fecha».
+const abrirSinFecha = async (main: HTMLElement) => {
+  await irAVista('Pendientes')
+  const user = userEvent.setup()
+  await user.click(await within(main).findByRole('button', { name: /Sin fecha/ }))
 }
 
 const irAVista = async (nombre: string) => {
@@ -105,7 +113,7 @@ describe('E2-F2 — Selector «Espacio activo» + filtro de contexto (TDD, tests
     renderApp({ espacios: [espTrabajo, espCasa], proyectos })
     const nav = await screen.findByRole('navigation', { name: /Navegación principal/i })
     const selector = within(nav).getByRole('button', { name: /Espacio activo: Todos/i })
-    const botonEspacios = within(nav).getByRole('button', { name: /^Espacios$/ })
+    const botonEspacios = within(nav).getByRole('button', { name: /^Planear/ })
     // El encabezado de la sección de vistas de trabajo («Trabajo») es un div; el selector de
     // espacio activo debe venir ANTES (FOLLOWING) del encabezado «Trabajo».
     const trabajo = within(nav).getAllByText('Trabajo', { exact: true }).find(el => el.tagName === 'DIV')!
@@ -147,8 +155,7 @@ describe('E2-F2 — Selector «Espacio activo» + filtro de contexto (TDD, tests
     renderApp({ espacios: [espTrabajo, espCasa], proyectos, pendientes: pendientesInbox })
     const main = await screen.findByRole('main')
     await activarEspacio(main, 'Trabajo')
-    irAVista('Inbox')
-    await waitFor(() => expect(within(main).getByRole('heading', { name: /^Inbox$/ })).toBeTruthy())
+    await abrirSinFecha(main)
     // p-reporte → Trabajo: SÍ aparece
     expect(within(main).getAllByText('Llamar al proveedor').length).toBeGreaterThan(0)
     // p-casa → otro espacio, p-general → sin espacio (General), sin proyectoId → NO aparecen
@@ -188,8 +195,7 @@ describe('E2-F2 — Selector «Espacio activo» + filtro de contexto (TDD, tests
     renderApp({ espacios: [espTrabajo, espCasa], proyectos, pendientes: pendientesInbox })
     const main = await screen.findByRole('main')
     await activarEspacio(main, 'Trabajo')
-    await irAVista('Inbox')
-    await waitFor(() => expect(within(main).getByRole('heading', { name: /^Inbox$/ })).toBeTruthy())
+    await abrirSinFecha(main)
     // Wait for sidebar selector to reflect the active space
     const nav = navSidebar()
     await waitFor(() => expect(within(nav).getByRole('button', { name: /Espacio activo:.*Trabajo/i })).toBeTruthy())

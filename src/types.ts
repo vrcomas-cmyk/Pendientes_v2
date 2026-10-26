@@ -47,6 +47,7 @@ export interface Pendiente {
   bloqueadoPor?: string[] // ids de otros Pendiente que deben completarse antes (Fase 8.5, dependencias)
   tiempoTotalMin?: number // minutos acumulados de trabajo real (Fase 9.2, time tracking opcional)
   tiempoInicio?: string   // ISO: si está seteado, el timer está corriendo desde esa marca; ausente = pausado
+  fechaInicio?: string    // YYYY-MM-DD: inicio planeado (barra del Gantt); sin él se usa la fecha de creación
   ponderacion?: number    // porcentaje (0-100) que vale la entrega, ej. para planes de estudio importados
   modalidad?: 'individual' | 'equipo'
   responsableId?: string  // Fase 1 (Contactos): referencia a Contacto.id; `responsable` (string) se mantiene como espejo/fallback
@@ -97,6 +98,11 @@ export interface Proyecto {
   espacioId?: string      // referencia a Espacio.id; sin asignar cae en el Espacio "General" implícito (Fase 4)
   metaId?: string         // referencia a Meta.id (plan de Contactos/Equipos/Metas, ver workspace-doctrine); sin asignar no cuenta para el progreso de ninguna meta
   archivado?: boolean
+  // Hito 4 (todos opcionales): el método es una PERSPECTIVA sobre los mismos pendientes, no otra lista.
+  metodo?: 'tablero' | 'lista' | 'scrum' | 'gantt'
+  sprint?: { nombre?: string; inicio: string; fin: string }  // iteración actual (Scrum): ventana de fechas
+  estancamientoDias?: number   // días sin actividad con trabajo abierto para avisar (def. 14)
+  pausadoHasta?: string        // YYYY-MM-DD: no avisar estancamiento hasta esa fecha (vacaciones/espera)
   creado: string
   modificado: string
 }
@@ -193,7 +199,37 @@ export interface Meta {
   modificado: string
 }
 
-export const META_ICONOS = ['🎯', '🚀', '⭐', '🏆', '📈', '💪', '🌱', '🔭', '🧭', '🏔️']
+/** Entrada de la bitácora de una Roca: «hoy me pidieron tal cosa». Vive DENTRO de `Roca.actividades`
+    (un solo documento sincronizado); el merge une las actividades por id entre dispositivos. */
+export interface ActividadRoca {
+  id: string
+  fecha: string             // YYYY-MM-DD
+  descripcion: string
+  solicitante?: string      // quién lo pidió
+  pendienteId?: string      // vínculo opcional a un Pendiente existente (no se duplica)
+  borrado?: boolean         // tombstone para que el borrado se propague al unir
+  creado: string
+  modificado: string
+}
+
+/** Roca / KPI de un periodo (trimestre u otro rango libre) con bitácora de actividades. */
+export interface Roca {
+  id: string
+  nombre: string
+  descripcion?: string
+  etiquetaActividad?: string  // cómo se llama lo que se cuenta, ej. «Ayudas generadas» (def. «Actividades»)
+  objetivo?: number           // meta numérica opcional de actividades en el periodo
+  fechaInicio: string         // YYYY-MM-DD
+  fechaFin: string            // YYYY-MM-DD
+  ambito?: 'laboral' | 'personal' | 'estudio'
+  estado?: 'activa' | 'cerrada'
+  actividades: ActividadRoca[]
+  borrado?: boolean
+  creado: string
+  modificado: string
+}
+
+export const META_ICONOS =['🎯', '🚀', '⭐', '🏆', '📈', '💪', '🌱', '🔭', '🧭', '🏔️']
 
 /** Columna del tablero Kanban: antes era un `enum` fijo, ahora es un dato moldeable por el usuario
     (nombre, color, orden) guardado en el espacio compartido (`pnp_espacios.config.columnas`) — así
@@ -217,7 +253,7 @@ export const PRIORIDAD_BORDER: Record<Prioridad, string> = {
   Alta: 'border-l-red-500', Media: 'border-l-amber-400', Baja: 'border-l-emerald-400',
 }
 
-export type FiltroFecha = 'todos' | 'abiertos' | 'vencidos' | 'hoy' | 'semana'
+export type FiltroFecha = 'todos' | 'abiertos' | 'vencidos' | 'hoy' | 'semana' | 'sin_fecha'
 
 /** Plantilla de pendiente reutilizable (Fase 8.6): captura los campos que tiene sentido repetir
     (no fecha ni estado, que dependen del momento en que se instancia). */

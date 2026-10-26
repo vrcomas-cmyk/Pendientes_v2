@@ -2,13 +2,15 @@ import { useState } from 'react'
 import { useApp } from '@/store'
 import { colorColumna } from '@/lib/columnas'
 import { PROYECTO_COLORES, PROYECTO_COLORES_KEYS } from '@/types'
+import { esPendienteDeEjemplo, esNotaDeEjemplo } from '@/lib/app-utils'
 import { ACENTOS, leerAcento, guardarAcento, aplicarAcento } from '@/lib/tema'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Moon, Sun, Settings2, Tag, X, Plus, Bookmark, Bell } from 'lucide-react'
+import { Moon, Sun, Settings2, Tag, X, Plus, Bookmark, Bell, Mail } from 'lucide-react'
 import { recordatoriosActivos, setRecordatoriosActivos } from '@/hooks/use-recordatorios-locales'
 import { toast } from 'sonner'
+import ResumenCorreoSeccion from '@/components/ResumenCorreoSeccion'
 
 /** Panel centralizado de personalización: tema, color de acento, y un resumen de las columnas del
     Kanban (edición completa — renombrar/recolorear/reordenar/añadir/eliminar — vive en el propio
@@ -22,8 +24,9 @@ export default function AjustesDialog({
   toggleDark: () => void
   onIrTablero: () => void
 }) {
-  const { columnas, etiquetas, crearEtiqueta, actualizarEtiqueta, eliminarEtiqueta, plantillas, eliminarPlantilla } = useApp()
+  const { pendientes, notas, quitarDatosDeEjemplo, columnas, etiquetas, crearEtiqueta, actualizarEtiqueta, eliminarEtiqueta, plantillas, eliminarPlantilla } = useApp()
   const [acento, setAcento] = useState(leerAcento)
+  const nEjemplos = pendientes.filter(p => !p.borrado && esPendienteDeEjemplo(p)).length + notas.filter(n => !n.borrado && esNotaDeEjemplo(n)).length
   const [etiquetaVal, setEtiquetaVal] = useState('')
   const [recordatorios, setRecordatorios] = useState(recordatoriosActivos)
 
@@ -102,6 +105,21 @@ export default function AjustesDialog({
             Avisan de pendientes con hora agendada, vía notificación del navegador. Sin servidor de
             push: solo funcionan mientras esta pestaña siga abierta (puede estar en segundo plano).
           </p>
+        </div>
+
+        {nEjemplos > 0 && (
+          <div className="space-y-1.5">
+            <p className="text-[11px] uppercase text-muted-foreground">Datos de ejemplo</p>
+            <p className="text-[11px] text-muted-foreground">Al estrenar, la app crea {nEjemplos} elemento(s) de muestra (pendientes y una nota). No son tuyos.</p>
+            <Button size="sm" variant="secondary" onClick={() => { const n = quitarDatosDeEjemplo(); toast.success(`${n} elemento(s) de ejemplo enviados a la papelera`) }}>
+              Quitar datos de ejemplo ({nEjemplos})
+            </Button>
+          </div>
+        )}
+
+        <div className="space-y-1.5">
+          <p className="flex items-center gap-1 text-[11px] uppercase text-muted-foreground"><Mail size={11} /> Resumen por correo</p>
+          <ResumenCorreoSeccion />
         </div>
 
         <div className="space-y-1.5">

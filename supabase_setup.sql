@@ -160,6 +160,56 @@ create table if not exists pnp_ctx_contactos (
 );
 create index if not exists idx_ctx_contactos_espacio on pnp_ctx_contactos(espacio_id);
 
+-- pnp_ctx_rocas: la entidad `Roca` (Hito 5) con su bitácora de actividades embebida en `data`
+-- (data.actividades). Mismo sobre genérico que pnp_ctx_contactos; el cliente une las
+-- actividades por id al sincronizar (src/lib/rocas.ts -> mergeRoca).
+create table if not exists pnp_ctx_rocas (
+  id         uuid primary key,
+  user_id    uuid not null references auth.users(id) on delete cascade,
+  espacio_id uuid not null references pnp_espacios(id) on delete cascade,
+  data       jsonb not null,
+  updated_at timestamptz not null default now()
+);
+create index if not exists idx_ctx_rocas_espacio on pnp_ctx_rocas(espacio_id);
+
+-- ----------------------------------------------------------------------------
+-- Resúmenes por correo (Hito 3). Los envía la Edge Function `resumen-correo` (cron + proveedor
+-- transaccional); el navegador solo guarda preferencias. `pnp_resumen_envios` hace los envíos
+-- IDEMPOTENTES: la restricción única (user_id, tipo, clave) impide dos correos del mismo día/semana.
+create table if not exists pnp_resumen_prefs (
+  user_id       uuid primary key references auth.users(id) on delete cascade,
+  email         text not null,
+  activo        boolean not null default false,
+  diario        boolean not null default true,
+  semanal       boolean not null default true,
+  hora_local    text not null default '07:00' check (hora_local ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'),
+  zona          text not null default 'America/Mexico_City',
+  dias          int[] not null default '{1,2,3,4,5}',
+  pausado_hasta date,
+  token_baja    uuid not null default gen_random_uuid() unique,
+  actualizado   timestamptz not null default now()
+);
+create table if not exists pnp_resumen_envios (
+  id          bigserial primary key,
+  user_id     uuid not null references auth.users(id) on delete cascade,
+  tipo        text not null check (tipo in ('diario', 'semanal')),
+  clave       text not null,
+  estado      text not null check (estado in ('enviando', 'enviado', 'error', 'omitido')),
+  intentos    int not null default 1,
+  error       text,
+  creado      timestamptz not null default now(),
+  actualizado timestamptz not null default now(),
+  unique (user_id, tipo, clave)
+);
+alter table pnp_resumen_prefs  enable row level security;
+alter table pnp_resumen_envios enable row level security;
+drop policy if exists "resumen prefs propias" on pnp_resumen_prefs;
+create policy "resumen prefs propias" on pnp_resumen_prefs
+  for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+drop policy if exists "resumen envios propios (lectura)" on pnp_resumen_envios;
+create policy "resumen envios propios (lectura)" on pnp_resumen_envios
+  for select using (user_id = auth.uid());
+
 -- ----------------------------------------------------------------------------
 -- pnp_google_calendar: tokens OAuth de las cuentas de Google conectadas. Solo
 -- la Edge Function (supabase/functions/google-calendar) la toca, siempre con
@@ -181,6 +231,17 @@ create table if not exists pnp_google_calendar (
   unique (espacio_id, google_email)
 );
 
+-- Dirección de sincronización por cuenta (Hito 2): 'ambas' (default), 'leer' (solo trae eventos de
+-- Google para verlos en la app) o 'enviar' (solo manda lo agendado en la app a Google).
+-- google_sub = id estable de la cuenta Google, guardado al confirmar al propietario (login + consentimiento).
+alter table pnp_google_calendar add column if not exists direccion text not null default 'ambas';
+alter table pnp_google_calendar drop constraint if exists pnp_google_calendar_direccion_check;
+alter table pnp_google_calendar add constraint pnp_google_calendar_direccion_check check (direccion in ('ambas', 'leer', 'enviar'));
+alter table pnp_google_calendar add column if not exists google_sub text;
+-- escritura = la cuenta tiene permiso de escritura (calendar.events). false = conectada solo para ver
+-- (calendar.events.readonly): la app nunca escribe en ella. Las cuentas existentes ya tenían escritura.
+alter table pnp_google_calendar add column if not exists escritura boolean not null default true;
+
 -- ============================================================================
 -- RLS: todas las tablas de dominio son visibles/editables por cualquier
 -- miembro del mismo espacio (padre e hija comparten datos), no solo por quien
@@ -195,6 +256,7 @@ alter table pnp_proyectos         enable row level security;
 alter table pnp_eventos           enable row level security;
 alter table pnp_ctx_espacios      enable row level security;
 alter table pnp_ctx_contactos     enable row level security;
+alter table pnp_ctx_rocas         enable row level security;
 alter table pnp_google_calendar   enable row level security;
 
 -- Helper: ids de espacio a los que pertenece el usuario autenticado.
@@ -253,6 +315,10 @@ create policy "miembros CRUD ctx_espacios de su espacio" on pnp_ctx_espacios
 
 drop policy if exists "miembros CRUD ctx_contactos de su espacio" on pnp_ctx_contactos;
 create policy "miembros CRUD ctx_contactos de su espacio" on pnp_ctx_contactos
+  for all using (espacio_id in (select pnp_mis_espacios())) with check (espacio_id in (select pnp_mis_espacios()));
+
+drop policy if exists "miembros CRUD ctx_rocas de su espacio" on pnp_ctx_rocas;
+create policy "miembros CRUD ctx_rocas de su espacio" on pnp_ctx_rocas
   for all using (espacio_id in (select pnp_mis_espacios())) with check (espacio_id in (select pnp_mis_espacios()));
 
 -- pnp_google_calendar: sin políticas para 'authenticated'/'anon' → deny-all por
@@ -348,6 +414,9 @@ begin
   end if;
   if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and tablename = 'pnp_ctx_contactos') then
     alter publication supabase_realtime add table pnp_ctx_contactos;
+  end if;
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and tablename = 'pnp_ctx_rocas') then
+    alter publication supabase_realtime add table pnp_ctx_rocas;
   end if;
   if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and tablename = 'pnp_espacios') then
     alter publication supabase_realtime add table pnp_espacios;

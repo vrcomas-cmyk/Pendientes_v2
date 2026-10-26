@@ -76,7 +76,7 @@ export default function PaletaComandos({
           <CommandSeparator />
           <CommandGroup heading="Ir a">
             <CommandItem onSelect={() => ejecutar(() => onIrVista('hoy'))}><Star /> Hoy</CommandItem>
-            <CommandItem onSelect={() => ejecutar(() => onIrVista('inbox'))}><InboxIcon /> Inbox</CommandItem>
+            <CommandItem onSelect={() => ejecutar(() => onIrVista('inbox'))}><InboxIcon /> Pendientes sin fecha (Inbox)</CommandItem>
             <CommandItem onSelect={() => ejecutar(() => onIrVista('pendientes'))}><ListTodo /> Pendientes</CommandItem>
             <CommandItem onSelect={() => ejecutar(() => onIrVista('notas'))}><StickyNote /> Notas</CommandItem>
             <CommandItem onSelect={() => ejecutar(() => onIrVista('proyectos'))}><Briefcase /> Proyectos</CommandItem>

@@ -317,3 +317,38 @@ describe("ausenciasSospechosas — circuito de seguridad contra purga masiva (H1
     expect(ausenciasSospechosas(local, new Set(), last, 3)).toBe(false);
   });
 });
+
+import { olvidarAusentes, ausenciasSospechosas } from '@/lib/sync-merge'
+import { esPendienteDeEjemplo, esNotaDeEjemplo } from '@/lib/app-utils'
+
+describe('auto-reparación de ausencias sospechosas', () => {
+  const local = Array.from({ length: 8 }, (_, i) => ({ id: 'p' + i }))
+  const mapa = () => Object.fromEntries(local.map(l => [l.id, 't'])) as Record<string, string>
+
+  it('olvida solo lo que la nube no devolvió para que se vuelva a subir, sin tocar lo local', () => {
+    const m = mapa()
+    const remoto = new Set(['p0', 'p1'])
+    expect(ausenciasSospechosas(local, remoto, m)).toBe(true)
+    const ids = olvidarAusentes(local, remoto, m)
+    expect(ids.sort()).toEqual(['p2', 'p3', 'p4', 'p5', 'p6', 'p7'])
+    expect(Object.keys(m).sort()).toEqual(['p0', 'p1'])
+    expect(local.length).toBe(8)
+    // tras restaurarse en la nube ya no es sospechoso → el aviso deja de repetirse
+    expect(ausenciasSospechosas(local, new Set(local.map(l => l.id)), mapa())).toBe(false)
+  })
+  it('lo que nunca se había sincronizado no se toca', () => {
+    const m: Record<string, string> = { p0: 't' }
+    expect(olvidarAusentes(local, new Set(), m)).toEqual(['p0'])
+  })
+})
+
+describe('datos de ejemplo', () => {
+  it('reconoce los pendientes y la nota que siembra la app, y no los de verdad', () => {
+    expect(esPendienteDeEjemplo({ titulo: 'Enviar reporte mensual', descripcion: 'Incluir cierre de ventas y comodatos.', solicitante: 'Liz' })).toBe(true)
+    expect(esPendienteDeEjemplo({ titulo: 'Revisar inventario PROTEC', descripcion: '', solicitante: '' })).toBe(true)
+    expect(esPendienteDeEjemplo({ titulo: 'Enviar reporte mensual', descripcion: 'Otro texto', solicitante: 'Ana' })).toBe(false)
+    expect(esPendienteDeEjemplo({ titulo: 'Revisar inventario PROTEC', descripcion: 'con detalles míos', solicitante: '' })).toBe(false)
+    expect(esNotaDeEjemplo({ titulo: 'Reunión semanal', contenidoHTML: '<div>Temas para revisar esta semana:</div><div>- x</div>' })).toBe(true)
+    expect(esNotaDeEjemplo({ titulo: 'Reunión semanal', contenidoHTML: '<div>Mis notas reales</div>' })).toBe(false)
+  })
+})

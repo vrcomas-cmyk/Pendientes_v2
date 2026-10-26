@@ -40,7 +40,7 @@ export default function MetasView() {
         {activas.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-sm text-muted-foreground">
             <Target size={28} className="text-muted-foreground/50" />
-            <p>Todavía no tenés metas. Agrupá tus proyectos bajo un objetivo de largo plazo.</p>
+            <p>Todavía no tienes metas. Agrupa tus proyectos bajo un objetivo de largo plazo.</p>
             <Button size="sm" variant="secondary" onClick={() => setDlgNueva(true)}><Plus size={13} className="mr-1" /> Crear la primera</Button>
           </div>
         ) : (

@@ -2,7 +2,17 @@ import { FunctionsHttpError } from '@supabase/supabase-js'
 import { getSupabase } from '@/lib/supabase'
 import { getGoogleClientId, isGoogleConfigurado } from '@/lib/googleCalendarConfig'
 
-const SCOPE = 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/userinfo.email'
+const SCOPE_BASE = 'https://www.googleapis.com/auth/userinfo.email'
+const SCOPE_ESCRITURA = 'https://www.googleapis.com/auth/calendar.events'
+const SCOPE_LECTURA = 'https://www.googleapis.com/auth/calendar.events.readonly'
+const CLAVE_STATE = 'gcal_oauth_state'
+const CLAVE_DIRECCION = 'gcal_oauth_direccion'
+
+/** Permisos mínimos según lo que el usuario quiere hacer con la cuenta: solo ver → lectura; enviar o
+    ambas → escritura (que ya incluye leer). Se pide en contexto, no «por si acaso». */
+export function scopeParaDireccion(direccion: 'ambas' | 'leer' | 'enviar'): string {
+  return `${direccion === 'leer' ? SCOPE_LECTURA : SCOPE_ESCRITURA} ${SCOPE_BASE}`
+}
 
 export { isGoogleConfigurado }
 
@@ -13,20 +23,32 @@ function redirectUri(): string {
   return window.location.origin + '/'
 }
 
+/** `state` anti-CSRF: se guarda en sessionStorage y el regreso solo se procesa si coincide. Además
+    evita confundir este `?code=` con el del inicio de sesión de Supabase (también vuelve con code). */
+function crearState(): string {
+  const arr = new Uint8Array(16)
+  crypto.getRandomValues(arr)
+  const s = 'gcal_' + Array.from(arr, b => b.toString(16).padStart(2, '0')).join('')
+  try { sessionStorage.setItem(CLAVE_STATE, s) } catch { /* noop */ }
+  return s
+}
+
 /** Navega a la pantalla de consentimiento de Google. `prompt=consent select_account` fuerza que
     Google siempre pida elegir cuenta y devuelva un refresh_token — imprescindible para conectar
     una SEGUNDA cuenta sin que Google reuse en silencio la sesión de la primera. */
-export function iniciarConexionGoogle() {
+export function iniciarConexionGoogle(direccion: 'ambas' | 'leer' | 'enviar' = 'ambas') {
   const clientId = getGoogleClientId()
   if (!clientId) throw new Error('Falta configurar el Client ID de Google (ver guía de conexión)')
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: redirectUri(),
     response_type: 'code',
-    scope: SCOPE,
+    scope: scopeParaDireccion(direccion),
     access_type: 'offline',
     prompt: 'consent select_account',
+    state: crearState(),
   })
+  try { sessionStorage.setItem(CLAVE_DIRECCION, direccion) } catch { /* noop */ }
   window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`
 }
 
@@ -53,13 +75,24 @@ async function invocar<T>(action: string, body: Record<string, unknown> = {}): P
 export async function manejarCallbackOAuth(): Promise<{ id: string; email: string } | null> {
   const url = new URL(window.location.href)
   const code = url.searchParams.get('code')
-  if (!code) return null
+  const state = url.searchParams.get('state')
+  if (!code || !state || !state.startsWith('gcal_')) return null // no es nuestro regreso (p. ej. login Supabase): no tocar la URL
+  let esperado: string | null = null
+  try { esperado = sessionStorage.getItem(CLAVE_STATE); sessionStorage.removeItem(CLAVE_STATE) } catch { /* noop */ }
+  if (!esperado || esperado !== state) {
+    url.searchParams.delete('code'); url.searchParams.delete('scope'); url.searchParams.delete('state')
+    window.history.replaceState(null, '', url.toString())
+    throw new Error('La autorización de Google no es válida o caducó. Vuelve a intentar conectar la cuenta.')
+  }
   url.searchParams.delete('code'); url.searchParams.delete('scope'); url.searchParams.delete('state')
   window.history.replaceState(null, '', url.toString())
-  return invocar('exchange', { code, redirect_uri: redirectUri() })
+  let direccion: string | null = null
+  try { direccion = sessionStorage.getItem(CLAVE_DIRECCION); sessionStorage.removeItem(CLAVE_DIRECCION) } catch { /* noop */ }
+  return invocar('exchange', { code, redirect_uri: redirectUri(), direccion: direccion ?? undefined })
 }
 
-export interface CuentaGoogle { id: string; email: string; modoEspejo: 'todo' | 'propio' }
+export type DireccionSync = 'ambas' | 'leer' | 'enviar'
+export interface CuentaGoogle { id: string; email: string; modoEspejo: 'todo' | 'propio'; direccion?: DireccionSync; verificada?: boolean; escritura?: boolean }
 
 /** Todas las cuentas de Google Calendar conectadas para el usuario actual (puede haber varias). */
 export async function listarCuentasGoogle(): Promise<{ configurado: boolean; cuentas: CuentaGoogle[]; error?: string }> {
@@ -74,17 +107,32 @@ export async function desconectarGoogle(cuentaId: string): Promise<void> {
 
 /** 'todo' = refleja cualquier pendiente agendado; 'propio' = solo los de proyectos que tengan
     esta cuenta como dueña. */
+export async function actualizarDireccion(cuentaId: string, direccion: DireccionSync): Promise<void> {
+  await invocar('set-direccion', { connectionId: cuentaId, direccion })
+}
+
 export async function actualizarModoEspejo(cuentaId: string, modo: 'todo' | 'propio'): Promise<void> {
   await invocar('set-modo', { connectionId: cuentaId, modo })
 }
 
-export interface EventoGCal { id: string; cuentaId: string; email: string; titulo: string; inicio?: string; fin?: string; todoElDia: boolean }
+export interface EventoGCal { id: string; cuentaId: string; email: string; titulo: string; inicio?: string; fin?: string; todoElDia: boolean
+  uid?: string       // iCalUID: igual en todas las cuentas que comparten el mismo evento
+  ocupado?: boolean  // false = marcado «disponible» en Google (no bloquea horario); ausente = ocupado
+}
 interface RespuestaConErrores { errores?: Record<string, string> }
 
 /** Eventos de un rango arbitrario (de TODAS las cuentas conectadas, fusionados) para pintar los
     bloques "ocupado" en día/semana/mes. `desdeISO`/`hastaISO` son instantes ISO completos. */
 export async function listarEventosRango(desdeISO: string, hastaISO: string): Promise<{ eventos: EventoGCal[]; errores?: Record<string, string> }> {
   return invocar<{ eventos: EventoGCal[]; errores?: Record<string, string> }>('list-events', { desdeISO, hastaISO })
+}
+
+export interface CambioGCal extends Partial<EventoGCal> { id: string; cuentaId: string; email: string; cancelado: boolean }
+export interface RespuestaSync { cambios: CambioGCal[]; tokens: Record<string, string>; completos: string[]; leidas?: string[]; errores?: Record<string, string> }
+
+/** Sincronización incremental por cuenta (syncToken). Ver `accionSyncEvents` en la Edge Function. */
+export async function sincronizarEventosGoogle(tokens: Record<string, string | null>, ventanaDesdeISO: string, ventanaHastaISO: string): Promise<RespuestaSync> {
+  return invocar<RespuestaSync>('sync-events', { tokens, ventanaDesdeISO, ventanaHastaISO })
 }
 
 /** Eventos de un solo día. El rango se calcula en hora LOCAL del usuario, no en UTC fijo, para no

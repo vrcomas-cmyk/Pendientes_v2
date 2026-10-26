@@ -30,13 +30,14 @@ beforeEach(() => {
 });
 
 describe("Pendientes/Panel/Contactos/Metas como filas directas en escritorio (TDD, tests RED)", () => {
-  it("el sidebar lista Panel, Contactos y Metas como filas directas (sin abrir el menú)", async () => {
+  it("el sidebar lista Panel y Contactos como filas directas (Metas vive ahora en «Planear»)", async () => {
     renderApp();
     const nav = await screen.findByRole("navigation", { name: /Navegación principal/i });
     expect(within(nav).getByRole("button", { name: "Pendientes" })).toBeTruthy();
     expect(within(nav).getByRole("button", { name: "Panel" })).toBeTruthy();
     expect(within(nav).getByRole("button", { name: "Contactos" })).toBeTruthy();
-    expect(within(nav).getByRole("button", { name: "Metas" })).toBeTruthy();
+    expect(within(nav).queryByRole("button", { name: "Metas" })).toBeNull();
+    expect(within(nav).getByRole("button", { name: /^Planear/ })).toBeTruthy();
   });
 
   it("el menú «Sistema» ya no contiene Panel, Contactos ni Metas (solo Papelera y Equipo)", async () => {

@@ -72,6 +72,9 @@ npm run preview      # previsualiza dist/
 
 En UI llamar al primero "cuenta compartida" o "sincronización". En código, evitar colisión con `src/lib/espacio.ts`.
 
+## Migraciones de base de datos
+Cada cambio de esquema = un archivo numerado en `supabase/migrations/` (`01_nombre.sql`, `02_nombre.sql`, …), idempotente y de un solo cambio, para ejecutarlas **una por una y en orden** en el SQL Editor. No se editan las ya aplicadas; se refleja también en `supabase_setup.sql`, `supabase/migrations/README.md` (tabla de estado) y `CHANGELOG.md`. Una Edge Function que dependa de una migración se despliega después de aplicarla.
+
 ## Graphify
 Grafo de conocimiento en `graphify-out/`. Tras cambios: `graphify update .` (solo AST, sin costo API).
 Para consultas: `graphify query "..."`, `graphify path "A" "B"`, `graphify explain "concepto"`.

@@ -3,13 +3,17 @@ import { Toaster, toast } from 'sonner'
 import { AppProvider, useApp } from '@/store'
 import { UIProvider, useUI } from '@/ui-store'
 import { columnaDe, idColumnaCompletado } from '@/lib/columnas'
-import { descargar, hoyISO, vencido, parsearLinea, fechaPorPrioridad, activo, asignarProyecto, normalizarNombreProyecto } from '@/lib/app-utils'
+import { descargar, hoyISO, vencido, parsearLinea, fechaPorPrioridad, asignarProyecto, normalizarNombreProyecto, isoAFechaLegible } from '@/lib/app-utils'
+import { parsearEventoRapido } from '@/lib/captura'
 import { generarICS, generarMarkdown, generarHTMLImprimible } from '@/lib/exportar'
 import { useIsMobile } from '@/hooks/use-is-mobile'
 import { SyncProvider, useSync, SyncBadge } from '@/sync'
 import TaskModal from '@/components/TaskModal'
 import PendientePeek from '@/components/PendientePeek'
 import PreviaParseo from '@/components/PreviaParseo'
+import PanelAgenda from '@/components/PanelAgenda'
+import HojaInferior from '@/components/HojaInferior'
+import { useAgendaLateral, fijarAgendaAbierta } from '@/lib/agendaLateral'
 import AyudaAtajos from '@/components/AyudaAtajos'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import PaletaComandos from '@/components/PaletaComandos'
@@ -30,7 +34,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import {
-  Star, ListTodo, BarChart3, StickyNote, Briefcase, Inbox as InboxIcon,
+  Star, ListTodo, BarChart3, StickyNote, Briefcase,
   Plus, Moon, Sun, Download, Upload, FileSpreadsheet, AlertTriangle, User, MoreVertical, LogOut, LogIn, HelpCircle, CalendarClock, Users, Users2, Target, Settings2, Trash2, Search, LayoutGrid, Timer, Columns3, PenLine, ArrowRightCircle, FileText, ChevronDown,
 } from 'lucide-react'
 
@@ -41,9 +45,9 @@ const NotesView = lazy(() => import('@/views/NotesView'))
 const ProyectosView = lazy(() => import('@/views/ProyectosView'))
 const EspaciosView = lazy(() => import('@/views/EspaciosView'))
 const PapeleraView = lazy(() => import('@/views/PapeleraView'))
-const InboxView = lazy(() => import('@/views/InboxView'))
 const ContactosView = lazy(() => import('@/views/ContactosView'))
 const MetasView = lazy(() => import('@/views/MetasView'))
+const RocasView = lazy(() => import('@/views/RocasView'))
 const EquipoView = lazy(() => import('@/views/EquipoView'))
 
 const LS_VISTA = 'pn_vista'
@@ -51,9 +55,10 @@ const LS_VISTA = 'pn_vista'
 // abajo, en el handler de teclado) son posicionales sobre este array — insertarlos en otro
 // lugar correría los atajos ya aprendidos de espacios/pendientes/dashboard/papelera. Sin atajo
 // numérico propio por ahora, solo accesibles desde el menú "Sistema".
-const VISTAS_VALIDAS = ['hoy', 'inbox', 'proyectos', 'notas', 'espacios', 'pendientes', 'dashboard', 'papelera', 'contactos', 'metas', 'equipo'] as const
+// Orden = atajos numéricos 1-8. «inbox» ya no es una vista aparte: es un alias que abre Pendientes con el filtro «Sin fecha».
+const VISTAS_VALIDAS = ['hoy', 'pendientes', 'proyectos', 'notas', 'espacios', 'inbox', 'dashboard', 'papelera', 'contactos', 'metas', 'equipo', 'rocas'] as const
 
-type Vista = 'hoy' | 'inbox' | 'proyectos' | 'notas' | 'espacios' | 'pendientes' | 'dashboard' | 'papelera' | 'contactos' | 'metas' | 'equipo'
+type Vista = 'hoy' | 'inbox' | 'proyectos' | 'notas' | 'espacios' | 'pendientes' | 'dashboard' | 'papelera' | 'contactos' | 'metas' | 'equipo' | 'rocas'
 
 function ViewSkeleton() {
   return (
@@ -73,15 +78,21 @@ function ViewSkeleton() {
 // de competir visualmente con estos 5 en el mismo nivel.
 const VISTAS_PRIMARIAS: { id: Vista; label: string; corto: string; icon: React.ReactNode }[] = [
   { id: 'hoy', label: 'Hoy', corto: 'Hoy', icon: <Star size={18} /> },
-  { id: 'inbox', label: 'Inbox', corto: 'Inbox', icon: <InboxIcon size={18} /> },
-  { id: 'proyectos', label: 'Proyectos', corto: 'Proyectos', icon: <Briefcase size={18} /> },
+  { id: 'pendientes', label: 'Pendientes', corto: 'Pendientes', icon: <ListTodo size={18} /> },
+  // «Planear» agrupa Proyectos · Metas · Rocas · Espacios en una sola entrada con pestañas (id = vista inicial).
+  { id: 'proyectos', label: 'Planear', corto: 'Planear', icon: <Briefcase size={18} /> },
   { id: 'notas', label: 'Notas', corto: 'Notas', icon: <StickyNote size={18} /> },
-  { id: 'espacios', label: 'Espacios', corto: 'Espacios', icon: <LayoutGrid size={18} /> },
 ]
+const GRUPO_PLANEAR: Vista[] = ['proyectos', 'metas', 'rocas', 'espacios']
+const TABS_PLANEAR: { id: Vista; label: string }[] = [
+  { id: 'proyectos', label: 'Proyectos' }, { id: 'metas', label: 'Metas' }, { id: 'rocas', label: 'Rocas' }, { id: 'espacios', label: 'Espacios' },
+]
+const LS_PLANEAR = 'pn_planear_tab'
 const VISTAS_SISTEMA: { id: Vista; label: string; corto: string; icon: React.ReactNode }[] = [
   { id: 'dashboard', label: 'Panel', corto: 'Panel', icon: <BarChart3 size={18} /> },
   { id: 'papelera', label: 'Papelera', corto: 'Papelera', icon: <Trash2 size={18} /> },
-  { id: 'pendientes', label: 'Pendientes', corto: 'Pendientes', icon: <ListTodo size={18} /> },
+  { id: 'espacios', label: 'Espacios', corto: 'Espacios', icon: <LayoutGrid size={18} /> }, // solo para títulos; se entra desde «Planear»
+  { id: 'rocas', label: 'Rocas', corto: 'Rocas', icon: <Target size={18} /> },
   { id: 'contactos', label: 'Contactos', corto: 'Contactos', icon: <Users size={18} /> },
   { id: 'metas', label: 'Metas', corto: 'Metas', icon: <Target size={18} /> },
   { id: 'equipo', label: 'Mi Equipo', corto: 'Equipo', icon: <Users2 size={18} /> },
@@ -98,7 +109,7 @@ const WIDGET_ICONOS: Record<WidgetTipo, React.ReactNode> = {
 function Shell() {
   const app = useApp()
   const ui = useUI()
-  const { pendientes, notas, proyectos, espacios, eventos, usuario, setUsuario, crearPendiente, crearNota, reemplazarTodo, filtrosGuardados } = app
+  const { pendientes, notas, proyectos, espacios, eventos, usuario, setUsuario, crearPendiente, crearNota, actualizarNota, crearEvento, reemplazarTodo, filtrosGuardados } = app
   const { abrirModal, paletaAbierta, abrirPaleta, cerrarPaleta, notaActualId, setNotaActualId, proyectoAbiertoId, setProyectoAbiertoId, setFiltroFecha, setFiltroActivoId, espacioActualId, setEspacioActualId } = ui
   const sync = useSync()
   const { abrirWidget } = useWidgets()
@@ -112,7 +123,7 @@ function Shell() {
     return `Espacio activo: ${e?.icono || '📋'} ${e?.nombre || 'Todos'}`
   }
   const [vista, setVistaState] = useState<Vista>(() => {
-    try { const v = localStorage.getItem(LS_VISTA); if (v && (VISTAS_VALIDAS as readonly string[]).includes(v)) return v as Vista } catch { /* noop */ }
+    try { const v = localStorage.getItem(LS_VISTA); if (v === 'inbox') return 'pendientes'; if (v && (VISTAS_VALIDAS as readonly string[]).includes(v)) return v as Vista } catch { /* noop */ }
     return 'hoy'
   })
   const [dark, setDark] = useState(() => {
@@ -138,8 +149,11 @@ function Shell() {
   const [ajustesDlg, setAjustesDlg] = useState(false)
   const [quickTexto, setQuickTexto] = useState('')
   const [fabAbierto, setFabAbierto] = useState(false)
-  const quickRef = useRef<HTMLInputElement>(null)
-  const quickMovilRef = useRef<HTMLInputElement>(null)
+  const [agendaMovil, setAgendaMovil] = useState(false)
+  const { abierta: agendaAbierta, visible: agendaVisible } = useAgendaLateral()
+  const alternarAgenda = (v: boolean) => fijarAgendaAbierta(v)
+  const quickRef = useRef<HTMLTextAreaElement>(null)
+  const quickMovilRef = useRef<HTMLTextAreaElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const importPendiente = useRef<{ pendientes: unknown[]; notas: unknown[]; usuario?: string } | null>(null)
 
@@ -153,10 +167,34 @@ function Shell() {
     // cuenta (chip/tarjeta) y Esc o "Volver" siguen cerrando "solo" el detalle sin cambiar vista.
     setNotaActualId(null)
     setProyectoAbiertoId(null)
+    if (v === 'inbox') {
+      // La antigua bandeja Inbox vive dentro de Pendientes como el filtro «Sin fecha» (en modo Lista).
+      try { localStorage.setItem('pn_modo_vista', 'lista') } catch { /* noop */ }
+      setFiltroFecha('sin_fecha')
+      window.dispatchEvent(new Event('pn-modo-vista'))
+      v = 'pendientes'
+    }
     setVistaState(v)
-    try { localStorage.setItem(LS_VISTA, v) } catch { /* noop */ }
+    try {
+      localStorage.setItem(LS_VISTA, v)
+      if (GRUPO_PLANEAR.includes(v)) localStorage.setItem(LS_PLANEAR, v)
+    } catch { /* noop */ }
   }
 
+  // «Planear» abre la pestaña que usaste por última vez (Proyectos por defecto).
+  const abrirPlanear = () => {
+    let ultima: Vista = 'proyectos'
+    try { const v = localStorage.getItem(LS_PLANEAR) as Vista | null; if (v && GRUPO_PLANEAR.includes(v)) ultima = v } catch { /* noop */ }
+    setVista(ultima)
+  }
+  const navActiva = (id: Vista) => (id === 'proyectos' ? GRUPO_PLANEAR.includes(vistaMostrada) : vistaMostrada === id)
+  const navIr = (id: Vista) => (id === 'proyectos' ? abrirPlanear() : setVista(id))
+
+  const abrirCalendarioCompleto = () => {
+    try { localStorage.setItem('pn_modo_vista', 'calendario') } catch { /* noop */ }
+    setVista('pendientes')
+    window.dispatchEvent(new Event('pn-modo-vista'))
+  }
   const verVencidos = () => { setNotaActualId(null); setVista('pendientes'); setFiltroFecha('vencidos') }
 
   // notaActualId/proyectoAbiertoId son globales: así una tarjeta de "Hoy" puede abrir directamente
@@ -236,8 +274,11 @@ function Shell() {
   }, [sync.modoLocal, sync.espacioId])
 
   const quickAdd = () => {
-    const txt0 = quickTexto.trim()
+    // Primera línea = título (con tokens @ ! > #); las siguientes pasan a la descripción.
+    const [lineaTitulo, ...lineasResto] = quickTexto.trim().split(/\r?\n/)
+    const txt0 = lineaTitulo.trim()
     if (!txt0) return
+    const cuerpo = lineasResto.join('\n').trim()
     const etiquetasHash: string[] = []
     // #"Mi proyecto" (con espacios, comillas) o #tag (una sola palabra) — las comillas permiten
     // referenciar proyectos multi-palabra, que antes nunca podían matchear (ver AUDITORIA/CHANGELOG).
@@ -257,7 +298,7 @@ function Shell() {
       : null
     crearPendiente({
       titulo: parsed.titulo,
-      descripcion: parsed.descripcion,
+      descripcion: [parsed.descripcion, cuerpo].filter(Boolean).join('\n'),
       responsable: parsed.responsable,
       prioridad,
       ...(nombreProyecto ? asignarProyecto(proyectoExistente?.id, proyectos, nombreProyecto) : { proyecto: '', proyectoId: undefined }),
@@ -267,6 +308,41 @@ function Shell() {
     })
     setQuickTexto('')
     toast.success('Pendiente creado')
+  }
+
+  // Captura universal: el mismo cuadro crea nota (Shift+Enter) o evento (Alt+Enter) sin cambiar de
+  // vista. El evento es solo local; enviarlo a Google Calendar es una decisión explícita aparte.
+  const quickNota = () => {
+    const txt = quickTexto.trim()
+    if (!txt) return
+    const [primera, ...resto] = txt.split(/\r?\n/)
+    const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    const n = crearNota()
+    actualizarNota(n.id, { titulo: primera.trim().slice(0, 120) || 'Sin título', contenidoHTML: resto.length ? resto.map(l => `<div>${esc(l) || '<br>'}</div>`).join('') : '' })
+    setQuickTexto('')
+    toast.success('Nota creada', { action: { label: 'Abrir', onClick: () => setNotaActualId(n.id) } })
+  }
+  const quickEvento = () => {
+    const [lineaTitulo, ...lineasResto] = quickTexto.trim().split(/\r?\n/)
+    const ev = parsearEventoRapido(lineaTitulo)
+    if (!ev) { if (quickTexto.trim()) toast.error('No se entendió el evento'); return }
+    const descripcion = [ev.descripcion, lineasResto.join('\n').trim()].filter(Boolean).join('\n')
+    crearEvento({ titulo: ev.titulo, descripcion: descripcion || undefined, fecha: ev.fecha, hora: ev.hora || '08:00', duracionMin: ev.duracionMin })
+    setQuickTexto('')
+    toast.success(`Evento creado: ${isoAFechaLegible(ev.fecha)} ${ev.hora || '08:00'}`, { action: { label: 'Ver agenda', onClick: abrirCalendarioCompleto } })
+  }
+  const onQuickKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key !== 'Enter' || e.nativeEvent.isComposing) return
+    e.preventDefault()
+    if (e.altKey) {
+      // Alt+Enter: salto de línea (la 1.ª línea es el título, lo demás la descripción/cuerpo)
+      const t = e.currentTarget
+      const { selectionStart: a, selectionEnd: b } = t
+      setQuickTexto(quickTexto.slice(0, a) + '\n' + quickTexto.slice(b))
+      requestAnimationFrame(() => t.setSelectionRange(a + 1, a + 1))
+    } else if (e.ctrlKey || e.metaKey) quickEvento()
+    else if (e.shiftKey) quickNota()
+    else quickAdd()
   }
 
   const exportarJSON = () => descargar('pendientes_notas_' + hoyISO() + '.json', JSON.stringify({ pendientes, notas, usuario }, null, 2), 'application/json')
@@ -308,12 +384,10 @@ function Shell() {
   useRecordatoriosLocales(pendientes, idCompletado)
   const nVencidos = pendientes.filter(p => vencido(p, idCompletado)).length
   const nAbiertos = pendientes.filter(p => p.estado !== idCompletado).length
-  const nInbox = pendientes.filter(p => activo(p) && !p.fechaLimite && p.estado !== idCompletado).length
 
-  const vistaActual = (
+  const vistaBase = (
     <Suspense fallback={<ViewSkeleton />}>
       {vistaMostrada === 'hoy' && <TodayView />}
-      {vistaMostrada === 'inbox' && <InboxView />}
       {vistaMostrada === 'pendientes' && <PendientesView />}
       {vistaMostrada === 'notas' && <NotesView />}
       {vistaMostrada === 'proyectos' && <ProyectosView />}
@@ -322,9 +396,25 @@ function Shell() {
       {vistaMostrada === 'papelera' && <PapeleraView />}
       {vistaMostrada === 'contactos' && <ContactosView />}
       {vistaMostrada === 'metas' && <MetasView />}
+      {vistaMostrada === 'rocas' && <RocasView />}
       {vistaMostrada === 'equipo' && <EquipoView />}
     </Suspense>
   )
+
+  // Pestañas de «Planear»: pasar entre Proyectos, Metas, Rocas y Espacios sin volver al menú (la barra de pestañas no se remonta al cambiar).
+  const vistaActual = GRUPO_PLANEAR.includes(vistaMostrada) ? (
+    <div className="flex h-full flex-col gap-2">
+      <div role="tablist" aria-label="Planear" className="flex shrink-0 gap-1">
+        {TABS_PLANEAR.map(t => (
+          <button key={t.id} role="tab" aria-selected={vistaMostrada === t.id} onClick={() => setVista(t.id)}
+            className={'rounded-full px-3 py-1 text-xs font-medium ' + (vistaMostrada === t.id ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-accent')}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+      <div className="min-h-0 flex-1">{vistaBase}</div>
+    </div>
+  ) : vistaBase
 
   const inputImport = <input ref={fileRef} type="file" accept="application/json" className="hidden" onChange={importarJSON} />
 
@@ -443,6 +533,7 @@ function Shell() {
             </button>
           )}
           <div className="ml-auto flex items-center gap-1">
+            <button onClick={() => setAgendaMovil(true)} aria-label="Agenda del día" className="rounded-md p-2 hover:bg-accent"><CalendarClock size={16} /></button>
             <button onClick={toggleDark} aria-label="Cambiar tema" className="rounded-md p-2 hover:bg-accent">{dark ? <Sun size={16} /> : <Moon size={16} />}</button>
             <button onClick={() => setMenuAbierto(v => !v)} aria-label="Más opciones" className="rounded-md p-2 hover:bg-accent"><MoreVertical size={16} /></button>
           </div>
@@ -457,6 +548,9 @@ function Shell() {
                   <>
                     <div className="truncate px-3 pb-1 text-[11px] text-muted-foreground">{sync.email}</div>
                     <button onClick={() => { setMenuAbierto(false); sync.sincronizarAhora() }} className="flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-accent"><User size={15} /> Sincronizar ahora</button>
+                    {!sync.tieneGoogle && (
+                      <button onClick={() => { setMenuAbierto(false); sync.vincularGoogle() }} className="flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-accent"><LogIn size={15} /> Vincular inicio con Google</button>
+                    )}
                     <button onClick={() => { setMenuAbierto(false); sync.logout() }} className="flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-accent"><LogOut size={15} /> Cerrar sesión</button>
                     <button onClick={() => { setMenuAbierto(false); setCuentasGoogleDlg(true) }} className="flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-accent">
                       <CalendarClock size={15} /> Google Calendar{cuentasGoogle.length ? ` (${cuentasGoogle.length})` : ''}
@@ -523,25 +617,26 @@ function Shell() {
 
         {vistaMostrada !== 'notas' && (
           <div className="shrink-0 space-y-1 border-b bg-card px-3 py-2">
-            <input ref={quickMovilRef} value={quickTexto} onChange={e => setQuickTexto(e.target.value)}
+            <textarea rows={Math.min(5, quickTexto.split('\n').length)} ref={quickMovilRef} value={quickTexto} onChange={e => setQuickTexto(e.target.value)}
               placeholder='Captura rápida: "cotización !alta @Liz mañana"'
-              onKeyDown={e => { if (e.key === 'Enter') quickAdd() }}
-              className="w-full rounded-full border bg-muted/60 px-4 py-1.5 text-xs outline-none focus:ring-2 focus:ring-primary" />
+              onKeyDown={onQuickKey}
+              className="block w-full resize-none rounded-2xl border bg-muted/60 px-4 py-1.5 text-xs outline-none focus:ring-2 focus:ring-primary" />
             <PreviaParseo texto={quickTexto} />
+            {quickTexto.trim() && <p className="px-1 text-[11px] text-muted-foreground">Enter: pendiente · Shift+Enter: nota · Ctrl+Enter: evento · Alt+Enter: nueva línea</p>}
           </div>
         )}
 
         <main id="main-content" tabIndex={-1} className="relative min-h-0 flex-1 overflow-auto p-3 scroll-thin outline-none">
-          <div key={vistaMostrada} className="animate-in fade-in slide-in-from-bottom-1 duration-200 motion-reduce:animate-none">{vistaActual}</div>
+          <div key={GRUPO_PLANEAR.includes(vistaMostrada) ? 'planear' : vistaMostrada} className="h-full animate-in fade-in slide-in-from-bottom-1 duration-200 motion-reduce:animate-none">{vistaActual}</div>
         </main>
         {fabCaptura}
 
         {/* Barra inferior de vistas — solo los 5 destinos primarios; Pendientes/Panel/Papelera
             viven en «⋮» (agrupación Sistema, PDS §5.3) */}
-        <nav className="grid shrink-0 grid-cols-5 border-t bg-card">
+        <nav className="grid shrink-0 grid-cols-4 border-t bg-card">
           {VISTAS_PRIMARIAS.map(v => (
-            <button key={v.id} onClick={() => setVista(v.id)} aria-current={vistaMostrada === v.id ? 'page' : undefined}
-              className={'flex flex-col items-center gap-0.5 py-2 text-[10px] ' + (vistaMostrada === v.id ? 'text-primary' : 'text-muted-foreground')}>
+            <button key={v.id} onClick={() => navIr(v.id)} aria-current={navActiva(v.id) ? 'page' : undefined}
+              className={'flex flex-col items-center gap-0.5 py-2 text-[10px] ' + (navActiva(v.id) ? 'text-primary' : 'text-muted-foreground')}>
               {v.icon}
               <span>{v.corto}</span>
             </button>
@@ -551,6 +646,10 @@ function Shell() {
         <TaskModal />
         <PendientePeek />
         {dialogosGlobales}
+        {/* Agenda del día en móvil: hoja inferior (en escritorio es el panel lateral derecho). */}
+        <HojaInferior open={agendaMovil} onOpenChange={setAgendaMovil} titulo="Agenda del día">
+          <PanelAgenda variante="hoja" onCerrar={() => setAgendaMovil(false)} onAbrirCalendario={() => { setAgendaMovil(false); abrirCalendarioCompleto() }} />
+        </HojaInferior>
         <Toaster position="top-center" richColors />
       </div>
     )
@@ -571,12 +670,12 @@ function Shell() {
         </div>
         <div className="flex-1 space-y-0.5 overflow-y-auto overflow-x-hidden px-2 scroll-thin">
           {VISTAS_PRIMARIAS.map(v => (
-            <button key={v.id} onClick={() => setVista(v.id)} aria-current={vistaMostrada === v.id ? 'page' : undefined}
-              className={'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ' + (vistaMostrada === v.id ? 'bg-primary text-primary-foreground shadow-sm' : 'hover:bg-accent')}>
+            <button key={v.id} onClick={() => navIr(v.id)} aria-current={navActiva(v.id) ? 'page' : undefined}
+              className={'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ' + (navActiva(v.id) ? 'bg-primary text-primary-foreground shadow-sm' : 'hover:bg-accent')}>
               <span className="w-5 shrink-0">{v.icon}</span>
               <span className="flex-1 whitespace-nowrap text-left">{v.label}</span>
-              {v.id === 'inbox' && nInbox > 0 && (
-                <span className="whitespace-nowrap rounded-full bg-muted px-1.5 text-[10px] text-muted-foreground">{nInbox}</span>
+              {v.id === 'pendientes' && nAbiertos > 0 && (
+                <span className="whitespace-nowrap rounded-full bg-muted px-1.5 text-[10px] text-muted-foreground">{nAbiertos}</span>
               )}
             </button>
           ))}
@@ -612,14 +711,11 @@ function Shell() {
               Contactos y Metas salen a filas directas para entrar con un clic en vez de abrir un
               menú. Papelera y Equipo (consulta ocasional) se quedan en el menú «Sistema» de abajo. */}
           <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Trabajo</div>
-          {VISTAS_SISTEMA.filter(v => ['pendientes', 'dashboard', 'contactos', 'metas'].includes(v.id)).map(v => (
+          {VISTAS_SISTEMA.filter(v => ['dashboard', 'contactos'].includes(v.id)).map(v => (
             <button key={v.id} onClick={() => setVista(v.id)} aria-current={vistaMostrada === v.id ? 'page' : undefined}
               className={'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ' + (vistaMostrada === v.id ? 'bg-primary text-primary-foreground shadow-sm' : 'hover:bg-accent')}>
               <span className="w-5 shrink-0">{v.icon}</span>
               <span className="flex-1 whitespace-nowrap text-left">{v.label}</span>
-              {v.id === 'pendientes' && nAbiertos > 0 && (
-                <span className="whitespace-nowrap rounded-full bg-muted px-1.5 text-[10px] text-muted-foreground">{nAbiertos}</span>
-              )}
             </button>
           ))}
           <div className="my-2 border-t" />
@@ -662,13 +758,16 @@ function Shell() {
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <div className="flex shrink-0 items-center gap-3 border-b bg-card px-4 py-2 shadow-sm">
           <div className="max-w-2xl flex-1 space-y-1">
-            <input ref={quickRef} value={quickTexto} onChange={e => setQuickTexto(e.target.value)}
+            <textarea rows={Math.min(5, quickTexto.split('\n').length)} ref={quickRef} value={quickTexto} onChange={e => setQuickTexto(e.target.value)}
               placeholder='Captura rápida ( / ):  "cotización Soriana !alta @Liz mañana"'
-              onKeyDown={e => { if (e.key === 'Enter') quickAdd() }}
-              className="w-full rounded-full border bg-muted/60 px-4 py-1.5 text-xs outline-none focus:ring-2 focus:ring-primary" />
+              onKeyDown={onQuickKey}
+              className="block w-full resize-none rounded-2xl border bg-muted/60 px-4 py-1.5 text-xs outline-none focus:ring-2 focus:ring-primary" />
             <PreviaParseo texto={quickTexto} />
+            {quickTexto.trim() && <p className="px-1 text-[11px] text-muted-foreground">Enter: pendiente · Shift+Enter: nota · Ctrl+Enter: evento · Alt+Enter: nueva línea</p>}
           </div>
           <button onClick={toggleDark} title="Modo oscuro" aria-label="Cambiar tema" className="rounded-md bg-muted p-1.5">{dark ? <Sun size={14} /> : <Moon size={14} />}</button>
+          <button onClick={() => alternarAgenda(!agendaAbierta)} title={agendaAbierta ? 'Ocultar agenda lateral' : 'Mostrar agenda lateral'} aria-label="Alternar agenda lateral" aria-pressed={agendaAbierta}
+            className={'hidden rounded-md p-1.5 xl:block ' + (agendaAbierta ? 'bg-primary text-primary-foreground' : 'bg-muted')}><CalendarClock size={14} /></button>
           <SyncBadge />
           {!sync.modoLocal && (
             <button onClick={() => setCuentasGoogleDlg(true)} className="flex items-center gap-1 whitespace-nowrap text-xs font-medium hover:underline">
@@ -685,16 +784,18 @@ function Shell() {
         </div>
 
         <main id="main-content" tabIndex={-1} className="min-h-0 flex-1 overflow-auto p-4 pb-24 scroll-thin outline-none">
-          <div key={vistaMostrada} className="animate-in fade-in slide-in-from-bottom-1 duration-200 motion-reduce:animate-none">{vistaActual}</div>
+          <div key={GRUPO_PLANEAR.includes(vistaMostrada) ? 'planear' : vistaMostrada} className="h-full animate-in fade-in slide-in-from-bottom-1 duration-200 motion-reduce:animate-none">{vistaActual}</div>
         </main>
       </div>
 
+      {agendaAbierta && <PanelAgenda onCerrar={() => alternarAgenda(false)} onAbrirCalendario={abrirCalendarioCompleto} />}
       {dockEscritorio}
       <WidgetsLayer />
       <TaskModal />
       <PendientePeek />
       {dialogosGlobales}
-      <Toaster position="bottom-right" richColors />
+      {/* Con el panel de agenda a la vista, los avisos se corren para no tapar su captura rápida. */}
+      <Toaster position="bottom-right" richColors offset={agendaVisible ? { right: 304, bottom: 16 } : undefined} />
     </div>
   )
 }

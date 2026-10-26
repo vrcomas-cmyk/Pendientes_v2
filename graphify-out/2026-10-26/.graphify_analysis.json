@@ -1,0 +1,955 @@
+{
+  "communities": {
+    "0": [
+      "src_app",
+      "src_app_app",
+      "src_app_shell",
+      "src_app_vista",
+      "src_app_vistas",
+      "src_components_taskmodal_taskmodal",
+      "src_components_taskrow",
+      "src_components_taskrow_taskrow",
+      "src_components_ui_button_button",
+      "src_components_ui_checkbox",
+      "src_components_ui_checkbox_checkbox",
+      "src_components_ui_input",
+      "src_components_ui_input_input",
+      "src_hooks_use_is_mobile",
+      "src_hooks_use_is_mobile_useismobile",
+      "src_lib_app_utils",
+      "src_lib_app_utils_descargar",
+      "src_lib_app_utils_dias_semana",
+      "src_lib_app_utils_esbullet",
+      "src_lib_app_utils_extraerfecha",
+      "src_lib_app_utils_fechaporprioridad",
+      "src_lib_app_utils_fecharelativa",
+      "src_lib_app_utils_googlecalendarurl",
+      "src_lib_app_utils_hoyiso",
+      "src_lib_app_utils_lineaparseada",
+      "src_lib_app_utils_mem",
+      "src_lib_app_utils_normalizar",
+      "src_lib_app_utils_parsearlinea",
+      "src_lib_app_utils_progresosub",
+      "src_lib_app_utils_storage",
+      "src_lib_app_utils_uid",
+      "src_lib_app_utils_vencido",
+      "src_main",
+      "src_store",
+      "src_store_appctx",
+      "src_store_appprovider",
+      "src_store_ctx",
+      "src_store_modalstate",
+      "src_store_normalizarconservandoid",
+      "src_store_semilla",
+      "src_store_semillacache",
+      "src_store_useapp",
+      "src_sync_syncbadge",
+      "src_sync_usesync",
+      "src_types",
+      "src_types_estado",
+      "src_types_estados",
+      "src_types_nota",
+      "src_types_pendiente",
+      "src_types_prioridad",
+      "src_types_prioridad_border",
+      "src_types_subtareaspendientes",
+      "src_views_listview",
+      "src_views_listview_filtrofecha",
+      "src_views_listview_listview",
+      "src_views_listview_taskdetail",
+      "src_views_notesview",
+      "src_views_notesview_escapehtml",
+      "src_views_notesview_notesview",
+      "src_views_notesview_serializar",
+      "src_views_otherviews",
+      "src_views_otherviews_calendarview",
+      "src_views_otherviews_cols",
+      "src_views_otherviews_dashboardview",
+      "src_views_otherviews_kanbanview",
+      "src_views_otherviews_meses",
+      "src_views_otherviews_todayview",
+      "src_views_pendientesview",
+      "src_views_pendientesview_modo",
+      "src_views_pendientesview_modos",
+      "src_views_pendientesview_pendientesview"
+    ],
+    "1": [
+      "src_components_adjuntosui",
+      "src_components_adjuntosui_adjuntosui",
+      "src_components_adjuntosui_miniatura",
+      "src_lib_adjuntos",
+      "src_lib_adjuntos_eliminaradjunto",
+      "src_lib_adjuntos_esimagen",
+      "src_lib_adjuntos_formatotamano",
+      "src_lib_adjuntos_leercomodataurl",
+      "src_lib_adjuntos_subiradjunto",
+      "src_lib_adjuntos_urladjunto",
+      "src_lib_adjuntos_urlcache",
+      "src_lib_supabase",
+      "src_lib_supabase_getconfig",
+      "src_lib_supabase_getsupabase",
+      "src_lib_supabase_isconfigured",
+      "src_lib_supabase_saveconfig",
+      "src_lib_sync_merge",
+      "src_lib_sync_merge_campos_escalares",
+      "src_lib_sync_merge_contenidoigual",
+      "src_lib_sync_merge_itembase",
+      "src_lib_sync_merge_mapasync",
+      "src_lib_sync_merge_mergenota",
+      "src_lib_sync_merge_mergependiente",
+      "src_lib_sync_merge_reconciliar",
+      "src_lib_sync_merge_resultadoreconcilia",
+      "src_lib_sync_merge_sinvolatil",
+      "src_lib_sync_merge_unionby",
+      "src_sync",
+      "src_sync_authscreen",
+      "src_sync_configscreen",
+      "src_sync_ctx",
+      "src_sync_estadosync",
+      "src_sync_mismalista",
+      "src_sync_pantalla",
+      "src_sync_syncctx",
+      "src_sync_syncprovider",
+      "src_sync_ultimosync",
+      "src_sync_vacio",
+      "src_types_adjunto"
+    ],
+    "2": [
+      "src_components_taskmodal",
+      "src_components_ui_command",
+      "src_components_ui_command_command",
+      "src_components_ui_command_commanddialog",
+      "src_components_ui_command_commandempty",
+      "src_components_ui_command_commandgroup",
+      "src_components_ui_command_commandinput",
+      "src_components_ui_command_commanditem",
+      "src_components_ui_command_commandlist",
+      "src_components_ui_command_commandseparator",
+      "src_components_ui_command_commandshortcut",
+      "src_components_ui_dialog",
+      "src_components_ui_dialog_dialogcontent",
+      "src_components_ui_dialog_dialogdescription",
+      "src_components_ui_dialog_dialogfooter",
+      "src_components_ui_dialog_dialogheader",
+      "src_components_ui_dialog_dialogoverlay",
+      "src_components_ui_dialog_dialogtitle",
+      "src_components_ui_select",
+      "src_components_ui_select_selectcontent",
+      "src_components_ui_select_selectitem",
+      "src_components_ui_select_selectlabel",
+      "src_components_ui_select_selectscrolldownbutton",
+      "src_components_ui_select_selectscrollupbutton",
+      "src_components_ui_select_selectseparator",
+      "src_components_ui_select_selecttrigger",
+      "src_components_ui_textarea",
+      "src_components_ui_textarea_textarea",
+      "src_types_comentario",
+      "src_types_subtarea"
+    ],
+    "3": [
+      "ref_dom",
+      "ref_vite_client",
+      "tsconfig_app",
+      "tsconfig_app_compileroptions",
+      "tsconfig_app_compileroptions_allowimportingtsextensions",
+      "tsconfig_app_compileroptions_baseurl",
+      "tsconfig_app_compileroptions_erasablesyntaxonly",
+      "tsconfig_app_compileroptions_ignoredeprecations",
+      "tsconfig_app_compileroptions_jsx",
+      "tsconfig_app_compileroptions_lib",
+      "tsconfig_app_compileroptions_module",
+      "tsconfig_app_compileroptions_moduledetection",
+      "tsconfig_app_compileroptions_moduleresolution",
+      "tsconfig_app_compileroptions_noemit",
+      "tsconfig_app_compileroptions_nofallthroughcasesinswitch",
+      "tsconfig_app_compileroptions_nounusedlocals",
+      "tsconfig_app_compileroptions_nounusedparameters",
+      "tsconfig_app_compileroptions_paths",
+      "tsconfig_app_compileroptions_skiplibcheck",
+      "tsconfig_app_compileroptions_target",
+      "tsconfig_app_compileroptions_tsbuildinfofile",
+      "tsconfig_app_compileroptions_types",
+      "tsconfig_app_compileroptions_verbatimmodulesyntax",
+      "tsconfig_app_include",
+      "tsconfig_app_json_ref_es2023",
+      "tsconfig_app_json_ref_src",
+      "tsconfig_app_paths"
+    ],
+    "4": [
+      "src_components_ui_toast",
+      "src_components_ui_toast_toast",
+      "src_components_ui_toast_toastaction",
+      "src_components_ui_toast_toastactionelement",
+      "src_components_ui_toast_toastclose",
+      "src_components_ui_toast_toastdescription",
+      "src_components_ui_toast_toastprops",
+      "src_components_ui_toast_toasttitle",
+      "src_components_ui_toast_toastvariants",
+      "src_components_ui_toast_toastviewport",
+      "src_components_ui_toaster",
+      "src_components_ui_toaster_toaster",
+      "src_hooks_use_toast",
+      "src_hooks_use_toast_action",
+      "src_hooks_use_toast_actiontype",
+      "src_hooks_use_toast_actiontypes",
+      "src_hooks_use_toast_addtoremovequeue",
+      "src_hooks_use_toast_dispatch",
+      "src_hooks_use_toast_genid",
+      "src_hooks_use_toast_listeners",
+      "src_hooks_use_toast_memorystate",
+      "src_hooks_use_toast_reducer",
+      "src_hooks_use_toast_state",
+      "src_hooks_use_toast_toast",
+      "src_hooks_use_toast_toastertoast",
+      "src_hooks_use_toast_toasttimeouts",
+      "src_hooks_use_toast_usetoast"
+    ],
+    "5": [
+      "src_components_ui_accordion",
+      "src_components_ui_accordion_accordioncontent",
+      "src_components_ui_accordion_accordionitem",
+      "src_components_ui_accordion_accordiontrigger",
+      "src_components_ui_hover_card",
+      "src_components_ui_hover_card_hovercardcontent",
+      "src_components_ui_popover",
+      "src_components_ui_popover_popovercontent",
+      "src_components_ui_progress",
+      "src_components_ui_progress_progress",
+      "src_components_ui_radio_group",
+      "src_components_ui_radio_group_radiogroup",
+      "src_components_ui_radio_group_radiogroupitem",
+      "src_components_ui_separator",
+      "src_components_ui_separator_separator",
+      "src_components_ui_skeleton",
+      "src_components_ui_skeleton_skeleton",
+      "src_components_ui_slider",
+      "src_components_ui_slider_slider",
+      "src_components_ui_switch",
+      "src_components_ui_switch_switch",
+      "src_components_ui_tooltip",
+      "src_components_ui_tooltip_tooltipcontent",
+      "src_lib_utils",
+      "src_lib_utils_cn"
+    ],
+    "6": [
+      "ref_node",
+      "ref_vite_config_ts",
+      "tsconfig_node",
+      "tsconfig_node_compileroptions",
+      "tsconfig_node_compileroptions_allowimportingtsextensions",
+      "tsconfig_node_compileroptions_erasablesyntaxonly",
+      "tsconfig_node_compileroptions_lib",
+      "tsconfig_node_compileroptions_module",
+      "tsconfig_node_compileroptions_moduledetection",
+      "tsconfig_node_compileroptions_moduleresolution",
+      "tsconfig_node_compileroptions_noemit",
+      "tsconfig_node_compileroptions_nofallthroughcasesinswitch",
+      "tsconfig_node_compileroptions_nounusedlocals",
+      "tsconfig_node_compileroptions_nounusedparameters",
+      "tsconfig_node_compileroptions_skiplibcheck",
+      "tsconfig_node_compileroptions_target",
+      "tsconfig_node_compileroptions_tsbuildinfofile",
+      "tsconfig_node_compileroptions_types",
+      "tsconfig_node_compileroptions_verbatimmodulesyntax",
+      "tsconfig_node_include",
+      "tsconfig_node_json_ref_es2023"
+    ],
+    "7": [
+      "package_dependencies_react",
+      "react",
+      "src_components_ui_carousel_usecarousel",
+      "src_components_ui_form",
+      "src_components_ui_form_formcontrol",
+      "src_components_ui_form_formdescription",
+      "src_components_ui_form_formfield",
+      "src_components_ui_form_formfieldcontext",
+      "src_components_ui_form_formfieldcontextvalue",
+      "src_components_ui_form_formitem",
+      "src_components_ui_form_formitemcontext",
+      "src_components_ui_form_formitemcontextvalue",
+      "src_components_ui_form_formlabel",
+      "src_components_ui_form_formmessage",
+      "src_components_ui_form_useformfield",
+      "src_components_ui_label",
+      "src_components_ui_label_label",
+      "src_components_ui_label_labelvariants"
+    ],
+    "8": [
+      "components",
+      "components_aliases",
+      "components_aliases_components",
+      "components_aliases_hooks",
+      "components_aliases_lib",
+      "components_aliases_ui",
+      "components_aliases_utils",
+      "components_rsc",
+      "components_schema",
+      "components_style",
+      "components_tailwind",
+      "components_tailwind_basecolor",
+      "components_tailwind_config",
+      "components_tailwind_css",
+      "components_tailwind_cssvariables",
+      "components_tailwind_prefix",
+      "components_tsx"
+    ],
+    "9": [
+      "src_components_ui_menubar",
+      "src_components_ui_menubar_menubar",
+      "src_components_ui_menubar_menubarcheckboxitem",
+      "src_components_ui_menubar_menubarcontent",
+      "src_components_ui_menubar_menubargroup",
+      "src_components_ui_menubar_menubaritem",
+      "src_components_ui_menubar_menubarlabel",
+      "src_components_ui_menubar_menubarmenu",
+      "src_components_ui_menubar_menubarportal",
+      "src_components_ui_menubar_menubarradiogroup",
+      "src_components_ui_menubar_menubarradioitem",
+      "src_components_ui_menubar_menubarseparator",
+      "src_components_ui_menubar_menubarshortcut",
+      "src_components_ui_menubar_menubarsub",
+      "src_components_ui_menubar_menubarsubcontent",
+      "src_components_ui_menubar_menubarsubtrigger",
+      "src_components_ui_menubar_menubartrigger"
+    ],
+    "10": [
+      "src_components_ui_button",
+      "src_components_ui_button_buttonprops",
+      "src_components_ui_button_buttonvariants",
+      "src_components_ui_carousel",
+      "src_components_ui_carousel_carousel",
+      "src_components_ui_carousel_carouselapi",
+      "src_components_ui_carousel_carouselcontent",
+      "src_components_ui_carousel_carouselcontext",
+      "src_components_ui_carousel_carouselcontextprops",
+      "src_components_ui_carousel_carouselitem",
+      "src_components_ui_carousel_carouselnext",
+      "src_components_ui_carousel_carouseloptions",
+      "src_components_ui_carousel_carouselplugin",
+      "src_components_ui_carousel_carouselprevious",
+      "src_components_ui_carousel_carouselprops",
+      "src_components_ui_carousel_usecarouselparameters"
+    ],
+    "11": [
+      "autoprefixer",
+      "buffer",
+      "eslint_plugin_react_hooks",
+      "eslint_plugin_react_refresh",
+      "package_devdependencies",
+      "package_devdependencies_autoprefixer",
+      "package_devdependencies_buffer",
+      "package_devdependencies_eslint_plugin_react_hooks",
+      "package_devdependencies_eslint_plugin_react_refresh",
+      "package_devdependencies_types_react",
+      "types_react"
+    ],
+    "12": [
+      "hookform_resolvers",
+      "package_dependencies",
+      "package_dependencies_hookform_resolvers",
+      "package_dependencies_radix_ui_react_context_menu",
+      "package_dependencies_radix_ui_react_tabs",
+      "package_dependencies_radix_ui_react_toast",
+      "package_dependencies_supabase_supabase_js",
+      "radix_ui_react_context_menu",
+      "radix_ui_react_tabs",
+      "supabase_supabase_js"
+    ],
+    "13": [
+      "package",
+      "package_name",
+      "package_private",
+      "package_scripts",
+      "package_scripts_build",
+      "package_scripts_dev",
+      "package_scripts_lint",
+      "package_scripts_preview",
+      "package_type",
+      "package_version"
+    ],
+    "14": [
+      "src_components_ui_context_menu",
+      "src_components_ui_context_menu_contextmenucheckboxitem",
+      "src_components_ui_context_menu_contextmenucontent",
+      "src_components_ui_context_menu_contextmenuitem",
+      "src_components_ui_context_menu_contextmenulabel",
+      "src_components_ui_context_menu_contextmenuradioitem",
+      "src_components_ui_context_menu_contextmenuseparator",
+      "src_components_ui_context_menu_contextmenushortcut",
+      "src_components_ui_context_menu_contextmenusubcontent",
+      "src_components_ui_context_menu_contextmenusubtrigger"
+    ],
+    "15": [
+      "src_components_ui_dropdown_menu",
+      "src_components_ui_dropdown_menu_dropdownmenucheckboxitem",
+      "src_components_ui_dropdown_menu_dropdownmenucontent",
+      "src_components_ui_dropdown_menu_dropdownmenuitem",
+      "src_components_ui_dropdown_menu_dropdownmenulabel",
+      "src_components_ui_dropdown_menu_dropdownmenuradioitem",
+      "src_components_ui_dropdown_menu_dropdownmenuseparator",
+      "src_components_ui_dropdown_menu_dropdownmenushortcut",
+      "src_components_ui_dropdown_menu_dropdownmenusubcontent",
+      "src_components_ui_dropdown_menu_dropdownmenusubtrigger"
+    ],
+    "16": [
+      "src_components_ui_sheet",
+      "src_components_ui_sheet_sheetcontent",
+      "src_components_ui_sheet_sheetcontentprops",
+      "src_components_ui_sheet_sheetdescription",
+      "src_components_ui_sheet_sheetfooter",
+      "src_components_ui_sheet_sheetheader",
+      "src_components_ui_sheet_sheetoverlay",
+      "src_components_ui_sheet_sheettitle",
+      "src_components_ui_sheet_sheetvariants"
+    ],
+    "17": [
+      "src_components_ui_table",
+      "src_components_ui_table_table",
+      "src_components_ui_table_tablebody",
+      "src_components_ui_table_tablecaption",
+      "src_components_ui_table_tablecell",
+      "src_components_ui_table_tablefooter",
+      "src_components_ui_table_tablehead",
+      "src_components_ui_table_tableheader",
+      "src_components_ui_table_tablerow"
+    ],
+    "18": [
+      "tsconfig",
+      "tsconfig_compileroptions",
+      "tsconfig_compileroptions_baseurl",
+      "tsconfig_compileroptions_ignoredeprecations",
+      "tsconfig_compileroptions_paths",
+      "tsconfig_files",
+      "tsconfig_json_ref_src",
+      "tsconfig_paths",
+      "tsconfig_references"
+    ],
+    "19": [
+      "src_components_ui_breadcrumb",
+      "src_components_ui_breadcrumb_breadcrumb",
+      "src_components_ui_breadcrumb_breadcrumbellipsis",
+      "src_components_ui_breadcrumb_breadcrumbitem",
+      "src_components_ui_breadcrumb_breadcrumblink",
+      "src_components_ui_breadcrumb_breadcrumblist",
+      "src_components_ui_breadcrumb_breadcrumbpage",
+      "src_components_ui_breadcrumb_breadcrumbseparator"
+    ],
+    "20": [
+      "src_components_ui_drawer",
+      "src_components_ui_drawer_drawer",
+      "src_components_ui_drawer_drawercontent",
+      "src_components_ui_drawer_drawerdescription",
+      "src_components_ui_drawer_drawerfooter",
+      "src_components_ui_drawer_drawerheader",
+      "src_components_ui_drawer_draweroverlay",
+      "src_components_ui_drawer_drawertitle"
+    ],
+    "21": [
+      "src_components_ui_navigation_menu",
+      "src_components_ui_navigation_menu_navigationmenu",
+      "src_components_ui_navigation_menu_navigationmenucontent",
+      "src_components_ui_navigation_menu_navigationmenuindicator",
+      "src_components_ui_navigation_menu_navigationmenulist",
+      "src_components_ui_navigation_menu_navigationmenutrigger",
+      "src_components_ui_navigation_menu_navigationmenutriggerstyle",
+      "src_components_ui_navigation_menu_navigationmenuviewport"
+    ],
+    "22": [
+      "src_components_ui_card",
+      "src_components_ui_card_card",
+      "src_components_ui_card_cardcontent",
+      "src_components_ui_card_carddescription",
+      "src_components_ui_card_cardfooter",
+      "src_components_ui_card_cardheader",
+      "src_components_ui_card_cardtitle"
+    ],
+    "23": [
+      "src_components_ui_toggle",
+      "src_components_ui_toggle_group",
+      "src_components_ui_toggle_group_togglegroup",
+      "src_components_ui_toggle_group_togglegroupcontext",
+      "src_components_ui_toggle_group_togglegroupitem",
+      "src_components_ui_toggle_toggle",
+      "src_components_ui_toggle_togglevariants"
+    ],
+    "24": [
+      "src_components_ui_alert",
+      "src_components_ui_alert_alert",
+      "src_components_ui_alert_alertdescription",
+      "src_components_ui_alert_alerttitle",
+      "src_components_ui_alert_alertvariants"
+    ],
+    "25": [
+      "src_components_ui_avatar",
+      "src_components_ui_avatar_avatar",
+      "src_components_ui_avatar_avatarfallback",
+      "src_components_ui_avatar_avatarimage"
+    ],
+    "26": [
+      "src_components_ui_badge",
+      "src_components_ui_badge_badge",
+      "src_components_ui_badge_badgeprops",
+      "src_components_ui_badge_badgevariants"
+    ],
+    "27": [
+      "src_components_ui_tabs",
+      "src_components_ui_tabs_tabscontent",
+      "src_components_ui_tabs_tabslist",
+      "src_components_ui_tabs_tabstrigger"
+    ],
+    "28": [
+      "src_components_ui_scroll_area",
+      "src_components_ui_scroll_area_scrollarea",
+      "src_components_ui_scroll_area_scrollbar"
+    ],
+    "29": [
+      "src_components_ui_sonner",
+      "src_components_ui_sonner_toaster",
+      "src_components_ui_sonner_toasterprops"
+    ],
+    "30": [
+      "class_variance_authority",
+      "package_dependencies_class_variance_authority"
+    ],
+    "31": [
+      "clsx",
+      "package_dependencies_clsx"
+    ],
+    "32": [
+      "cmdk",
+      "package_dependencies_cmdk"
+    ],
+    "33": [
+      "date_fns",
+      "package_dependencies_date_fns"
+    ],
+    "34": [
+      "embla_carousel_react",
+      "package_dependencies_embla_carousel_react"
+    ],
+    "35": [
+      "eslint",
+      "package_devdependencies_eslint"
+    ],
+    "36": [
+      "eslint_js",
+      "package_devdependencies_eslint_js"
+    ],
+    "37": [
+      "globals",
+      "package_devdependencies_globals"
+    ],
+    "38": [
+      "html_inline",
+      "package_devdependencies_html_inline"
+    ],
+    "39": [
+      "lucide_react",
+      "package_dependencies_lucide_react"
+    ],
+    "40": [
+      "next_themes",
+      "package_dependencies_next_themes"
+    ],
+    "41": [
+      "package_dependencies_radix_ui_react_accordion",
+      "radix_ui_react_accordion"
+    ],
+    "42": [
+      "package_dependencies_radix_ui_react_aspect_ratio",
+      "radix_ui_react_aspect_ratio"
+    ],
+    "43": [
+      "package_dependencies_radix_ui_react_avatar",
+      "radix_ui_react_avatar"
+    ],
+    "44": [
+      "package_dependencies_radix_ui_react_checkbox",
+      "radix_ui_react_checkbox"
+    ],
+    "45": [
+      "package_dependencies_radix_ui_react_collapsible",
+      "radix_ui_react_collapsible"
+    ],
+    "46": [
+      "package_dependencies_radix_ui_react_dialog",
+      "radix_ui_react_dialog"
+    ],
+    "47": [
+      "package_dependencies_radix_ui_react_dropdown_menu",
+      "radix_ui_react_dropdown_menu"
+    ],
+    "48": [
+      "package_dependencies_radix_ui_react_hover_card",
+      "radix_ui_react_hover_card"
+    ],
+    "49": [
+      "package_dependencies_radix_ui_react_label",
+      "radix_ui_react_label"
+    ],
+    "50": [
+      "package_dependencies_radix_ui_react_menubar",
+      "radix_ui_react_menubar"
+    ],
+    "51": [
+      "package_dependencies_radix_ui_react_navigation_menu",
+      "radix_ui_react_navigation_menu"
+    ],
+    "52": [
+      "package_dependencies_radix_ui_react_popover",
+      "radix_ui_react_popover"
+    ],
+    "53": [
+      "package_dependencies_radix_ui_react_progress",
+      "radix_ui_react_progress"
+    ],
+    "54": [
+      "package_dependencies_radix_ui_react_radio_group",
+      "radix_ui_react_radio_group"
+    ],
+    "55": [
+      "package_dependencies_radix_ui_react_scroll_area",
+      "radix_ui_react_scroll_area"
+    ],
+    "56": [
+      "package_dependencies_radix_ui_react_select",
+      "radix_ui_react_select"
+    ],
+    "57": [
+      "package_dependencies_radix_ui_react_separator",
+      "radix_ui_react_separator"
+    ],
+    "58": [
+      "package_dependencies_radix_ui_react_slider",
+      "radix_ui_react_slider"
+    ],
+    "59": [
+      "package_dependencies_radix_ui_react_slot",
+      "radix_ui_react_slot"
+    ],
+    "60": [
+      "package_dependencies_radix_ui_react_switch",
+      "radix_ui_react_switch"
+    ],
+    "61": [
+      "package_dependencies_radix_ui_react_toggle",
+      "radix_ui_react_toggle"
+    ],
+    "62": [
+      "package_dependencies_radix_ui_react_toggle_group",
+      "radix_ui_react_toggle_group"
+    ],
+    "63": [
+      "package_dependencies_radix_ui_react_tooltip",
+      "radix_ui_react_tooltip"
+    ],
+    "64": [
+      "package_dependencies_react_day_picker",
+      "react_day_picker"
+    ],
+    "65": [
+      "package_dependencies_react_dom",
+      "react_dom"
+    ],
+    "66": [
+      "package_dependencies_react_hook_form",
+      "react_hook_form"
+    ],
+    "67": [
+      "package_dependencies_react_resizable_panels",
+      "react_resizable_panels"
+    ],
+    "68": [
+      "package_dependencies_sonner",
+      "sonner"
+    ],
+    "69": [
+      "package_dependencies_tailwind_merge",
+      "tailwind_merge"
+    ],
+    "70": [
+      "package_dependencies_vaul",
+      "vaul"
+    ],
+    "71": [
+      "package_dependencies_zod",
+      "zod"
+    ],
+    "72": [
+      "package_devdependencies_parcel",
+      "parcel"
+    ],
+    "73": [
+      "package_devdependencies_parcel_config_default",
+      "parcel_config_default"
+    ],
+    "74": [
+      "package_devdependencies_parcel_resolver_tspaths",
+      "parcel_resolver_tspaths"
+    ],
+    "75": [
+      "package_devdependencies_postcss",
+      "postcss"
+    ],
+    "76": [
+      "package_devdependencies_tailwindcss",
+      "tailwindcss"
+    ],
+    "77": [
+      "package_devdependencies_tailwindcss_animate",
+      "tailwindcss_animate"
+    ],
+    "78": [
+      "package_devdependencies_types_node",
+      "types_node"
+    ],
+    "79": [
+      "package_devdependencies_types_react_dom",
+      "types_react_dom"
+    ],
+    "80": [
+      "package_devdependencies_typescript",
+      "typescript"
+    ],
+    "81": [
+      "package_devdependencies_typescript_eslint",
+      "typescript_eslint"
+    ],
+    "82": [
+      "package_devdependencies_vite",
+      "vite"
+    ],
+    "83": [
+      "package_devdependencies_vitejs_plugin_react",
+      "vitejs_plugin_react"
+    ],
+    "84": [
+      "public_sw",
+      "public_sw_shell"
+    ],
+    "85": [
+      "eslint_config"
+    ],
+    "86": [
+      "postcss_config"
+    ],
+    "87": [
+      "src_components_ui_aspect_ratio"
+    ],
+    "88": [
+      "src_components_ui_collapsible"
+    ],
+    "89": [
+      "tailwind_config"
+    ],
+    "90": [
+      "vite_config"
+    ]
+  },
+  "cohesion": {
+    "0": 0.08048289738430583,
+    "1": 0.10256410256410256,
+    "2": 0.08735632183908046,
+    "3": 0.07692307692307693,
+    "4": 0.11965811965811966,
+    "5": 0.11666666666666667,
+    "6": 0.09523809523809523,
+    "7": 0.11764705882352941,
+    "8": 0.11764705882352941,
+    "9": 0.11764705882352941,
+    "10": 0.125,
+    "11": 0.18181818181818182,
+    "12": 0.2222222222222222,
+    "13": 0.2,
+    "14": 0.2,
+    "15": 0.2,
+    "16": 0.2222222222222222,
+    "17": 0.2222222222222222,
+    "18": 0.2222222222222222,
+    "19": 0.25,
+    "20": 0.25,
+    "21": 0.25,
+    "22": 0.2857142857142857,
+    "23": 0.3333333333333333,
+    "24": 0.4,
+    "25": 0.5,
+    "26": 0.6666666666666666,
+    "27": 0.5,
+    "28": 0.6666666666666666,
+    "29": 0.6666666666666666,
+    "30": 1.0,
+    "31": 1.0,
+    "32": 1.0,
+    "33": 1.0,
+    "34": 1.0,
+    "35": 1.0,
+    "36": 1.0,
+    "37": 1.0,
+    "38": 1.0,
+    "39": 1.0,
+    "40": 1.0,
+    "41": 1.0,
+    "42": 1.0,
+    "43": 1.0,
+    "44": 1.0,
+    "45": 1.0,
+    "46": 1.0,
+    "47": 1.0,
+    "48": 1.0,
+    "49": 1.0,
+    "50": 1.0,
+    "51": 1.0,
+    "52": 1.0,
+    "53": 1.0,
+    "54": 1.0,
+    "55": 1.0,
+    "56": 1.0,
+    "57": 1.0,
+    "58": 1.0,
+    "59": 1.0,
+    "60": 1.0,
+    "61": 1.0,
+    "62": 1.0,
+    "63": 1.0,
+    "64": 1.0,
+    "65": 1.0,
+    "66": 1.0,
+    "67": 1.0,
+    "68": 1.0,
+    "69": 1.0,
+    "70": 1.0,
+    "71": 1.0,
+    "72": 1.0,
+    "73": 1.0,
+    "74": 1.0,
+    "75": 1.0,
+    "76": 1.0,
+    "77": 1.0,
+    "78": 1.0,
+    "79": 1.0,
+    "80": 1.0,
+    "81": 1.0,
+    "82": 1.0,
+    "83": 1.0,
+    "84": 1.0,
+    "85": 1.0,
+    "86": 1.0,
+    "87": 1.0,
+    "88": 1.0,
+    "89": 1.0,
+    "90": 1.0
+  },
+  "gods": [
+    {
+      "id": "src_lib_utils_cn",
+      "label": "cn()",
+      "degree": 52
+    },
+    {
+      "id": "tsconfig_app_compileroptions",
+      "label": "compilerOptions",
+      "degree": 20
+    },
+    {
+      "id": "src_store_useapp",
+      "label": "useApp()",
+      "degree": 19
+    },
+    {
+      "id": "tsconfig_node_compileroptions",
+      "label": "compilerOptions",
+      "degree": 16
+    },
+    {
+      "id": "src_lib_app_utils_vencido",
+      "label": "vencido()",
+      "degree": 12
+    },
+    {
+      "id": "src_lib_app_utils_uid",
+      "label": "uid()",
+      "degree": 11
+    },
+    {
+      "id": "src_lib_app_utils_hoyiso",
+      "label": "hoyISO()",
+      "degree": 11
+    },
+    {
+      "id": "src_types_pendiente",
+      "label": "Pendiente",
+      "degree": 11
+    },
+    {
+      "id": "src_app_shell",
+      "label": "Shell()",
+      "degree": 10
+    },
+    {
+      "id": "src_lib_supabase_getsupabase",
+      "label": "getSupabase()",
+      "degree": 10
+    }
+  ],
+  "surprises": [
+    {
+      "source": "useCarousel()",
+      "target": "react",
+      "source_files": [
+        "src/components/ui/carousel.tsx",
+        "package.json"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "references",
+      "why": "connects across different repos/directories; peripheral node `useCarousel()` unexpectedly reaches hub `react`"
+    },
+    {
+      "source": "useFormField()",
+      "target": "react",
+      "source_files": [
+        "src/components/ui/form.tsx",
+        "package.json"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "references",
+      "why": "connects across different repos/directories; peripheral node `useFormField()` unexpectedly reaches hub `react`"
+    },
+    {
+      "source": "useToast()",
+      "target": "react",
+      "source_files": [
+        "src/hooks/use-toast.ts",
+        "package.json"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "references",
+      "why": "connects across different repos/directories; bridges separate communities"
+    },
+    {
+      "source": "BreadcrumbSeparator()",
+      "target": "cn()",
+      "source_files": [
+        "src/components/ui/breadcrumb.tsx",
+        "src/lib/utils.ts"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "calls",
+      "why": "bridges separate communities; peripheral node `BreadcrumbSeparator()` unexpectedly reaches hub `cn()`"
+    },
+    {
+      "source": "BreadcrumbEllipsis()",
+      "target": "cn()",
+      "source_files": [
+        "src/components/ui/breadcrumb.tsx",
+        "src/lib/utils.ts"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "calls",
+      "why": "bridges separate communities; peripheral node `BreadcrumbEllipsis()` unexpectedly reaches hub `cn()`"
+    }
+  ],
+  "tokens": {
+    "input": 0,
+    "output": 0
+  }
+}

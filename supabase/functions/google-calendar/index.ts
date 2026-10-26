@@ -37,7 +37,13 @@ interface Cuenta {
   google_email: string
   calendar_id: string
   modo_espejo: 'todo' | 'propio'
+  direccion?: 'ambas' | 'leer' | 'enviar' // qué hace la app con esta cuenta (por defecto 'ambas')
+  google_sub?: string | null
+  escritura?: boolean // false = se conectó solo con permiso de lectura (calendar.events.readonly)
 }
+
+const puedeLeer = (c: Cuenta) => (c.direccion ?? 'ambas') !== 'enviar'
+const puedeEscribir = (c: Cuenta) => (c.direccion ?? 'ambas') !== 'leer' && c.escritura !== false
 
 /** Espacio y rol del usuario que hace la llamada. Cada usuario pertenece a un solo espacio. */
 async function espacioDelUsuario(admin: SupabaseClient, userId: string): Promise<{ espacioId: string; rol: 'padre' | 'hija' } | null> {
@@ -74,7 +80,7 @@ function urlEventos(cuenta: Cuenta, eventId?: string): string {
 
 async function accionExchange(admin: SupabaseClient, userId: string, espacioId: string, rol: 'padre' | 'hija', body: Record<string, unknown>) {
   if (!CLIENT_ID || !CLIENT_SECRET) return json({ error: 'Google Calendar no está configurado en el servidor (faltan credenciales).' }, 400)
-  const { code, redirect_uri } = body as { code?: string; redirect_uri?: string }
+  const { code, redirect_uri, direccion: direccionPedida } = body as { code?: string; redirect_uri?: string; direccion?: string }
   if (!code || !redirect_uri) return json({ error: 'Falta code o redirect_uri' }, 400)
   const r = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
@@ -87,6 +93,15 @@ async function accionExchange(admin: SupabaseClient, userId: string, espacioId: 
   const perfil = perfilRes.ok ? await perfilRes.json() : {}
   const email = perfil.email as string | undefined
   if (!email) return json({ error: 'No se pudo obtener el correo de la cuenta de Google' }, 400)
+  // Confirmación de propietario: Google autenticó a quien autorizó (inicio de sesión + consentimiento) y
+  // el correo debe estar verificado por Google; guardamos el `sub` (id estable de la cuenta Google).
+  if (perfil.email_verified === false) return json({ error: 'Google indica que el correo de esa cuenta no está verificado.' }, 400)
+  const sub = (perfil.sub as string | undefined) ?? null
+  // Permisos realmente concedidos (el usuario puede haberlos recortado en la pantalla de Google):
+  // con solo lectura la cuenta queda en «leer» y la app nunca intenta escribir en ella.
+  const concedidos = String(j.scope ?? '').split(' ')
+  const escritura = concedidos.includes('https://www.googleapis.com/auth/calendar.events')
+  const direccionNueva = !escritura ? 'leer' : (['ambas', 'leer', 'enviar'].includes(direccionPedida ?? '') ? direccionPedida : undefined)
   let refreshToken: string | undefined = j.refresh_token
   if (!refreshToken) {
     const { data: existente } = await admin.from('pnp_google_calendar').select('refresh_token').eq('espacio_id', espacioId).eq('google_email', email).maybeSingle()
@@ -99,7 +114,7 @@ async function accionExchange(admin: SupabaseClient, userId: string, espacioId: 
   const modoInicial = rol === 'padre' ? 'todo' : 'propio'
   const { data: fila, error } = await admin.from('pnp_google_calendar')
     .upsert(
-      { user_id: userId, espacio_id: espacioId, google_email: email, refresh_token: refreshToken, access_token: j.access_token, expires_at, modo_espejo: modoInicial, updated_at: new Date().toISOString() },
+      { user_id: userId, espacio_id: espacioId, google_email: email, refresh_token: refreshToken, access_token: j.access_token, expires_at, modo_espejo: modoInicial, google_sub: sub, escritura, ...(direccionNueva ? { direccion: direccionNueva } : {}), updated_at: new Date().toISOString() },
       { onConflict: 'espacio_id,google_email' },
     )
     .select('id, google_email')
@@ -110,14 +125,26 @@ async function accionExchange(admin: SupabaseClient, userId: string, espacioId: 
 
 async function accionListConnections(admin: SupabaseClient, espacioId: string) {
   if (!CLIENT_ID || !CLIENT_SECRET) return json({ configurado: false, cuentas: [] })
-  const { data } = await admin.from('pnp_google_calendar').select('id, google_email, modo_espejo').eq('espacio_id', espacioId).order('updated_at')
-  return json({ configurado: true, cuentas: (data || []).map(d => ({ id: d.id, email: d.google_email, modoEspejo: d.modo_espejo })) })
+  const { data } = await admin.from('pnp_google_calendar').select('id, google_email, modo_espejo, direccion, google_sub, escritura').eq('espacio_id', espacioId).order('updated_at')
+  return json({ configurado: true, cuentas: (data || []).map(d => ({ id: d.id, email: d.google_email, modoEspejo: d.modo_espejo, direccion: d.direccion ?? 'ambas', verificada: !!d.google_sub, escritura: d.escritura !== false })) })
 }
 
 async function accionSetModo(admin: SupabaseClient, espacioId: string, body: Record<string, unknown>) {
   const { connectionId, modo } = body as { connectionId?: string; modo?: string }
   if (!connectionId || (modo !== 'todo' && modo !== 'propio')) return json({ error: 'Falta connectionId o modo inválido' }, 400)
   const { error } = await admin.from('pnp_google_calendar').update({ modo_espejo: modo }).eq('id', connectionId).eq('espacio_id', espacioId)
+  if (error) return json({ error: error.message }, 400)
+  return json({ ok: true })
+}
+
+async function accionSetDireccion(admin: SupabaseClient, espacioId: string, body: Record<string, unknown>) {
+  const { connectionId, direccion } = body as { connectionId?: string; direccion?: string }
+  if (!connectionId || !['ambas', 'leer', 'enviar'].includes(direccion ?? '')) return json({ error: 'Falta connectionId o dirección inválida' }, 400)
+  if (direccion !== 'leer') {
+    const { data: cta } = await admin.from('pnp_google_calendar').select('escritura').eq('id', connectionId).eq('espacio_id', espacioId).maybeSingle()
+    if (cta && cta.escritura === false) return json({ error: 'Esta cuenta se conectó solo con permiso de lectura. Reconéctala eligiendo «Ver y enviar» para darle permiso de escritura.' }, 400)
+  }
+  const { error } = await admin.from('pnp_google_calendar').update({ direccion }).eq('id', connectionId).eq('espacio_id', espacioId)
   if (error) return json({ error: error.message }, 400)
   return json({ ok: true })
 }
@@ -133,7 +160,7 @@ async function accionDisconnect(admin: SupabaseClient, espacioId: string, body: 
   return json({ ok: true })
 }
 
-interface GEvento { id: string; summary?: string; start?: { dateTime?: string; date?: string }; end?: { dateTime?: string; date?: string } }
+interface GEvento { id: string; iCalUID?: string; status?: string; transparency?: string; summary?: string; start?: { dateTime?: string; date?: string }; end?: { dateTime?: string; date?: string } }
 
 async function accionListEvents(admin: SupabaseClient, espacioId: string, body: Record<string, unknown>) {
   // desdeISO/hastaISO son instantes ISO completos (con offset), calculados por el cliente a
@@ -141,31 +168,90 @@ async function accionListEvents(admin: SupabaseClient, espacioId: string, body: 
   // desalinea el rango en cualquier huso horario distinto de UTC+0.
   const { desdeISO, hastaISO } = body as { desdeISO?: string; hastaISO?: string }
   if (!desdeISO || !hastaISO) return json({ error: 'Falta desdeISO/hastaISO' }, 400)
-  const cuentas = await cuentasDelEspacio(admin, espacioId)
-  const eventos: { id: string; cuentaId: string; email: string; titulo: string; inicio?: string; fin?: string; todoElDia: boolean }[] = []
+  const cuentas = (await cuentasDelEspacio(admin, espacioId)).filter(puedeLeer)
+  const eventos: { id: string; cuentaId: string; email: string; titulo: string; inicio?: string; fin?: string; todoElDia: boolean; uid?: string; ocupado: boolean }[] = []
   const errores: Record<string, string> = {}
   await Promise.all(cuentas.map(async cuenta => {
     const token = await tokenVigente(admin, cuenta)
     if (!token) { errores[cuenta.id] = 'No se pudo renovar el acceso'; return }
-    const params = new URLSearchParams({ timeMin: desdeISO, timeMax: hastaISO, singleEvents: 'true', orderBy: 'startTime' })
+    // singleEvents expande las recurrencias en instancias; showDeleted=false omite las canceladas.
+    const params = new URLSearchParams({ timeMin: desdeISO, timeMax: hastaISO, singleEvents: 'true', orderBy: 'startTime', showDeleted: 'false' })
     const r = await fetch(`${urlEventos(cuenta)}?${params}`, { headers: { Authorization: `Bearer ${token}` } })
     const j = await r.json()
     if (!r.ok) { errores[cuenta.id] = j.error?.message || 'Error al leer Google Calendar'; return }
     for (const e of (j.items || []) as GEvento[]) {
+      if (e.status === 'cancelled') continue
       eventos.push({
         id: e.id, cuentaId: cuenta.id, email: cuenta.google_email, titulo: e.summary || '(sin título)',
         inicio: e.start?.dateTime || e.start?.date, fin: e.end?.dateTime || e.end?.date, todoElDia: !e.start?.dateTime,
+        uid: e.iCalUID, ocupado: e.transparency !== 'transparent',
       })
     }
   }))
   return json({ eventos, errores })
 }
 
+/** Sincronización incremental (Hito 2). Por cuenta usa su `syncToken` (si el cliente lo manda) para
+    traer SOLO lo que cambió desde la última vez, con paginación (`pageToken`). Si Google responde
+    410 (token vencido) se hace una sincronización completa de la ventana y se avisa con
+    `completo: true` para que el cliente reemplace su copia de esa cuenta. Las canceladas llegan como
+    tombstones (`cancelado: true`) para que el cliente las quite. El `syncToken` no es una credencial.
+    Nota: con syncToken Google no admite timeMin/timeMax/orderBy; la ventana la fija la sync completa. */
+async function accionSyncEvents(admin: SupabaseClient, espacioId: string, body: Record<string, unknown>) {
+  const { tokens = {}, ventanaDesdeISO, ventanaHastaISO } = body as { tokens?: Record<string, string | null>; ventanaDesdeISO?: string; ventanaHastaISO?: string }
+  const cuentas = (await cuentasDelEspacio(admin, espacioId)).filter(puedeLeer)
+  type Cambio = { id: string; cuentaId: string; email: string; cancelado: boolean; titulo?: string; inicio?: string; fin?: string; todoElDia?: boolean; uid?: string; ocupado?: boolean }
+  const cambios: Cambio[] = []
+  const nuevosTokens: Record<string, string> = {}
+  const completos: string[] = []
+  const errores: Record<string, string> = {}
+  await Promise.all(cuentas.map(async cuenta => {
+    const token = await tokenVigente(admin, cuenta)
+    if (!token) { errores[cuenta.id] = 'No se pudo renovar el acceso'; return }
+    const local: Cambio[] = []
+    const recorrer = async (syncToken: string | null) => {
+      let pageToken: string | undefined
+      let siguiente: string | undefined
+      do {
+        const params = new URLSearchParams({ singleEvents: 'true', showDeleted: 'true', maxResults: '250' })
+        if (syncToken) params.set('syncToken', syncToken)
+        else { if (ventanaDesdeISO) params.set('timeMin', ventanaDesdeISO); if (ventanaHastaISO) params.set('timeMax', ventanaHastaISO) }
+        if (pageToken) params.set('pageToken', pageToken)
+        const r = await fetch(`${urlEventos(cuenta)}?${params}`, { headers: { Authorization: `Bearer ${token}` } })
+        if (r.status === 410) return 'vencido' as const
+        const j = await r.json()
+        if (!r.ok) throw new Error(j.error?.message || 'Error al leer Google Calendar')
+        for (const e of (j.items || []) as GEvento[]) {
+          if (e.status === 'cancelled') { local.push({ id: e.id, cuentaId: cuenta.id, email: cuenta.google_email, cancelado: true }); continue }
+          local.push({
+            id: e.id, cuentaId: cuenta.id, email: cuenta.google_email, cancelado: false, titulo: e.summary || '(sin título)',
+            inicio: e.start?.dateTime || e.start?.date, fin: e.end?.dateTime || e.end?.date, todoElDia: !e.start?.dateTime,
+            uid: e.iCalUID, ocupado: e.transparency !== 'transparent',
+          })
+        }
+        pageToken = j.nextPageToken
+        if (j.nextSyncToken) siguiente = j.nextSyncToken
+      } while (pageToken)
+      return siguiente ?? null
+    }
+    try {
+      let completo = !tokens[cuenta.id]
+      let res = await recorrer(tokens[cuenta.id] || null)
+      if (res === 'vencido') { local.length = 0; completo = true; res = await recorrer(null) }
+      if (res === 'vencido') throw new Error('Google rechazó la sincronización completa')
+      if (res) nuevosTokens[cuenta.id] = res
+      if (completo) completos.push(cuenta.id)
+      cambios.push(...local)
+    } catch (err) { errores[cuenta.id] = err instanceof Error ? err.message : 'Error de sincronización' }
+  }))
+  return json({ cambios, tokens: nuevosTokens, completos, errores, leidas: cuentas.map(c => c.id) })
+}
+
 /** Cuentas destinatarias del espejo para un pendiente dado: las que reflejan "todo", más la
     dueña del proyecto (si tiene) cuando esa cuenta está en modo "propio". Una cuenta "propio"
     cuyo id no coincide con `origenCuentaId` queda fuera del fan-out por completo. */
 function cuentasDestino(cuentas: Cuenta[], origenCuentaId?: string): Cuenta[] {
-  return cuentas.filter(c => c.modo_espejo === 'todo' || (c.modo_espejo === 'propio' && c.id === origenCuentaId))
+  return cuentas.filter(puedeEscribir).filter(c => c.modo_espejo === 'todo' || (c.modo_espejo === 'propio' && c.id === origenCuentaId))
 }
 
 async function accionCreateEvent(admin: SupabaseClient, espacioId: string, body: Record<string, unknown>) {
@@ -178,7 +264,7 @@ async function accionCreateEvent(admin: SupabaseClient, espacioId: string, body:
   // cuentas "todo" (perfil personal). Sin esta bandera se preserva el comportamiento de siempre
   // (usado por el time-blocking de pendientes, que sí debe reflejarse en todo lo que dice "todo").
   const cuentas = soloEstaCuenta && origenCuentaId
-    ? todasLasCuentas.filter(c => c.id === origenCuentaId)
+    ? todasLasCuentas.filter(c => c.id === origenCuentaId && puedeEscribir(c))
     : cuentasDestino(todasLasCuentas, origenCuentaId)
   const eventos: Record<string, string> = {}
   const errores: Record<string, string> = {}
@@ -258,9 +344,11 @@ Deno.serve(async (req: Request) => {
     switch (action) {
       case 'exchange': return await accionExchange(admin, user.id, espacioId, rol, body)
       case 'list-connections': return await accionListConnections(admin, espacioId)
+      case 'set-direccion': return await accionSetDireccion(admin, espacioId, body)
       case 'set-modo': return await accionSetModo(admin, espacioId, body)
       case 'disconnect': return await accionDisconnect(admin, espacioId, body)
       case 'list-events': return await accionListEvents(admin, espacioId, body)
+      case 'sync-events': return await accionSyncEvents(admin, espacioId, body)
       case 'create-event': return await accionCreateEvent(admin, espacioId, body)
       case 'update-event': return await accionUpdateEvent(admin, espacioId, body)
       case 'delete-event': return await accionDeleteEvent(admin, espacioId, body)

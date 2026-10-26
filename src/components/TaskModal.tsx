@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '@/store'
 import { useUI } from '@/ui-store'
@@ -8,7 +8,8 @@ type Modalidad = 'individual' | 'equipo'
 import { PROYECTO_COLORES, PROYECTO_COLORES_KEYS } from '@/types'
 import { uid, fechaPorPrioridad, describirRepeticion, defaultsHorario, asignarProyecto } from '@/lib/app-utils'
 import { isGoogleConfigurado } from '@/lib/googleCalendar'
-import { sincronizarEspejoGoogle } from '@/lib/agenda'
+import { sincronizarEspejoGoogle, buscarConflictos, horaCorta, sinDuplicarLocal } from '@/lib/agenda'
+import { googleDelDia } from '@/lib/googleSync'
 import { idColumnaCompletado } from '@/lib/columnas'
 import AdjuntosUI, { Miniatura } from '@/components/AdjuntosUI'
 import CampoFecha from '@/components/CampoFecha'
@@ -22,7 +23,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Plus, Trash2, X, StickyNote, BookmarkPlus } from 'lucide-react'
 
 export default function TaskModal() {
-  const { pendientes, crearPendiente, actualizarPendiente, eliminarPendiente, usuario, personas, proyectos, crearProyecto, columnas, crearPlantilla, contactos, crearContacto } = useApp()
+  const { pendientes, crearPendiente, actualizarPendiente, eliminarPendiente, usuario, personas, proyectos, crearProyecto, columnas, crearPlantilla, contactos, crearContacto, eventos } = useApp()
   const { modal, cerrarModal, overlay, registrarGuardia, confirmarDescartes, cancelarDescartes } = useUI()
   const idCompletado = idColumnaCompletado(columnas)
   const editando = modal.editId ? pendientes.find(p => p.id === modal.editId) : null
@@ -37,6 +38,15 @@ export default function TaskModal() {
   const [fechaLimite, setFechaLimite] = useState('')
   const [fechaTocada, setFechaTocada] = useState(false)
   const [hora, setHora] = useState('')
+  const [enviarGoogle, setEnviarGoogle] = useState(false)
+  const [fechaInicio, setFechaInicio] = useState('')
+  // Aviso de cruce con lo ya agendado en la app y con Google Calendar (si ya se sincronizó en esta sesión).
+  const cruces = useMemo(
+    () => (hora && fechaLimite
+      ? buscarConflictos({ fecha: fechaLimite, hora, duracionMin: editando?.duracionMin || 15 }, { pendientes, eventos, google: sinDuplicarLocal(googleDelDia(fechaLimite), pendientes, eventos), idCompletado: idColumnaCompletado(columnas) }, editando?.id)
+      : []),
+    [hora, fechaLimite, editando, pendientes, eventos, columnas],
+  )
   const [proyectoId, setProyectoId] = useState('')
   const [nuevoProyectoVal, setNuevoProyectoVal] = useState('')
   const [creandoProyecto, setCreandoProyecto] = useState(false)
@@ -99,6 +109,8 @@ export default function TaskModal() {
     if (fechaInicial) { setFechaLimite(fechaInicial); setFechaTocada(true) }
     else { setFechaLimite(fechaPorPrioridad(prioInicial)); setFechaTocada(false) }
     setHora(editando?.hora ?? d.hora ?? '')
+    setFechaInicio(editando?.fechaInicio ?? '')
+    setEnviarGoogle(!!editando?.googleEventos && Object.keys(editando.googleEventos).length > 0)
     setProyectoId(editando?.proyectoId ?? d.proyectoId ?? '')
     setCreandoProyecto(false); setNuevoProyectoVal('')
     setRepetir(editando?.repetir ?? d.repetir ?? '')
@@ -184,7 +196,7 @@ export default function TaskModal() {
     const datos = {
       titulo: t, solicitante: solicitanteTrim, responsable: responsableTrim,
       responsableId: resolverContacto(responsableTrim), solicitanteId: resolverContacto(solicitanteTrim),
-      descripcion: descripcionFinal, prioridad, estado, fechaLimite, hora: horaFinal, duracionMin: duracionFinal,
+      descripcion: descripcionFinal, prioridad, estado, fechaLimite, fechaInicio: fechaInicio || undefined, hora: horaFinal, duracionMin: duracionFinal,
       proyecto: nombreProyecto, proyectoId: proyectoId || undefined,
       etiquetas: etiquetas.split(',').map(s => s.trim()).filter(Boolean),
       subtareas, comentarios, adjuntos, repetir: repetir || undefined,
@@ -203,11 +215,13 @@ export default function TaskModal() {
     // pendiente ya agendado (o se acaba de agendar/desagendar), refleja el cambio allá también —
     // antes solo la Agenda lo hacía, y editar desde aquí dejaba el evento de Google desincronizado.
     const origenCuentaId = proyectos.find(p => p.id === proyectoId)?.cuentaGoogleId
-    const teniaHorario = !!editando?.hora || !!editando?.googleEventos
-    if (isGoogleConfigurado() && (horaFinal || teniaHorario)) {
+    // Tener fecha/hora NO envía nada a Google: solo si el usuario marcó «Enviar a Google Calendar».
+    // Si ya estaba espejado y lo desmarca, se retira el evento de Google.
+    const teniaEspejo = !!editando?.googleEventos && Object.keys(editando.googleEventos).length > 0
+    if (isGoogleConfigurado() && ((enviarGoogle && horaFinal) || teniaEspejo)) {
       sincronizarEspejoGoogle(
         { hora: editando?.hora, googleEventos: editando?.googleEventos },
-        { titulo: t, fecha: fechaLimite, hora: horaFinal, duracionMin: duracionFinal || 15, descripcion: descripcionFinal },
+        { titulo: t, fecha: fechaLimite, hora: enviarGoogle ? horaFinal : '', duracionMin: duracionFinal || 15, descripcion: descripcionFinal },
         origenCuentaId,
       )
         .then(r => { actualizarPendiente(id, { googleEventos: r.googleEventos }); if (r.errores && Object.keys(r.errores).length) toast.error('Algunas cuentas de Google no se pudieron actualizar') })
@@ -316,7 +330,24 @@ export default function TaskModal() {
                 <Label className="text-[11px] uppercase text-muted-foreground">Hora (opcional)</Label>
                 <Input type="time" value={hora} onChange={e => setHora(e.target.value)} />
                 {!hora && <p className="text-[10px] text-muted-foreground">Sin hora se agenda a las 8:00 (5 min)</p>}
+                {cruces.length > 0 && (
+                  <p role="alert" className="text-[10px] text-amber-600 dark:text-amber-400">
+                    Se cruza con: {cruces.slice(0, 2).map(c => `${c.titulo} (${horaCorta(c.inicio)}–${horaCorta(c.fin)})`).join(', ')}{cruces.length > 2 ? ` y ${cruces.length - 2} más` : ''}
+                  </p>
+                )}
+                {isGoogleConfigurado() && (
+                  <label className="flex items-center gap-1.5 pt-1 text-[11px]">
+                    <input type="checkbox" checked={enviarGoogle} onChange={e => setEnviarGoogle(e.target.checked)} />
+                    Enviar a Google Calendar
+                  </label>
+                )}
               </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-[11px] uppercase text-muted-foreground">Inicio planeado (opcional, para el Gantt)</Label>
+              <CampoFecha value={fechaInicio} onChange={setFechaInicio} />
+              {fechaInicio && fechaLimite && fechaInicio > fechaLimite && <p className="text-[10px] text-amber-600 dark:text-amber-400">El inicio es posterior a la fecha límite.</p>}
             </div>
 
             {/* Repetición */}

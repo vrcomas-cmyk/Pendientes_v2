@@ -120,7 +120,7 @@ const DIAS_SEMANA: Record<string, number> = { domingo: 0, lunes: 1, martes: 2, '
 
 function fechaRelativa(dias: number): string {
   const d = new Date(); d.setDate(d.getDate() + dias)
-  return d.toISOString().slice(0, 10)
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') // local, no UTC
 }
 
 /** Extrae una fecha de un texto: `>mañana`, `>viernes`, `>+5d`, `>2w`, `>2026-06-20`, o `hoy`/`mañana` sueltos */
@@ -472,12 +472,22 @@ export function asignarProyecto(
   return { proyectoId, proyecto: p ? p.nombre : nombreAnterior }
 }
 
+/** Los 2 pendientes y la nota que la app siembra cuando el almacenamiento local está vacío (ver
+    `semilla()` en store.tsx). Se reconocen por su contenido exacto (los ids son aleatorios) para poder
+    ofrecer «Quitar datos de ejemplo» sin tocar datos reales. */
+export const esPendienteDeEjemplo = (p: Pick<Pendiente, 'titulo' | 'descripcion' | 'solicitante'>): boolean =>
+  (p.titulo === 'Enviar reporte mensual' && p.descripcion === 'Incluir cierre de ventas y comodatos.' && p.solicitante === 'Liz') ||
+  (p.titulo === 'Revisar inventario PROTEC' && !p.descripcion && !p.solicitante)
+export const esNotaDeEjemplo = (n: { titulo: string; contenidoHTML: string }): boolean =>
+  n.titulo === 'Reunión semanal' && n.contenidoHTML.startsWith('<div>Temas para revisar esta semana:</div>')
+
 export function normalizar(p: Partial<Pendiente>): Pendiente {
+  const ahora = new Date().toISOString() // una sola lectura: creado y modificado idénticos (antes podían diferir por 1 ms)
   const base: Pendiente = {
     id: uid(), titulo: '', solicitante: '', responsable: '', descripcion: '',
     prioridad: 'Media', estado: 'pendiente', fechaLimite: '', hora: '', proyecto: '',
     etiquetas: [], subtareas: [], comentarios: [], adjuntos: [], origenNota: null,
-    creado: new Date().toISOString(), modificado: new Date().toISOString(), fechaCompletado: null,
+    creado: ahora, modificado: ahora, fechaCompletado: null,
     ...p,
   }
   const { hora, duracionMin } = defaultsHorario(base.fechaLimite, base.hora || '', base.duracionMin)

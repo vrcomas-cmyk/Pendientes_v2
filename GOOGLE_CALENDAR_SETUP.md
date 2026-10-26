@@ -25,6 +25,7 @@ en modo degradado: solo local, sin bloques de "ocupado" ni eventos reales.
 3. Rellena nombre de la app, correo de soporte y correo de contacto del desarrollador.
 4. En **Alcances (scopes)**, añade:
    - `https://www.googleapis.com/auth/calendar.events`
+   - `https://www.googleapis.com/auth/calendar.events.readonly` (para cuentas conectadas con «Solo ver»: la app pide únicamente lectura)
    - `https://www.googleapis.com/auth/userinfo.email`
 5. En **Usuarios de prueba** (mientras la app no esté "publicada"), añade tu propio
    correo de Google — si no, Google bloqueará el login con "app no verificada".

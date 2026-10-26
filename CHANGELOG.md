@@ -1,5 +1,168 @@
 # Changelog
 
+### Correo: incluye Google Calendar, vencidos y proyecto (2026-10-26)
+
+- El resumen diario/semanal ahora mezcla **eventos de Google Calendar** con los pendientes y eventos de la app (en la zona del usuario; los de todo el día primero y repetidos en cada día que abarcan), sin repetir lo que la app ya espejó ni el mismo evento de varias cuentas; omite las cuentas «Solo enviar» y, si una cuenta falla, manda el correo con una nota. Añade la sección **Vencidos** y el proyecto de cada pendiente. Lógica pura probada (`eventosGoogleAItems`); función `resumen-correo` desplegada (v7). Sin cambios en la app.
+
+### Fix: remitente del correo (RESUMEN_FROM) (2026-10-26)
+
+- Resend rechazó el remitente (422 «Invalid `from` field»). La función `resumen-correo` ahora limpia el valor del secreto (comillas, saltos de línea, espacios, prefijo `RESUMEN_FROM=`) y, si aun así el formato no es válido, responde mostrando el valor leído y el formato esperado (`Nombre <correo@dominio>`) en vez del error de Resend. Solo servidor (desplegada v4); sin cambio en la app.
+
+### Sync que se auto-repara, datos de ejemplo y eventos dentro de las secciones de Hoy (2026-10-26)
+
+- **Aviso «Sincronización interrumpida» corregido de raíz.** El circuito de seguridad (no purgar local cuando faltan ≥5 elementos ya sincronizados) se mantiene, pero antes solo avisaba: como esos elementos figuraban como «ya subidos» nunca se volvían a enviar y el aviso salía en cada ciclo. Ahora se auto-repara: `olvidarAusentes` quita su marca de sincronizado y el `flush` inmediato los vuelve a subir (upsert idempotente); el aviso se sustituye por un mensaje informativo único («Se restauraron N elementos…»). Nunca se borra nada local. Efecto a considerar: si otro dispositivo borró ≥5 elementos de golpe, este puede resucitarlos (se borran de nuevo desde la papelera).
+- **Datos de ejemplo:** Ajustes → «Quitar datos de ejemplo (n)» manda a la papelera los 2 pendientes y la nota que la app siembra al estrenar (`esPendienteDeEjemplo` / `esNotaDeEjemplo`, por contenido exacto, sin tocar datos reales). Solo aparece si siguen ahí.
+- **Hoy:** los eventos (de la app y de Google Calendar, incluidos los de todo el día) ya NO van en un bloque aparte: se acoplan dentro de «Para hoy» y «Próximos 7 días», mezclados por hora/fecha con los pendientes, con origen, fecha y aviso de cruce. Se retira la franja «Agenda · hoy y próximos 7 días» de la versión anterior del día. SW → `pendientes-pro-v42`.
+
+### Hoy: agenda única con Google + app, y causa real de errores de la prueba de correo (2026-10-26)
+
+- **Hoy ya no separa los eventos:** «Agenda · hoy y próximos 7 días» junta en UNA lista agrupada por día los pendientes con hora, los eventos de la app y los eventos de Google Calendar (también los de todo el día, que aparecen en cada día que abarcan), cada uno con su origen (Pendiente / Evento / correo de la cuenta) y aviso ⚠ de cruce. Sustituye a «Cronología de hoy» y «De Google Calendar hoy». Lógica pura en `agruparAgenda` (`lib/agenda.ts`), carga en el hook `useEventosGoogle` (primer pintado rápido por rango, copia incremental después).
+- **Correo de prueba:** el aviso ahora muestra el motivo real que devuelve la función (antes un mensaje genérico) — `lib/funciones-errores.ts`. Diagnóstico con los registros de Supabase: la función autentica, lee tus datos y falla justo al enviar (500); el cron recibe 401 porque su `CRON_SECRET` sigue siendo el marcador. SW → `pendientes-pro-v41`.
+
+### Planear sin pestañas anidadas + migraciones numeradas (2026-10-26)
+
+- **«Planear» ahora tiene 4 pestañas planas: Proyectos · Metas · Rocas · Espacios.** Se elimina el segundo nivel de pestañas que Metas y Rocas tenían dentro; «Rocas» es una vista propia (`rocas`). La barra de pestañas ya no se remonta ni se vuelve a animar al cambiar de una a otra.
+- **Migraciones numeradas:** nueva carpeta `supabase/migrations/` con `01_google_calendar_escritura.sql` (pendiente de ejecutar) y un README con las reglas y la tabla de estado; regla añadida a `AGENTS.md` y a la skill de módulos. Futuras migraciones: `02_…`, `03_…`, una por cambio, para ejecutarlas una por una.
+- Fix: `normalizar` leía la hora dos veces y `creado`/`modificado` podían diferir 1 ms (test intermitente); ahora comparten una sola lectura.
+- Decisión: Panel y Contactos se quedan como filas directas del sidebar (el usuario pidió explícitamente acceso de un clic). SW → `pendientes-pro-v40`.
+
+### Hito 1 (cierre): permisos mínimos de Google y cruces con Google al agendar (2026-10-26)
+
+- **Permisos mínimos por cuenta:** al conectar eliges **Solo ver** (pide solo `calendar.events.readonly`) o **Ver y enviar** (`calendar.events`). El servidor lee los permisos realmente concedidos: una cuenta de solo lectura queda en «Solo ver», no se puede cambiar a enviar sin reconectarla y la app nunca escribe en ella (`escritura` en `pnp_google_calendar`).
+- **Cruces con Google al agendar:** el diálogo de pendiente ahora también avisa si el horario choca con eventos de Google (con la copia ya sincronizada en la sesión, sin pedir nada nuevo; excluye los ya espejados).
+- **Pasos externos (en este orden):** (1) ejecutar `supabase_setup.sql` o `alter table pnp_google_calendar add column if not exists escritura boolean not null default true;`; (2) `supabase functions deploy google-calendar` — NO desplegar antes del paso 1; (3) añadir el scope `calendar.events.readonly` pantalla de consentimiento de Google Cloud. Sin (1)+(2) la app sigue funcionando, pero una cuenta «Solo ver» quedaría marcada «ambas» por la función antigua.
+- Con esto el Hito 1 queda completo. SW → `pendientes-pro-v39`.
+
+### Agenda del día en móvil: hoja inferior (2026-10-26)
+
+- Botón de calendario en el encabezado móvil que abre una **hoja inferior** con la agenda del día (la misma que el panel lateral de escritorio: pendientes con hora, eventos propios, Google, avisos ⚠ de cruce, «Sin hora», evento rápido y «Abrir calendario completo»). Se cierra con Esc, tocando fuera o con el asa; navega entre días con las flechas.
+- `PanelAgenda` ahora tiene dos variantes (`lateral` y `hoja`); nuevo `HojaInferior` (Radix Dialog, accesible). Tests: `tests/agenda-movil.test.tsx`. SW → `pendientes-pro-v38`.
+
+### Reorganización de vistas, paso 2: «Planear» (2026-10-26)
+
+- **Una sola entrada «Planear»** (escritorio y móvil) con pestañas **Proyectos · Metas y rocas · Espacios**: se pasa de una a otra sin volver al menú, y «Planear» reabre la pestaña usada por última vez (`pn_planear_tab`).
+- **Navegación primaria ahora: Hoy · Pendientes · Planear · Notas** (4 destinos; antes 5 + Metas aparte). «Trabajo» queda con Panel y Contactos. El selector «Espacio activo» sigue en el sidebar.
+- Los atajos numéricos no cambian (3 → Proyectos, 5 → Espacios, 6 → Pendientes sin fecha…): ahora abren la pestaña correspondiente de Planear.
+- Fix de layout: el contenedor de vistas ocupa el alto disponible (paneles de Proyectos ya no se encogen cuando hay pocos datos).
+- Tests de navegación/espacios/sistema actualizados + test nuevo de pestañas. SW → `pendientes-pro-v37`.
+- **Pendiente (siguiente paso):** hoja inferior de agenda en móvil; Panel/Contactos a un menú secundario si se desea reducir más.
+
+### Reorganización de vistas, paso 1: Pendientes unificado (2026-10-26)
+
+- **Inbox desaparece como vista aparte.** Lo «sin fecha» ahora es un filtro de Pendientes («📥 Sin fecha (n)»), junto a Todos / Abiertos / ⚠ Vencidos (n) / Hoy / Semana, en la misma pantalla donde ya están Lista, Tablero y Calendario. Una sola puerta para ver, clasificar y agendar lo pendiente.
+- **Navegación primaria:** Hoy · Pendientes · Proyectos · Notas · Espacios (en móvil también). Pendientes sube de «Trabajo» a primario con el contador de abiertos.
+- **Compatibilidad:** el atajo `6`, la Paleta de comandos («Pendientes sin fecha (Inbox)») y una vista `inbox` guardada en localStorage abren Pendientes con el filtro «Sin fecha» (modo Lista). Se elimina `InboxView.tsx`.
+- Los filtros respetan el Espacio activo como antes. Tests de navegación y espacios actualizados al nuevo diseño. SW → `pendientes-pro-v36`.
+- **Siguiente (propuesto):** agrupar Proyectos · Metas · Rocas · Espacios en «Planear» y mover Panel/Contactos a un menú secundario; agenda en hoja inferior en móvil.
+
+### Mejora: recorrido como usuario — menos ruido, menos repetición (2026-10-26)
+
+Hallazgos de una prueba real en navegador (Chromium aislado, escritorio y móvil) y su arreglo:
+- **Falsos avisos de cruce (⚠) en todo:** `normalizar` da 08:00 / 5 min a cada pendiente con fecha pero sin hora; todos chocaban entre sí. Ahora ese marcador (`esHoraPorDefecto`) no cuenta como bloque: no genera conflictos y en el panel lateral pasa a «Sin hora».
+- **Bloques apilados e ilegibles en el calendario:** los que se cruzan ahora van lado a lado (`asignarColumnas`), como en Google Calendar.
+- **Hoy repetía la agenda:** con el panel lateral visible, «Cronología de hoy» ya no se duplica en Hoy (hook `useAgendaLateral`, mismo corte `xl` que el panel).
+- **Avisos tapando la captura del panel:** los toasts se corren cuando el panel está visible.
+- Textos en voseo («tenés», «creá») de Metas y Contactos pasados a «tú», como el resto de la app.
+- Pruebas ampliadas. SW → `pendientes-pro-v35`.
+
+### Fix: eventos de Google tardaban en cargar en el panel lateral (2026-10-25)
+
+- La primera sincronización incremental baja toda la ventana (−60/+400 días) y es lenta; además panel y calendario la pedían a la vez. Ahora: llamadas simultáneas comparten una sola petición, se reutiliza la copia de menos de 15 s, si el servidor no soporta `sync-events` se cae al listado por rango al instante (5 min), y con la copia fría el panel y el calendario pintan YA el día/rango con una consulta pequeña mientras la copia completa se calienta en segundo plano. Indicador «Cargando Google Calendar…». SW → v34.
+
+### Fix: el panel de agenda lateral no mostraba lo del calendario (2026-10-25)
+
+- Causa 1: el panel filtraba por Espacio activo y el calendario completo no; ahora ambos muestran lo mismo (sin filtro de Espacio).
+- Causa 2: si la sincronización incremental de Google no estaba disponible (función sin redesplegar), el panel quedaba sin eventos de Google; ahora cae al listado por rango, igual que el calendario. SW → `pendientes-pro-v33`.
+
+### Añadido: cuentas de Google con dirección de sincronización, propietario confirmado y resumen (2026-10-25)
+
+- **Dirección por cuenta** (Google Calendar → cada cuenta): *Ver y enviar (ambas)*, *Solo ver* (trae sus eventos para verlos/evitar cruces; la app nunca escribe en ella) o *Solo enviar* (solo manda lo que agendes; sus eventos no se muestran). Se aplica en el servidor (`direccion` en `pnp_google_calendar`, acción `set-direccion`); lectura, sync incremental y espejo la respetan. La opción de qué enviar («todo» / «solo lo propio») solo aparece si la cuenta puede recibir.
+- **Propietario confirmado:** conectar una cuenta exige iniciar sesión en Google con ella (`select_account` + consentimiento + `state`); el servidor exige correo verificado por Google y guarda su `sub`. Cuentas antiguas muestran «Sin confirmar» con acceso para volver a iniciar sesión.
+- **Resumen por cuenta** en el diálogo: eventos de hoy, horas ocupadas, próximos 7 días y los 3 siguientes (`resumirGoogle`).
+- **Pasos externos:** ejecutar `supabase_setup.sql` (nuevas columnas `direccion`, `google_sub`) y `supabase functions deploy google-calendar`.
+
+### Añadido: Hito 3 (código completo) — resúmenes diario/semanal por correo (2026-10-25)
+
+- **Backend:** Edge Function `resumen-correo` (cron cada 15 min, prueba por usuario, baja en un clic), tablas `pnp_resumen_prefs` / `pnp_resumen_envios` (RLS) y `supabase/resumen_cron.sql` (pg_cron + pg_net).
+- **Reglas** (`supabase/functions/_shared/resumen.ts`, puras y probadas): zona horaria del usuario; diario = pendientes abiertos + eventos del día; semanal lunes–domingo agrupado por día; **el lunes un solo correo** (el semanal incluye ese día); pausa; hora mínima (si el cron se retrasa, se envía igual ese día); sin correos vacíos.
+- **Idempotencia:** `unique (user_id, tipo, clave)` + reclamo atómico + reintentos (máx. 3) + `Idempotency-Key` al proveedor (Resend) + `List-Unsubscribe`.
+- **App:** Ajustes → «Resumen por correo» (activar, correo, diario/semanal, hora, días, pausa, «Enviar prueba»).
+- **Pendiente:** no incluye eventos de Google Calendar; requiere proveedor/dominio/secretos/cron — ver `RESUMEN_CORREO_SETUP.md`. No está probado en producción.
+
+### Añadido: panel de agenda lateral derecho + skill de integración (2026-10-25)
+
+- **Panel de agenda a la derecha** (estilo Gmail, `components/PanelAgenda.tsx`, pantallas `xl+`): día con navegación, pendientes con hora + eventos propios + Google (🔒), aviso ⚠ de cruces, pendientes «sin hora», evento rápido («Junta 3pm por 1h») y acceso al calendario completo. Respeta el Espacio activo. Botón en la barra superior para mostrarlo/ocultarlo (se recuerda).
+- Skill `.claude/skills/modulos-integracion`: mapa de módulos, capas, reglas de integración y checklist.
+- Fix: «Ver agenda» tras crear un evento rápido ahora abre el calendario real (antes iba a «Hoy»).
+- SW → `pendientes-pro-v32`.
+
+### Añadido: Hito 4 — proyectos por método y aviso de estancamiento (2026-10-25)
+
+- **Método por proyecto** (campo opcional `metodo`, guardado en el proyecto y sincronizado): Tablero, Lista, **Scrum** y **Gantt** son perspectivas de los MISMOS pendientes (`MetodoProyecto.tsx`, lógica en `src/lib/proyectos.ts`).
+  - Scrum: sprint = ventana de fechas del proyecto; «en el sprint» = fecha límite dentro de la ventana; el resto del trabajo abierto es backlog; «Al sprint» solo fija la fecha límite del mismo pendiente. Progreso y días restantes. (Capacidad/velocidad: diseño posterior, como indica el plan.)
+  - Gantt: barras de `fechaInicio` (nuevo campo «Inicio planeado» en el pendiente) o fecha de creación a `fechaLimite`; marca hoy, vencidos y dependencias (`bloqueadoPor`); sin fecha límite no hay barra y se listan aparte.
+- **Estancamiento** (en la app primero): trabajo abierto + sin actividad ≥ N días (def. 14, configurable por proyecto). No se infiere por vencimientos. Pausa «no avisar hasta…» para vacaciones/espera. Se muestra con ⏳ en la lista y un aviso en el proyecto. Correo opcional: pendiente (depende del Hito 3).
+- Ajustes del proyecto (engrane): sprint, umbral y pausa.
+
+### Añadido: Hito 2 (parte local) — login con Google, state anti-CSRF y sync incremental (2026-10-25)
+
+- **Login con Google** (Supabase Auth, solo identidad: openid/email/profile) en la pantalla de acceso, y «Vincular inicio con Google» en el menú de cuenta (`linkIdentity`, enlaza a la cuenta actual, sin crear usuarios duplicados). Es independiente del permiso de Calendar.
+- **Seguridad:** el regreso de «Conectar Calendar» ahora lleva un `state` aleatorio verificado (sessionStorage); un `?code=` sin ese state (p. ej. el del login de Supabase) se ignora sin tocar la URL.
+- **Sincronización incremental** (`sync-events` en la Edge Function + `src/lib/googleSync.ts`): por cuenta con `syncToken`, paginación, cancelaciones como tombstones y recuperación de HTTP 410 con sync completa. La agenda la usa como camino principal (ventana −60/+400 días) y cae al listado por rango si la función no está actualizada o el rango queda fuera. Tokens y copia solo en memoria (nada sensible en localStorage).
+- **Pasos externos:** (1) Supabase → Auth → Providers → Google: activar con el Client ID/Secret; (2) Auth → «Allow manual linking» activo; (3) agregar `http://localhost:5173/` y el dominio a las URL de redirección de Supabase y a los orígenes/redirects del cliente OAuth de Google; (4) `supabase functions deploy google-calendar`.
+- **Pendiente del Hito 2:** edición bidireccional con precedencia/anti-bucles y webhooks push (notificaciones de Google) — la app hoy edita en Google solo lo que ella misma espejó.
+- Pruebas: `tests/proyectos-metodos.test.ts`, `tests/google-sync.test.ts`, `tests/google-oauth-state.test.ts`. SW → `pendientes-pro-v31`.
+
+### Añadido: Hito 1 (cierre) — vista Año, conflictos en edición y limpieza de Google (2026-10-25)
+
+- **Vista Año** en la agenda: 12 mini-meses con intensidad por número de elementos propios (pendientes con fecha + eventos); clic en un día abre el Día, clic en el mes abre el Mes. No descarga eventos de Google de todo el año.
+- **Conflictos** también al editar un evento y en el diálogo de pendiente (este último contra lo agendado en la app).
+- **Google:** eventos compartidos entre varias cuentas se muestran una sola vez (`deduplicarGoogle`, por iCalUID); los marcados «disponible» no generan conflicto; la Edge Function `google-calendar` ahora omite canceladas (`showDeleted=false` + `status`) y devuelve `uid`/`ocupado`. Las recurrencias ya se expanden (`singleEvents`).
+- **Paso externo:** redesplegar la función (`supabase functions deploy google-calendar`). Sin redesplegar, la app sigue funcionando (los campos nuevos son opcionales).
+- **No hecho (decisión):** separar scopes lectura/escritura. El scope actual `calendar.events` ya es el mínimo que permite escribir; ofrecer solo lectura exigiría un segundo flujo de consentimiento y reconectar cuentas. Se decide junto con el Hito 2.
+- Pruebas ampliadas en `tests/agenda-conflictos.test.ts`. SW → `pendientes-pro-v30`.
+
+### Añadido: Hito 1 (parte) — Google solo por decisión explícita + avisos de conflicto (2026-10-25)
+
+- **Cambio de comportamiento:** tener fecha/hora ya NO envía un pendiente a Google Calendar. `TaskModal` trae la casilla «Enviar a Google Calendar» (apagada por defecto); si un pendiente ya estaba espejado y la desmarcas, se retira de Google. En la agenda, los eventos nuevos tienen la misma casilla; mover/editar solo actualiza Google si el elemento ya estaba enviado. Lo ya espejado sigue funcionando igual.
+- **Conflictos:** `buscarConflictos` (`src/lib/agenda.ts`) compara intervalos reales en hora local con duración, límites exclusivos, ignora todo-el-día de Google, completados/archivados/borrados y al propio elemento. El diálogo de nuevo evento lista los cruces y ofrece «Crear de todos modos»; al arrastrar se avisa con «Deshacer».
+- **Fix:** `hoy`/`mañana`/`>+Nd` calculaban la fecha en UTC (en la tarde-noche de México daba el día siguiente); ahora usan la fecha local.
+- Pruebas: `tests/agenda-conflictos.test.ts`. SW → `pendientes-pro-v29`.
+- **Pendiente del Hito 1:** vista Año (resumen mensual), conflicto al editar un evento existente o desde `TaskModal`, deduplicación entre cuentas, eventos cancelados/recurrencias de Google, y separar scopes de lectura/escritura (requiere tocar la Edge Function y la consola de Google).
+
+### Añadido: completado de Hito 0 y Hito 5 (2026-10-25)
+
+- **Notas:** botón «Selección → pendientes» en la barra del editor: cada línea seleccionada (con o sin viñeta) crea un pendiente con `origenNota`; el texto de la nota no se modifica (sin duplicar contenido).
+- **Rocas:** cada actividad puede vincularse a un pendiente abierto existente (se muestra «↳ título») y ahora se puede editar su texto y solicitante.
+
+### Añadido: Hito 5 — Rocas con bitácora de actividades (2026-10-25)
+
+Para KPIs de periodo que piden evidencia (ej. «Ayudas generadas»): registra día a día lo que te piden y enseña el informe al cierre.
+
+- **Dónde:** pestaña «Rocas» dentro de Metas (`RocasView.tsx`). Crear roca con nombre, qué se cuenta (etiqueta libre, def. «Actividades»), objetivo opcional y periodo (def. trimestre actual, fechas editables).
+- **Bitácora:** campo «Hoy me pidieron…» + quién lo pidió + fecha; Enter registra. Agrupado por día, con contador, % del objetivo y borrado por actividad.
+- **Informe:** «Copiar informe» / «Descargar» (.md) con total, días con registro y detalle por día; solo cuenta lo que cae en el periodo.
+- **Modelo (aditivo):** `Roca` con `actividades: ActividadRoca[]` embebidas (`types.ts`); lógica pura en `src/lib/rocas.ts`. La bitácora es registro, no crea pendientes.
+- **Sync Supabase:** nueva tabla `pnp_ctx_rocas` (+RLS, realtime) en `supabase_setup.sql`; `sync.tsx` la sincroniza como contactos. `mergeRoca` une actividades por id entre dispositivos (con tombstones) para no perder registros. Si la tabla no existe o la lectura falla, nunca se borra nada local.
+- Pruebas: `tests/rocas.test.ts`. SW → `pendientes-pro-v27`.
+- **Paso externo:** ejecutar `supabase_setup.sql` en el proyecto de Supabase (idempotente).
+
+### Añadido: Hito 0 — captura universal nota/pendiente/evento (2026-10-25)
+
+El cuadro de captura rápida (`/`) ya no solo crea pendientes; sin cambiar de vista:
+
+- **Enter** → pendiente (sin cambios). **Shift+Enter** → nota (primera línea = título, el resto = cuerpo; el aviso ofrece «Abrir»). **Ctrl+Enter** → evento local; **Alt+Enter** → salto de línea (1.ª línea = título, resto = descripción) (aviso con «Ver agenda»).
+- Eventos: nuevo `src/lib/captura.ts` (`parsearEventoRapido`) reconoce `15:30`, `3pm`, `a las 9` y `por 2h`/`por 45min`; fecha con la sintaxis existente (`>mañana`, `hoy`, `>2026-11-02`). Sin fecha = hoy; sin hora = 08:00; duración por defecto 60 min.
+- El evento rápido se guarda solo local: NO se envía a Google Calendar (el selector explícito llega en el Hito 1).
+- Pista de atajos bajo el cuadro mientras se escribe. Sin cambios de modelo ni de `origenNota`.
+- Pruebas: `tests/captura.test.ts`. SW → `pendientes-pro-v26`.
+
+### Documentación: unificación del producto (2026-10-25)
+
+- Añadida `PRODUCT_UNIFICACION_PLAN.md` con el inventario de capacidades existentes, arquitectura objetivo, dependencias externas y secuencia de hitos para integrar captura, calendario, correo, proyectos, rocas y estudio.
+- Añadido `PROMPT_CONTINUACION_IA.md` para que otra IA continúe por hitos sin reescribir el modelo ni perder compatibilidad.
+- Contrastadas las decisiones de sincronización OAuth/Calendar y programación de correo con documentación primaria de Google y Supabase.
+
 Todos los cambios notables de **Pendientes Pro** se documentan aquí.
 El formato sigue [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el versionado
 [SemVer](https://semver.org/lang/es/). El cache del Service Worker (`public/sw.js`) se

@@ -257,6 +257,29 @@ export default function NotesView() {
     programarGuardado()
   }
 
+  /* Convertir la selección: cada línea seleccionada (con o sin viñeta) se vuelve un pendiente ligado
+     a esta nota (`origenNota`). El texto de la nota no se toca, así no se duplica contenido. */
+  function convertirSeleccion() {
+    const ed = editorRef.current
+    const sel = window.getSelection()
+    if (!ed || !nota || !sel || sel.isCollapsed || !ed.contains(sel.anchorNode)) { toast.info('Selecciona primero el texto que quieres convertir en pendientes'); return }
+    const lineas = sel.toString().split(/\r?\n/).map(l => l.trim()).filter(Boolean)
+    let creados = 0
+    for (const linea of lineas) {
+      const parsed = parsearLinea(linea)
+      if (!parsed) continue
+      const prioridad = parsed.prioridad || 'Media'
+      crearPendiente({
+        titulo: parsed.titulo, descripcion: parsed.descripcion, responsable: parsed.responsable, prioridad,
+        fechaLimite: parsed.fechaLimite || fechaPorPrioridad(prioridad), repetir: parsed.repetir,
+        origenNota: { notaId: notaActualId! },
+      })
+      creados++
+    }
+    if (creados) toast.success(creados === 1 ? 'Pendiente creado desde la selección' : `${creados} pendientes creados desde la selección`)
+    else toast.info('No se encontró texto para convertir')
+  }
+
   /* Extraer viñetas: pendientes para «- » de nivel superior y subtareas para las indentadas.
      Reconoce tareas ya convertidas (.nota-task) como el pendiente «actual» para anidar debajo. */
   function extraerTodas() {
@@ -524,6 +547,9 @@ export default function NotesView() {
               <Button size="sm" variant="secondary" className="h-7 text-xs" onClick={insertarImagenBtn} title="Insertar imagen"><ImageIcon size={13} /></Button>
               <Button size="sm" variant="secondary" className="h-7 text-xs" onClick={extraerTodas} title="Convertir viñetas en pendientes">
                 <ListChecks size={13} className="mr-1" /> Extraer viñetas
+              </Button>
+              <Button size="sm" variant="secondary" className="h-7 text-xs" onMouseDown={e => e.preventDefault()} onClick={convertirSeleccion} title="Convertir el texto seleccionado en pendientes (uno por línea)">
+                <ListChecks size={13} className="mr-1" /> Selección → pendientes
               </Button>
               <span className="ml-auto hidden text-[10px] text-muted-foreground md:inline">Ctrl+Enter guarda · Ctrl+Shift+A archiva</span>
             </div>

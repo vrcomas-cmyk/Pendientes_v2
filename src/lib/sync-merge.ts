@@ -176,3 +176,14 @@ export function reconciliar<T extends ItemBase>(
   }
   return { resultado, nextLast, conflictos }
 }
+
+/** Auto-reparación cuando `ausenciasSospechosas` salta: «olvida» (borra de `mapa`) la marca de ya
+    sincronizado de cada elemento local que la nube no devolvió, para que el siguiente `flush()` los
+    vuelva a subir (upsert idempotente). Devuelve los ids restaurados. Nunca toca los datos locales. */
+export function olvidarAusentes(local: { id: string }[], remoteIds: Set<string>, mapa: MapaSync): string[] {
+  const ids: string[] = []
+  for (const it of local) {
+    if (mapa[it.id] !== undefined && !remoteIds.has(it.id)) { delete mapa[it.id]; ids.push(it.id) }
+  }
+  return ids
+}

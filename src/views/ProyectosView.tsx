@@ -16,7 +16,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuSub, ContextMenuSubTrigger, ContextMenuSubContent } from '@/components/ui/context-menu'
 import { useIsMobile } from '@/hooks/use-is-mobile'
-import { Plus, Briefcase, ChevronLeft, List, Columns3, Trash2, Upload } from 'lucide-react'
+import { Plus, Briefcase, ChevronLeft, List, Columns3, Trash2, Upload, Timer, BarChartHorizontal, Settings } from 'lucide-react'
+import { ScrumProyecto, GanttProyecto, AjustesProyectoDialog } from '@/components/MetodoProyecto'
+import { estancamiento } from '@/lib/proyectos'
 
 function NuevoProyectoDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const { crearProyecto, actualizarProyecto } = useApp()
@@ -112,7 +114,7 @@ export default function ProyectosView() {
   const { espacioActualId, proyectoAbiertoId: proyectoSelId, setProyectoAbiertoId: setProyectoSelId, abrirModal } = useUI()
   const idCompletado = idColumnaCompletado(columnas)
   const isMobile = useIsMobile()
-  const [modo, setModo] = useState<'tablero' | 'lista'>('tablero')
+  const [ajustesDlg, setAjustesDlg] = useState(false)
   const [mostrarArchivados, setMostrarArchivados] = useState(false)
   const [nuevoDlg, setNuevoDlg] = useState(false)
   const [importarDlg, setImportarDlg] = useState(false)
@@ -123,6 +125,10 @@ export default function ProyectosView() {
   const proyectos = todosProyectos.filter(p => enEspacioProyecto(p, espacioActualId))
 
   const proyecto = proyectos.find(p => p.id === proyectoSelId) || null
+  // El método (tablero/lista/scrum/gantt) es una perspectiva guardada en el proyecto, sobre los mismos pendientes.
+  const modo = proyecto?.metodo ?? 'tablero'
+  const setModo = (m: NonNullable<typeof modo>) => { if (proyecto) actualizarProyecto(proyecto.id, { metodo: m }) }
+  const estanc = proyecto ? estancamiento(proyecto, pendientes, idCompletado) : null
 
   const panelLista = (
     <Card className="flex h-full flex-col overflow-hidden">
@@ -144,6 +150,7 @@ export default function ProyectosView() {
                   <span className={'h-2.5 w-2.5 shrink-0 rounded-full ' + colores.dot} />
                   <span className="min-w-0 flex-1 truncate text-sm font-semibold">{p.nombre}</span>
                   {espacio && <span className="shrink-0 text-xs" title={espacio.nombre}>{espacio.icono}</span>}
+                  {estancamiento(p, pendientes, idCompletado).estancado && <span className="shrink-0 text-xs" title="Sin actividad reciente" aria-label="Estancado">⏳</span>}
                   <span className="shrink-0 text-[10px] text-muted-foreground">{abiertos} abiertos</span>
                 </div>
               </ContextMenuTrigger>
@@ -202,8 +209,11 @@ export default function ProyectosView() {
             </Button>
             <div className="flex shrink-0 items-center gap-1 rounded-lg border p-0.5">
               <button onClick={() => setModo('tablero')} className={'rounded-md p-1.5 ' + (modo === 'tablero' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground')}><Columns3 size={14} /></button>
-              <button onClick={() => setModo('lista')} className={'rounded-md p-1.5 ' + (modo === 'lista' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground')}><List size={14} /></button>
+              <button onClick={() => setModo('lista')} title="Lista" className={'rounded-md p-1.5 ' + (modo === 'lista' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground')}><List size={14} /></button>
+              <button onClick={() => setModo('scrum')} title="Scrum (sprint y backlog)" aria-label="Scrum" className={'rounded-md p-1.5 ' + (modo === 'scrum' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground')}><Timer size={14} /></button>
+              <button onClick={() => setModo('gantt')} title="Gantt (cronograma)" aria-label="Gantt" className={'rounded-md p-1.5 ' + (modo === 'gantt' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground')}><BarChartHorizontal size={14} /></button>
             </div>
+            <button onClick={() => setAjustesDlg(true)} title="Ajustes del proyecto (sprint, estancamiento)" aria-label="Ajustes del proyecto" className="shrink-0 px-1 text-muted-foreground hover:text-foreground"><Settings size={15} /></button>
             <button onClick={() => setMostrarArchivados(v => !v)} title="Mostrar/ocultar archivados en este proyecto"
               className={'shrink-0 rounded-md border px-2 py-1 text-[11px] ' + (mostrarArchivados ? 'border-primary/40 bg-primary/10 text-primary' : 'text-muted-foreground')}>
               🗄 {!isMobile && 'Archivados'}
@@ -214,11 +224,19 @@ export default function ProyectosView() {
             <button onClick={() => setEliminarId(proyecto.id)} title="Eliminar proyecto"
               className="shrink-0 px-1 text-muted-foreground hover:text-destructive"><Trash2 size={15} /></button>
           </div>
+          {estanc?.estancado && (
+            <div role="status" className="mx-2 mt-2 flex items-center justify-between gap-2 rounded-lg border border-amber-500/50 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-700 dark:text-amber-300">
+              <span>⏳ Sin actividad hace {estanc.diasSinActividad} días y con {estanc.abiertos} pendiente(s) abierto(s).</span>
+              <button className="shrink-0 underline" onClick={() => setAjustesDlg(true)}>Pausar / ajustar aviso</button>
+            </div>
+          )}
           <div className="min-h-0 flex-1 p-2">
-            {modo === 'tablero'
-              ? <TableroProyecto proyectoId={proyecto.id} mostrarArchivados={mostrarArchivados} />
-              : <ListaProyecto proyectoId={proyecto.id} mostrarArchivados={mostrarArchivados} />}
+            {modo === 'lista' ? <ListaProyecto proyectoId={proyecto.id} mostrarArchivados={mostrarArchivados} />
+              : modo === 'scrum' ? <ScrumProyecto proyecto={proyecto} mostrarArchivados={mostrarArchivados} onConfigurar={() => setAjustesDlg(true)} />
+              : modo === 'gantt' ? <GanttProyecto proyecto={proyecto} mostrarArchivados={mostrarArchivados} />
+              : <TableroProyecto proyectoId={proyecto.id} mostrarArchivados={mostrarArchivados} />}
           </div>
+          <AjustesProyectoDialog proyecto={proyecto} open={ajustesDlg} onOpenChange={setAjustesDlg} />
           <ImportarPlanDialog open={importarDlg} onOpenChange={setImportarDlg} proyectoId={proyecto.id} />
         </>
       )}

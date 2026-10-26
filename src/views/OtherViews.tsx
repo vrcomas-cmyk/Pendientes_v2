@@ -1,18 +1,17 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useApp } from '@/store'
 import { useUI } from '@/ui-store'
-import { useSync } from '@/sync'
-import type { EventoCalendario, Pendiente } from '@/types'
+import { useEventosGoogle } from '@/hooks/use-eventos-google'
+import type { Pendiente } from '@/types'
 import { PROYECTO_COLORES, PROYECTO_COLORES_KEYS } from '@/types'
 import { hoyISO, isoMasDias, isoSumarDias, vencido, activo, enEspacio, actividadPorDia, rachaDiaria, medianaTiempoVida, throughputSemanal, nombreDiaSemana } from '@/lib/app-utils'
 import { idColumnaCompletado } from '@/lib/columnas'
-import { listarEventosDia, type EventoGCal } from '@/lib/googleCalendar'
-import { sinDuplicarLocal } from '@/lib/agenda'
+import { agruparAgenda, esHoraPorDefecto, type ItemAgenda } from '@/lib/agenda'
 import TaskRow from '@/components/TaskRow'
 import ProgressRing from '@/components/ProgressRing'
 import KanbanDnd from '@/components/KanbanDnd'
 import { Card } from '@/components/ui/card'
-import { ChevronDown, StickyNote, X, Clock, AlertTriangle, CalendarCheck, CalendarDays, Inbox, History, Briefcase, CalendarClock } from 'lucide-react'
+import { ChevronDown, StickyNote, X, AlertTriangle, CalendarCheck, CalendarDays, Inbox, History, Briefcase } from 'lucide-react'
 
 /* ============ HOY ============ */
 /** Encabezado de sección consistente en toda la vista Hoy: icono vectorial (no emoji),
@@ -30,13 +29,48 @@ function EncabezadoSeccion({ icono, titulo, cantidad, tono }: { icono: React.Rea
   )
 }
 
-function Seccion({ titulo, color, icono, items, vacio }: { titulo: string; color: string; icono?: React.ReactNode; items: Pendiente[]; vacio: string }) {
+/** Evento (de la app o de Google) que se muestra DENTRO de una sección junto a los pendientes. */
+interface ExtraAgenda { fecha: string; item: ItemAgenda }
+
+function FilaEvento({ extra, conFecha }: { extra: ExtraAgenda; conFecha: boolean }) {
+  const { item } = extra
+  return (
+    <div className="flex items-center gap-2 rounded-xl border border-dashed bg-card/60 px-3 py-2 text-xs">
+      <span className="w-14 shrink-0 text-[10px] font-medium tabular-nums text-muted-foreground">{item.todoElDia ? 'todo el día' : item.hora}</span>
+      <span className={'h-1.5 w-1.5 shrink-0 rounded-full ' + (item.k === 'e' ? 'bg-accent2' : 'bg-muted-foreground')} />
+      <span className="min-w-0 flex-1 truncate font-medium">{item.k === 'g' ? '🔒 ' : ''}{item.titulo}</span>
+      {conFecha && <span className="shrink-0 rounded-full bg-muted px-1.5 text-[10px] text-muted-foreground">{etiquetaDia(extra.fecha)}</span>}
+      <span className="hidden shrink-0 truncate text-[10px] text-muted-foreground sm:inline sm:max-w-[9rem]">{item.origen}{item.min ? ` · ${item.min} min` : ''}</span>
+      {item.choca && <AlertTriangle size={12} className="shrink-0 text-amber-500" aria-label="Se cruza con otro elemento" />}
+    </div>
+  )
+}
+
+/** Sección de Hoy: pendientes y, mezclados por fecha/hora, los eventos de la app y de Google Calendar
+    de ese mismo rango — todo en el mismo lugar en vez de franjas aparte. */
+function Seccion({ titulo, color, icono, items, vacio, extras = [], conFecha = false, nota }: {
+  titulo: string; color: string; icono?: React.ReactNode; items: Pendiente[]; vacio: string
+  extras?: ExtraAgenda[]; conFecha?: boolean; nota?: string
+}) {
+  const filas = useMemo(() => {
+    type Fila = { clave: string; orden: string; nodo: React.ReactNode }
+    const f: Fila[] = []
+    for (const p of items) {
+      const hora = p.hora && !esHoraPorDefecto(p.hora, p.duracionMin) ? p.hora : '99:99' // sin hora real → después de lo que sí la tiene
+      f.push({ clave: 'p' + p.id, orden: `${p.fechaLimite || '9999-99-99'}|${hora}|1`, nodo: <TaskRow p={p} /> })
+    }
+    for (const x of extras) {
+      f.push({ clave: 'x' + x.item.k + x.item.id + x.fecha, orden: `${x.fecha}|${x.item.todoElDia ? '' : x.item.hora}|0`, nodo: <FilaEvento extra={x} conFecha={conFecha} /> })
+    }
+    return f.sort((a, b) => a.orden.localeCompare(b.orden))
+  }, [items, extras, conFecha])
   return (
     <div>
-      <EncabezadoSeccion icono={icono ?? <ChevronDown size={15} />} titulo={titulo} cantidad={items.length} tono={color} />
+      <EncabezadoSeccion icono={icono ?? <ChevronDown size={15} />} titulo={titulo} cantidad={items.length + extras.length} tono={color} />
       <div className="space-y-1.5">
-        {items.map(p => <TaskRow key={p.id} p={p} />)}
-        {!items.length && <p className="text-xs text-muted-foreground">{vacio}</p>}
+        {filas.map(f => <div key={f.clave}>{f.nodo}</div>)}
+        {!filas.length && <p className="text-xs text-muted-foreground">{vacio}</p>}
+        {nota && <p className="text-[10px] text-muted-foreground">{nota}</p>}
       </div>
     </div>
   )
@@ -191,75 +225,6 @@ function NotasRecientes() {
   )
 }
 
-/** Eventos de HOY que viven directo en Google Calendar y no fueron creados desde la app (ya
-    espejados como pendiente/evento local se excluyen vía `sinDuplicarLocal`, igual que en
-    `CalendarioView`). Se resuelve sus propios datos — no requiere props ni tocar `TodayView`
-    salvo por montarlo, mismo idioma que `ResumenProyectos`/`NotasRecientes`. */
-function AgendaGoogleHoy() {
-  const { pendientes, eventos } = useApp()
-  const { modoLocal } = useSync()
-  const [eventosGoogle, setEventosGoogle] = useState<EventoGCal[]>([])
-
-  useEffect(() => {
-    if (modoLocal) { Promise.resolve().then(() => setEventosGoogle([])); return }
-    let vivo = true
-    listarEventosDia(hoyISO()).then(r => { if (vivo) setEventosGoogle(r.eventos) }).catch(() => { if (vivo) setEventosGoogle([]) })
-    return () => { vivo = false }
-  }, [modoLocal])
-
-  const visibles = useMemo(() => sinDuplicarLocal(eventosGoogle, pendientes, eventos), [eventosGoogle, pendientes, eventos])
-  if (!visibles.length) return null
-  return (
-    <Card className="p-3">
-      <h3 className="mb-2 flex items-center gap-1.5 text-display-sm"><CalendarClock size={15} className="text-primary" /> De Google Calendar hoy</h3>
-      <div className="space-y-1">
-        {visibles.map(ev => (
-          <div key={ev.cuentaId + '/' + ev.id} className="flex items-center gap-1.5 rounded-lg bg-muted px-2 py-1 text-xs text-muted-foreground">
-            🔒 {ev.titulo}{ev.inicio && !ev.todoElDia && <span className="ml-auto shrink-0">{new Date(ev.inicio).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>}
-          </div>
-        ))}
-      </div>
-    </Card>
-  )
-}
-
-/** Timeline cronológica única de hoy: mezcla pendientes con hora asignada + eventos de
-    calendario, ordenados por hora — el "todo mezclado cronológicamente" de Cambios.md.
-    Los pendientes sin hora siguen viviendo en la sección "Para hoy" de abajo (no se
-    duplican aquí): esta franja es un complemento, no un reemplazo de esa sección. */
-function TimelineHoy({ pendientesHoy }: { pendientesHoy: Pendiente[] }) {
-  const { eventos } = useApp()
-  const h = hoyISO()
-  type Item = { hora: string; key: string } & ({ tipo: 'pendiente'; p: Pendiente } | { tipo: 'evento'; e: EventoCalendario })
-  const items = useMemo<Item[]>(() => {
-    const dePendientes: Item[] = pendientesHoy.filter(p => p.hora).map(p => ({ tipo: 'pendiente', p, hora: p.hora!, key: 'p-' + p.id }))
-    const deEventos: Item[] = eventos.filter(e => !e.borrado && e.fecha === h).map(e => ({ tipo: 'evento', e, hora: e.hora, key: 'e-' + e.id }))
-    return [...dePendientes, ...deEventos].sort((a, b) => a.hora.localeCompare(b.hora))
-  }, [pendientesHoy, eventos, h])
-
-  if (!items.length) return null
-  return (
-    <div className="glass rounded-2xl p-4">
-      <EncabezadoSeccion icono={<Clock size={15} />} titulo="Cronología de hoy" />
-      <div className="space-y-1.5">
-        {items.map(item => item.tipo === 'pendiente' ? (
-          <div key={item.key} className="flex items-start gap-2">
-            <span className="mt-2 w-11 shrink-0 text-right text-[10px] font-medium text-muted-foreground">{item.hora}</span>
-            <div className="min-w-0 flex-1"><TaskRow p={item.p} /></div>
-          </div>
-        ) : (
-          <div key={item.key} className="flex items-center gap-2 rounded-lg px-1 py-1.5">
-            <span className="w-11 shrink-0 text-right text-[10px] font-medium text-muted-foreground">{item.hora}</span>
-            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent2" />
-            <span className="min-w-0 flex-1 truncate text-xs font-medium">{item.e.titulo}</span>
-            {item.e.duracionMin > 0 && <span className="shrink-0 text-[10px] text-muted-foreground">{item.e.duracionMin} min</span>}
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
 export function TodayView() {
   const { pendientes: todosPendientes, columnas, proyectos } = useApp()
   const { espacioActualId } = useUI()
@@ -292,6 +257,21 @@ export function TodayView() {
 
   const deDiaSel = diaSel ? pendientes.filter(p => p.fechaLimite === diaSel) : []
 
+  // Eventos de la app y de Google Calendar de hoy + próximos 7 días: se acoplan a «Para hoy» y «Próximos 7 días».
+  const { eventos } = useApp()
+  const diasAgenda = useMemo(() => Array.from({ length: 8 }, (_, i) => isoSumarDias(h, i)), [h])
+  const desdeISO = useMemo(() => new Date(diasAgenda[0] + 'T00:00:00').toISOString(), [diasAgenda])
+  const hastaISO = useMemo(() => new Date(diasAgenda[diasAgenda.length - 1] + 'T23:59:59').toISOString(), [diasAgenda])
+  const { eventos: google, cargando: cargandoGoogle, error: errorGoogle } = useEventosGoogle(desdeISO, hastaISO)
+  const propios = useMemo(() => eventos.filter(e => !e.borrado), [eventos])
+  const extras = useMemo(() => {
+    const grupos = agruparAgenda(diasAgenda, { pendientes, eventos: propios, google, idCompletado })
+    return grupos.flatMap(g => g.items.filter(i => i.k !== 'p').map(item => ({ fecha: g.fecha, item })))
+  }, [diasAgenda, pendientes, propios, google, idCompletado])
+  const extrasHoy = useMemo(() => extras.filter(x => x.fecha === h), [extras, h])
+  const extrasProximos = useMemo(() => extras.filter(x => x.fecha > h), [extras, h])
+  const notaGoogle = errorGoogle ? 'No se pudo actualizar Google Calendar; sus eventos pueden estar desactualizados.' : cargandoGoogle ? 'Cargando Google Calendar…' : undefined
+
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       {/* Hero */}
@@ -323,16 +303,14 @@ export function TodayView() {
         </Card>
       )}
 
-      <TimelineHoy pendientesHoy={hoy} />
 
       <ResumenProyectos />
       <NotasRecientes />
-      <AgendaGoogleHoy />
 
       <div className="space-y-5">
         <Seccion titulo="Vencidos" color="text-destructive" icono={<AlertTriangle size={15} />} items={venc} vacio="Nada vencido 🎉" />
-        <Seccion titulo="Para hoy" color="text-amber-600" icono={<CalendarCheck size={15} />} items={hoy} vacio="Nada para hoy." />
-        <Seccion titulo="Próximos 7 días" color="text-primary" icono={<CalendarDays size={15} />} items={proximos} vacio="Nada agendado esta semana." />
+        <Seccion titulo="Para hoy" color="text-amber-600" icono={<CalendarCheck size={15} />} items={hoy} vacio="Nada para hoy." extras={extrasHoy} nota={notaGoogle} />
+        <Seccion titulo="Próximos 7 días" color="text-primary" icono={<CalendarDays size={15} />} items={proximos} vacio="Nada agendado esta semana." extras={extrasProximos} conFecha />
         <Seccion titulo="Sin fecha / Bandeja" color="text-muted-foreground" icono={<Inbox size={15} />} items={inbox} vacio="Bandeja vacía." />
         <Registro items={registro} />
       </div>
