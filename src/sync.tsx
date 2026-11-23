@@ -240,7 +240,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 
   /* ---- realtime + red de seguridad periódica ---- */
   useEffect(() => {
-    if (!session) return
+    if (!session || !espacioId) return
     const sb = getSupabase()
     if (!sb) return
     const onRemote = () => {
@@ -250,15 +250,18 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     }
     // Cada pull baja las tablas completas: se agrupan ráfagas (2 s), el respaldo periódico es
     // de 5 min y una pestaña oculta suelta su canal realtime (se reabre al volver a verse).
+    // Solo los cambios de MI espacio (sin filtro, cada cambio de cualquier espacio se evaluaba contra RLS por cada suscriptor). Con filtro Realtime no
+    // entrega DELETE: un borrado remoto se refleja en el pull periódico de 5 min o al volver a la pestaña.
+    const filtroEsp = `espacio_id=eq.${espacioId}`
     const abrirCanal = () => sb.channel('rt-pnp')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'pnp_pendientes' }, onRemote)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'pnp_notas' }, onRemote)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'pnp_proyectos' }, onRemote)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'pnp_eventos' }, onRemote)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'pnp_ctx_espacios' }, onRemote)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'pnp_ctx_contactos' }, onRemote)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'pnp_ctx_rocas' }, onRemote)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pnp_espacios' }, () => { recargarColumnas() })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pnp_pendientes', filter: filtroEsp }, onRemote)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pnp_notas', filter: filtroEsp }, onRemote)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pnp_proyectos', filter: filtroEsp }, onRemote)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pnp_eventos', filter: filtroEsp }, onRemote)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pnp_ctx_espacios', filter: filtroEsp }, onRemote)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pnp_ctx_contactos', filter: filtroEsp }, onRemote)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pnp_ctx_rocas', filter: filtroEsp }, onRemote)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pnp_espacios', filter: `id=eq.${espacioId}` }, () => { recargarColumnas() })
       .subscribe()
     let ch: ReturnType<typeof abrirCanal> | null = document.visibilityState === 'visible' ? abrirCanal() : null
     const intervalo = setInterval(() => { if (navigator.onLine && document.visibilityState === 'visible') sincronizar() }, 5 * 60_000)
@@ -273,7 +276,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     }
     document.addEventListener('visibilitychange', onVis)
     return () => { if (ch) sb.removeChannel(ch); clearInterval(intervalo); document.removeEventListener('visibilitychange', onVis) }
-  }, [session]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [session, espacioId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function recalcularPendientes() {
     const L = last.current
