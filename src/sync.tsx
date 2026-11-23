@@ -108,6 +108,11 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   const last = useRef<UltimoSync>(vacio())
   const sincronizando = useRef(false)
   const sincPendiente = useRef(false)
+  // Espera creciente tras fallos: con el servidor saturado, relanzar de inmediato solo lo agrava.
+  const falloCiclo = useRef(false)
+  const fallosSeguidos = useRef(0)
+  const noAntesDe = useRef(0)
+  const reintentoTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const silenciar = useRef(0)
   // id -> timestamp de la última subida a la nube. Protege contra el
   // read-after-write lag: si leemos la nube justo después de crear/subir un
@@ -241,9 +246,11 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     const onRemote = () => {
       if (Date.now() < silenciar.current) return
       clearTimeout(rtTimer.current)
-      rtTimer.current = setTimeout(() => sincronizar(), 700)
+      rtTimer.current = setTimeout(() => sincronizar(), 2000)
     }
-    const ch = sb.channel('rt-pnp')
+    // Cada pull baja las tablas completas: se agrupan ráfagas (2 s), el respaldo periódico es
+    // de 5 min y una pestaña oculta suelta su canal realtime (se reabre al volver a verse).
+    const abrirCanal = () => sb.channel('rt-pnp')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'pnp_pendientes' }, onRemote)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'pnp_notas' }, onRemote)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'pnp_proyectos' }, onRemote)
@@ -253,10 +260,19 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'pnp_ctx_rocas' }, onRemote)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pnp_espacios' }, () => { recargarColumnas() })
       .subscribe()
-    const intervalo = setInterval(() => { if (navigator.onLine) sincronizar() }, 60000)
-    const onVis = () => { if (document.visibilityState === 'visible' && session) sincronizar() }
+    let ch: ReturnType<typeof abrirCanal> | null = document.visibilityState === 'visible' ? abrirCanal() : null
+    const intervalo = setInterval(() => { if (navigator.onLine && document.visibilityState === 'visible') sincronizar() }, 5 * 60_000)
+    const onVis = () => {
+      if (document.visibilityState === 'visible') {
+        if (!ch) ch = abrirCanal()
+        if (session) sincronizar()
+      } else if (ch) {
+        sb.removeChannel(ch)
+        ch = null
+      }
+    }
     document.addEventListener('visibilitychange', onVis)
-    return () => { sb.removeChannel(ch); clearInterval(intervalo); document.removeEventListener('visibilitychange', onVis) }
+    return () => { if (ch) sb.removeChannel(ch); clearInterval(intervalo); document.removeEventListener('visibilitychange', onVis) }
   }, [session]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function recalcularPendientes() {
@@ -361,6 +377,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       setEstado('sincronizado')
       recalcularPendientes()
     } catch {
+      falloCiclo.current = true
       setEstado(navigator.onLine ? 'error' : 'offline')
     }
   }
@@ -510,6 +527,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       if (conf > 0) toast.info(`Se combinaron cambios de otro dispositivo en ${conf} elemento(s)`)
       recalcularPendientes()
     } catch {
+      falloCiclo.current = true
       setEstado(navigator.onLine ? 'error' : 'offline')
     }
   }
@@ -517,11 +535,28 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   async function sincronizar() {
     // Serializa TODO: pull y flush nunca se traslapan (evita borrar lo recién creado por una lectura a destiempo)
     if (sincronizando.current) { sincPendiente.current = true; return }
+    // Tras un fallo no se reintenta antes de tiempo: se deja un solo reintento programado para cuando venza la espera.
+    const faltan = noAntesDe.current - Date.now()
+    if (faltan > 0) {
+      if (!reintentoTimer.current) reintentoTimer.current = setTimeout(() => { reintentoTimer.current = null; sincronizar() }, faltan + 50)
+      return
+    }
     sincronizando.current = true
+    falloCiclo.current = false
     try { await pull(); await flush() }
     finally {
       sincronizando.current = false
-      if (sincPendiente.current) { sincPendiente.current = false; sincronizar() }
+      if (falloCiclo.current) {
+        fallosSeguidos.current += 1
+        const espera = Math.min(30_000 * 2 ** (fallosSeguidos.current - 1), 5 * 60_000) * (0.8 + Math.random() * 0.4)
+        noAntesDe.current = Date.now() + espera
+        sincPendiente.current = false
+        if (!reintentoTimer.current) reintentoTimer.current = setTimeout(() => { reintentoTimer.current = null; sincronizar() }, espera + 50)
+      } else {
+        fallosSeguidos.current = 0
+        noAntesDe.current = 0
+        if (sincPendiente.current) { sincPendiente.current = false; sincronizar() }
+      }
     }
   }
 

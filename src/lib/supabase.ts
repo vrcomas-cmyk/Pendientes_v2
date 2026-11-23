@@ -36,6 +36,21 @@ export function saveConfig(url: string, anon: string) {
   _client = null
 }
 
+// Sin tope, un servidor que no contesta (522, instancia saturada) dejaba el fetch colgado para siempre:
+// `sincronizar()` nunca liberaba su candado y el indicador se quedaba en «Sincronizando» hasta recargar.
+// Con tope la petición falla, el sync pasa a 'error' y el siguiente ciclo (60 s) reintenta solo.
+const TIMEOUT_RED_MS = 25000
+const fetchConTope: typeof fetch = (input, init) => {
+  const ctl = new AbortController()
+  const timer = setTimeout(() => ctl.abort(), TIMEOUT_RED_MS)
+  const externo = init?.signal
+  if (externo) {
+    if (externo.aborted) ctl.abort()
+    else externo.addEventListener('abort', () => ctl.abort(), { once: true })
+  }
+  return fetch(input, { ...init, signal: ctl.signal }).finally(() => clearTimeout(timer))
+}
+
 let _client: SupabaseClient | null = null
 export function getSupabase(): SupabaseClient | null {
   if (!isConfigured()) return null
@@ -43,6 +58,7 @@ export function getSupabase(): SupabaseClient | null {
     const { url, anon } = getConfig()
     _client = createClient(url, anon, {
       auth: { persistSession: true, autoRefreshToken: true },
+      global: { fetch: fetchConTope },
     })
   }
   return _client
